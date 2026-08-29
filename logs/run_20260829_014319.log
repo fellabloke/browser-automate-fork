@@ -1,0 +1,54 @@
+01:43:20 │ INFO    │ run_v16 │ 🧠 True Brain v16.0 — LangGraph Architecture
+01:43:20 │ INFO    │ run_v16 │ Objective: search attapoll
+01:43:21 │ INFO    │ virtual_display │ 🖥️ Using existing display :0 — browser runs HEADED
+01:43:21 │ INFO    │ brain_graph │ 🌐 Browser mode: HEADED (stealth)
+01:43:21 │ INFO    │ advanced_agent │ Profile marked clean-exit (crash-restore bubble suppressed)
+01:43:22 │ INFO    │ advanced_agent │ Launching Playwright Chromium (native profile: /home/fellabloke/Attapoll/Agent-first-ide/persistence/browser_sessions/agent_main)
+01:43:22 │ INFO    │ advanced_agent │ Session viewport: 1440x1080
+01:43:22 │ INFO    │ advanced_agent │ SessionGuard: signal + atexit handlers installed
+01:43:22 │ INFO    │ advanced_agent │ SessionGuard: attached to browser context
+01:43:22 │ INFO    │ browser_warmup │ 🔥 Starting human warm-up routine...
+01:43:22 │ INFO    │ browser_warmup │   [1/7] Homepage warm-up → https://www.google.com/search?q=weather
+01:43:23 │ INFO    │ browser_warmup │   [2/7] Reading delay: 3.4s
+01:43:26 │ INFO    │ browser_warmup │   [3/7] Idle scroll simulation
+01:43:26 │ INFO    │ browser_warmup │   [4/7] Mouse wiggle (generating telemetry)
+01:43:26 │ INFO    │ browser_warmup │   [5/7] Refresh jitter
+01:43:28 │ INFO    │ browser_warmup │   [6/7] No target URL provided — skipping domain priming
+01:43:28 │ INFO    │ browser_warmup │   [7/7] Final warm-up wait (networkidle + JS settle)
+01:43:29 │ INFO    │ browser_warmup │ 🔥 Warm-up complete. Browser is hot and ready.
+01:43:38 │ INFO    │ brain_graph │ LLM Failover Chain (8 models): groq:openai/gpt-oss-120b:0 → groq:openai/gpt-oss-120b:1 → nvidia-text:openai/gpt-oss-20b:0 → nvidia-text:openai/gpt-oss-120b:0 → nvidia-text:openai/gpt-oss-20b:1 → nvidia-text:openai/gpt-oss-120b:1 → gemini-text:gemma-4-31b-it:0 → gemini-text:gemma-4-31b-it:1
+01:43:38 │ INFO    │ brain_graph │ 🎯 [free mode] Worker chain (8 top models): groq:openai/gpt-oss-120b:0 → groq:openai/gpt-oss-120b:1 → nvidia-text:openai/gpt-oss-20b:0 → nvidia-text:openai/gpt-oss-120b:0 → nvidia-text:openai/gpt-oss-20b:1 → nvidia-text:openai/gpt-oss-120b:1 → gemini-text:gemma-4-31b-it:0 → gemini-text:gemma-4-31b-it:1
+01:43:38 │ INFO    │ brain_graph │ 🧬 V29 Cognitive Overhaul ACTIVE — V29_REALITY, V29_REALITY_LLM, V29_CLARITY_CONSENSUS, V29_TARGET_LOCK, V29_INTENT_JOURNAL, V29_SUBGOAL_LOCK, V29_STAGNATION, V29_SMART_SCROLL, V29_PAGE_CONTEXT, V29_ADAPTIVE_PERCEPTION, V29_STRICT_VIEWPORT, V29_DIFFING, V29_HYBRID_PRIMITIVES, V29_WEBDREAMER, V29_WEBDREAMER_SITUATIONAL
+01:43:38 │ INFO    │ brain_graph │ 👁️ Vision chain ready for on-demand consults (5 models): gemini-vision:gemini-3.5-flash:0 → gemini-vision:gemini-3.5-flash:1 → nvidia-vision:meta/llama-3.2-11b-vision-instruct:0 → nvidia-vision:meta/llama-3.2-11b-vision-instruct:1 → nvidia-vision:meta/llama-3.2-11b-vision-instruct:2
+01:43:38 │ INFO    │ brain_graph │ 🧠 CriticV12 initialized
+01:43:38 │ INFO    │ brain_graph │ 🌙 WebDreamer initialized
+01:43:38 │ INFO    │ brain_graph │ 📊 PRMCritic initialized
+01:43:38 │ INFO    │ brain_graph │ ⚖️ Outcome judge wired into the done-gate
+01:43:38 │ INFO    │ skill_memory │ SkillMemory: database initialized at /home/fellabloke/Attapoll/Agent-first-ide/persistence/skills.db
+01:43:38 │ INFO    │ brain_graph │ 🧠 SkillMemory: 1 workflows, 0 reliable
+01:43:38 │ INFO    │ brain_graph │ 🧠 Brain Graph compiled with 14 nodes, checkpointer=AsyncSqliteSaver
+01:43:38 │ INFO    │ brain_graph │ 🎯 Goal compiled: search attapoll
+01:43:38 │ INFO    │ brain_graph │ 🌐 Target domain: (none)
+01:43:39 │ INFO    │ brain_graph │ 🧭 Strategy: Navigate to a public search engine, enter the term "attapoll" into the search field, submit the query, and confirm the results page displays matches for that te
+01:43:39 │ INFO    │ brain_graph │ 🏁 Done when: The search results page shows listings that contain the keyword "attapoll" (e.g., the query term is highlighted in the r
+01:43:40 │ INFO    │ prm_critic │ 📋 PRM Checklist (5 items by groq:openai/gpt-oss-120b:1): Navigate to the Google homepage(w=0.5) → Enter "attapoll" into the search in(w=1.0) → Submit the search query(w=1.0) → Wait for the search results page to(w=1.0) → Verify that the results page displa(w=2.0)
+01:43:40 │ INFO    │ brain_graph │ 📋 PRM Checklist (5 items) generated
+01:43:40 │ INFO    │ skill_memory │ 🧠 SkillMemory: Retrieved 1 relevant workflows for 'search attapoll': 'navigate_to_attapoll_attapoll' (100%)
+01:43:40 │ INFO    │ brain_graph │ 🧠 SkillMemory: 1 workflows injected
+01:43:40 │ INFO    │ brain_graph │ 📋 Plan (3 steps): Navigate to https://www.google.com → Type "attapoll" into the search input fi → Verify that the results page displays th
+01:43:40 │ INFO    │ brain_graph │ ━━━ Step 1/25 ━━━
+01:43:40 │ INFO    │ brain_graph │ URL: https://www.google.com/sorry/index?continue=https://www.google.com/search%3Fq%3Dweather%26sei%3DKiuSatvQPILy7M8PseSU2As&q=EgQfM8KOGKvWyNQGIjAryderrgplMsgjtDlaGdsadXxMXPmwRdXwSJLiMjx_BCHMHVdl8VK3h1IzdVHgd2IyAVJaAUM
+01:43:40 │ INFO    │ moe_router │ 🔀 Router → navigator (plan-step: 'Navigate to https://www.google.com')
+01:43:42 │ INFO    │ workers │ Worker answered by: groq:openai/gpt-oss-120b:1
+01:43:42 │ INFO    │ workers │ 👁️ OBSERVE: Currently on a Google 'Sorry' page (captcha/verification) with no detectable interactive elements.
+01:43:42 │ INFO    │ workers │ 🔄 PREVIOUS: No prior actions have been taken.
+01:43:42 │ INFO    │ workers │ 📊 PROGRESS: 0% (search not yet performed)
+01:43:42 │ INFO    │ workers │ 🧠 REASONING: The task requires navigating to the Google homepage to perform a search. The current page is a verification page with no usable search input, so the next step is to load the standard Google homepage.
+01:43:42 │ INFO    │ workers │ 🔮 EXPECT: The browser will load https://www.google.com, displaying the Google search homepage with a visible search input field.
+01:43:42 │ INFO    │ workers │ ⚡ ACTION: goto
+01:43:42 │ WARNING │ mcp_tools │ mcp_navigate failed: Page.goto: Target page, context or browser has been closed
+01:43:42 │ INFO    │ brain_graph │ ━━━ Step 1/25 ━━━
+01:43:42 │ INFO    │ brain_graph │ URL: https://www.google.com/sorry/index?continue=https://www.google.com/search%3Fq%3Dweather%26sei%3DKiuSatvQPILy7M8PseSU2As&q=EgQfM8KOGKvWyNQGIjAryderrgplMsgjtDlaGdsadXxMXPmwRdXwSJLiMjx_BCHMHVdl8VK3h1IzdVHgd2IyAVJaAUM
+01:43:42 │ INFO    │ moe_router │ 🔀 Router → navigator (plan-step: 'Navigate to https://www.google.com')
+01:43:42 │ WARNING │ advanced_agent │ SessionGuard: caught SIGINT — closing browser...
+01:43:42 │ INFO    │ brain_graph │ Browser closed. Profile state persisted.

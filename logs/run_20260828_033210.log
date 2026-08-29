@@ -1,0 +1,149 @@
+03:32:11 │ INFO    │ run_v16 │ 🧠 True Brain v16.0 — LangGraph Architecture
+03:32:11 │ INFO    │ run_v16 │ Objective: navigate to attapoll and complete a survey
+03:32:11 │ INFO    │ virtual_display │ 🖥️ Using existing display :0 — browser runs HEADED
+03:32:11 │ INFO    │ brain_graph │ 🌐 Browser mode: HEADED (stealth)
+03:32:11 │ INFO    │ advanced_agent │ Profile marked clean-exit (crash-restore bubble suppressed)
+03:32:12 │ INFO    │ advanced_agent │ Launching Playwright Chromium (native profile: /home/fellabloke/Attapoll/Agent-first-ide/persistence/browser_sessions/agent_main)
+03:32:12 │ INFO    │ advanced_agent │ Session viewport: 1440x1080
+03:32:12 │ INFO    │ advanced_agent │ SessionGuard: signal + atexit handlers installed
+03:32:12 │ INFO    │ advanced_agent │ SessionGuard: attached to browser context
+03:32:12 │ INFO    │ browser_warmup │ 🔥 Starting human warm-up routine...
+03:32:12 │ INFO    │ browser_warmup │   [1/7] Homepage warm-up → https://www.google.com/search?q=weather
+03:32:13 │ INFO    │ browser_warmup │   [2/7] Reading delay: 3.9s
+03:32:16 │ INFO    │ browser_warmup │   [3/7] Idle scroll simulation
+03:32:18 │ INFO    │ browser_warmup │   [4/7] Mouse wiggle (generating telemetry)
+03:32:21 │ INFO    │ browser_warmup │   [5/7] Refresh jitter
+03:32:22 │ INFO    │ browser_warmup │   [6/7] No target URL provided — skipping domain priming
+03:32:22 │ INFO    │ browser_warmup │   [7/7] Final warm-up wait (networkidle + JS settle)
+03:32:24 │ INFO    │ browser_warmup │ 🔥 Warm-up complete. Browser is hot and ready.
+03:32:32 │ INFO    │ brain_graph │ LLM Failover Chain (7 models): groq:openai/gpt-oss-120b:0 → nvidia-text:openai/gpt-oss-20b:0 → nvidia-text:openai/gpt-oss-120b:0 → nvidia-text:openai/gpt-oss-20b:1 → nvidia-text:openai/gpt-oss-120b:1 → gemini-text:gemma-4-31b-it:0 → gemini-text:gemma-4-31b-it:1
+03:32:32 │ INFO    │ brain_graph │ 🎯 [free mode] Worker chain (7 top models): groq:openai/gpt-oss-120b:0 → nvidia-text:openai/gpt-oss-20b:0 → nvidia-text:openai/gpt-oss-120b:0 → nvidia-text:openai/gpt-oss-20b:1 → nvidia-text:openai/gpt-oss-120b:1 → gemini-text:gemma-4-31b-it:0 → gemini-text:gemma-4-31b-it:1
+03:32:32 │ INFO    │ brain_graph │ 🧬 V29 Cognitive Overhaul ACTIVE — V29_REALITY, V29_REALITY_LLM, V29_CLARITY_CONSENSUS, V29_TARGET_LOCK, V29_INTENT_JOURNAL, V29_SUBGOAL_LOCK, V29_STAGNATION, V29_SMART_SCROLL, V29_PAGE_CONTEXT, V29_ADAPTIVE_PERCEPTION, V29_STRICT_VIEWPORT, V29_DIFFING, V29_HYBRID_PRIMITIVES, V29_WEBDREAMER, V29_WEBDREAMER_SITUATIONAL
+03:32:32 │ INFO    │ brain_graph │ 👁️ Vision chain ready for on-demand consults (5 models): gemini-vision:gemini-3.5-flash:0 → gemini-vision:gemini-3.5-flash:1 → nvidia-vision:meta/llama-3.2-11b-vision-instruct:0 → nvidia-vision:meta/llama-3.2-11b-vision-instruct:1 → nvidia-vision:meta/llama-3.2-11b-vision-instruct:2
+03:32:32 │ INFO    │ brain_graph │ 🧠 CriticV12 initialized
+03:32:32 │ INFO    │ brain_graph │ 🌙 WebDreamer initialized
+03:32:32 │ INFO    │ brain_graph │ 📊 PRMCritic initialized
+03:32:32 │ INFO    │ brain_graph │ ⚖️ Outcome judge wired into the done-gate
+03:32:32 │ INFO    │ skill_memory │ SkillMemory: database initialized at /home/fellabloke/Attapoll/Agent-first-ide/persistence/skills.db
+03:32:32 │ INFO    │ brain_graph │ 🧠 SkillMemory: 0 workflows, 0 reliable
+03:32:32 │ INFO    │ brain_graph │ 🧠 Brain Graph compiled with 14 nodes, checkpointer=AsyncSqliteSaver
+03:32:32 │ INFO    │ brain_graph │ 🎯 Goal compiled: navigate to attapoll and complete a survey
+03:32:32 │ INFO    │ brain_graph │ 🌐 Target domain: (none)
+03:32:33 │ INFO    │ brain_graph │ 🧭 Strategy: Use the homepage to locate and start the first available survey, then answer each question by selecting the first visible option and progressing with the Next/S
+03:32:33 │ INFO    │ brain_graph │ 🏁 Done when: A thank‑you confirmation page is displayed indicating the survey has been successfully submitted (e.g., ‘Thank you for c
+03:32:34 │ INFO    │ prm_critic │ 📋 PRM Checklist (6 items by groq:openai/gpt-oss-120b:0): Navigate to https://www.attapoll.co(w=0.5) → Click the "Take Survey" or "Start S(w=1.0) → Answer the first survey question by(w=1.0) → Continue answering each subsequent (w=1.0) → Click the "Submit" button to submit(w=1.0) → Verify that a confirmation message (w=2.0)
+03:32:34 │ INFO    │ brain_graph │ 📋 PRM Checklist (6 items) generated
+03:32:34 │ INFO    │ brain_graph │ 📋 Plan (5 steps): Navigate to https://www.attapoll.com → Click the first visible ‘Take Survey’ or → For each question, select the first answ → Click the ‘Next’ button after each answe → Click ‘Submit’ on the last page and veri
+03:32:36 │ INFO    │ brain_graph │ ━━━ Step 1/25 ━━━
+03:32:36 │ INFO    │ brain_graph │ URL: https://www.google.com/search?q=weather
+03:32:36 │ INFO    │ moe_router │ 🔀 Router → navigator (plan-step: 'Navigate to https://www.attapoll.com')
+03:32:37 │ INFO    │ workers │ Worker answered by: groq:openai/gpt-oss-120b:0
+03:32:37 │ INFO    │ workers │ 👁️ OBSERVE: Google search results page for "weather", showing weather widgets, links and buttons; no attapoll content visible.
+03:32:37 │ INFO    │ workers │ 🔄 PREVIOUS: No previous action
+03:32:37 │ INFO    │ workers │ 📊 PROGRESS: 0% (0/5)
+03:32:37 │ INFO    │ workers │ 🧠 REASONING: The first sub‑task is to open the Attapoll website. Navigating directly to its URL is the most reliable way to reach the survey list, avoiding reliance on search results.
+03:32:37 │ INFO    │ workers │ 🔮 EXPECT: The browser will load https://www.attapoll.com, displaying the Attapoll homepage with survey options.
+03:32:37 │ INFO    │ workers │ ⚡ ACTION: goto
+03:32:37 │ INFO    │ overwatch │ ✓ Overwatch L3: Navigation confirmed: https://attapoll.com/ [95%]
+03:32:39 │ INFO    │ prm_critic │ 📊 PRM: 0/6 done (0%) → | NO_CHANGE
+03:32:40 │ INFO    │ brain_graph │ ━━━ Step 2/25 ━━━
+03:32:40 │ INFO    │ brain_graph │ URL: https://attapoll.com/
+03:32:40 │ INFO    │ moe_router │ 🔀 Router → interactor (default)
+03:33:44 │ ERROR   │ workers │ Worker LLM FAILURE: ALL 7 models failed. Last: gemini-text:gemma-4-31b-it:1 timed out (>6s) — waiting 5.0s
+03:33:49 │ WARNING │ overwatch │ Overwatch: no proposed action
+03:33:50 │ INFO    │ prm_critic │ 📊 PRM: 0/6 done (0%) → | NO_CHANGE
+03:33:51 │ INFO    │ brain_graph │ ━━━ Step 3/25 ━━━
+03:33:51 │ INFO    │ brain_graph │ URL: https://attapoll.com/en-us/
+03:33:51 │ INFO    │ moe_router │ 🔀 Router → interactor (default)
+03:33:53 │ INFO    │ workers │ Worker answered by: groq:openai/gpt-oss-120b:0
+03:33:53 │ INFO    │ workers │ 👁️ OBSERVE: Attapoll homepage with a cookie consent banner at the bottom showing Accept, View preferences, and Close options. Header navigation is visible, but main content (including surveys) is likely obscured 
+03:33:53 │ INFO    │ workers │ 🔄 PREVIOUS: 
+03:33:53 │ INFO    │ workers │ 📊 PROGRESS: 30% (cookie banner dismissed, ready to locate and click a survey)
+03:33:53 │ INFO    │ workers │ 🧠 REASONING: A cookie consent banner is currently covering the lower part of the page and likely hides the survey list. Dismissing it is required before we can see and click the first visible 'Take Survey' button.
+03:33:53 │ INFO    │ workers │ 🔮 EXPECT: The cookie banner dialog disappears, clearing the bottom of the screen and revealing the main homepage content where the first 'Take Survey' button should become visible.
+03:33:53 │ INFO    │ workers │ ⚡ ACTION: click
+03:33:53 │ INFO    │ overwatch │ 📝 Intent journaled (pre-exec): click [e7] hazard=state-change
+03:33:53 │ INFO    │ mcp_tools │ 🎯 Resolved e7 → fresh (1010,995) [BUTTON 'Accept']
+03:33:54 │ INFO    │ cdp_click │ Click attempt 1/4 via cdp_mouse_event at (1010, 995)
+03:33:55 │ INFO    │ cdp_click │ ✅ CLICK SUCCESS via cdp_mouse_event at (1010, 995): DOM structure changed
+03:33:56 │ WARNING │ overwatch │ 🚨 Overwatch REALITY: screen contradicts the prediction — Predicted: 'The cookie banner dialog disappears, clearing the bottom of the screen and revealing the m'. Audit: Cookie banner not shown but no Take Survey butto
+03:33:56 │ INFO    │ overwatch │ 🧗 Escalation [reperceive] rung→1 confidence=0.70 (The screen did NOT do what the action predicted.)
+03:33:57 │ INFO    │ brain_graph │ ━━━ Step 3/25 ━━━
+03:33:57 │ INFO    │ brain_graph │ URL: https://attapoll.com/en-us/
+03:33:57 │ INFO    │ moe_router │ 🔀 Router → interactor (default)
+03:33:57 │ INFO    │ workers │ ⚠️ HESITATION: predecessor click on 'Accept' unconfirmed — warning worker not to blindly repeat
+03:33:57 │ INFO    │ workers │ 🧭 GUIDANCE: 🚨 SCREEN-REALITY MISMATCH: Predicted: 'The cookie banner dialog disappears, clearing the bottom of the screen and reveal
+03:34:44 │ INFO    │ workers │ Worker answered by: nvidia-text:openai/gpt-oss-20b:0
+03:34:44 │ INFO    │ workers │ 👁️ OBSERVE: Scrolling down to reveal more content
+03:34:44 │ INFO    │ workers │ 🔄 PREVIOUS: Scroll down
+03:34:44 │ INFO    │ workers │ 📊 PROGRESS: Looking for 'Take Survey' button
+03:34:44 │ INFO    │ workers │ 🧠 REASONING: The current page structure does not show a survey button; likely below the fold.
+03:34:44 │ INFO    │ workers │ 🔮 EXPECT: More elements appear, including a survey button.
+03:34:44 │ INFO    │ workers │ ⚡ ACTION: scroll
+03:34:44 │ INFO    │ workers │ 🔎 CLARITY: uncertain (worker flagged needs_vision; last action was contradicted by the screen; under an active escalation directive)
+03:34:44 │ INFO    │ workers │ 🗳️ PRE-ACTION CONSENSUS — worker flagged needs_vision; last action was contradicted by the screen; under an active escalation directive
+03:34:45 │ INFO    │ workers │ 🗳️ CASCADE [secondary_agree] +1 calls, agreement=100% — stuck/hesitation; secondary confirmed
+03:34:45 │ INFO    │ workers │ 🧠→👁️ Escalating to vision: worker requested visual confirmation
+03:35:35 │ WARNING │ vision_consult │ vision consult unavailable (ALL 5 models failed. Last: gemini-vision:gemini-3.5-flash:1 timed out (>20s)) — keeping a11y decision
+03:35:36 │ INFO    │ ghost_input │ Ghost scrolled 600px in 2 chunks (Δ600px)
+03:36:01 │ INFO    │ overwatch │ ✓ Overwatch L3: Progress detected: Page structure changed (A11y hash); 6 new elements appeared; Element count change [90%]
+03:35:38 │ INFO    │ prm_critic │ 📊 PRM: 0/6 done (0%) → | NO_CHANGE
+03:35:39 │ INFO    │ brain_graph │ ━━━ Step 4/25 ━━━
+03:35:39 │ INFO    │ brain_graph │ URL: https://attapoll.com/en-us/
+03:35:39 │ INFO    │ moe_router │ 🔀 Router → interactor (default)
+03:35:41 │ INFO    │ workers │ Worker answered by: groq:openai/gpt-oss-120b:0
+03:35:41 │ INFO    │ workers │ 👁️ OBSERVE: The page shows the top navigation bar with links (Home, Blog, Advertise, etc.) and language options. No survey cards or 'Take Survey' buttons are visible yet.
+03:35:41 │ INFO    │ workers │ 🔄 PREVIOUS: Scrolled down 600px, revealing more page content but still no survey elements listed in the page structure.
+03:35:41 │ INFO    │ workers │ 📊 PROGRESS: 20%
+03:35:41 │ INFO    │ workers │ 🧠 REASONING: The target 'Take Survey' button is not currently visible in the captured page structure. Scrolling further down is needed to load the survey listings where the button will appear.
+03:35:41 │ INFO    │ workers │ 🔮 EXPECT: Additional page content will load, including survey cards with a visible 'Take Survey' or similar button.
+03:35:41 │ INFO    │ workers │ ⚡ ACTION: scroll
+03:35:42 │ INFO    │ ghost_input │ Ghost scrolled 600px in 3 chunks (Δ530px)
+03:35:42 │ INFO    │ overwatch │ ✓ Overwatch L3: Progress detected: Page structure changed (A11y hash); 7 new elements appeared; Element count change [90%]
+03:35:43 │ INFO    │ prm_critic │ 📊 PRM: 0/6 done (0%) → | NO_CHANGE
+03:35:43 │ INFO    │ brain_graph │ 📉 Goal-progress STALL (score window flat) — confidence 0.85→0.60
+03:35:45 │ INFO    │ brain_graph │ ━━━ Step 5/25 ━━━
+03:35:45 │ INFO    │ brain_graph │ URL: https://attapoll.com/en-us/
+03:35:45 │ INFO    │ moe_router │ 🔀 Router → interactor (default)
+03:36:31 │ INFO    │ workers │ Worker answered by: nvidia-text:openai/gpt-oss-20b:0
+03:36:31 │ INFO    │ workers │ 👁️ OBSERVE: Scrolling down to reveal more content
+03:36:31 │ INFO    │ workers │ 🔄 PREVIOUS: Scroll down
+03:36:31 │ INFO    │ workers │ 📊 PROGRESS: 20%
+03:36:31 │ INFO    │ workers │ 🧠 REASONING: The current page structure only lists footer and header links; no survey button is visible. To locate the first visible 'Take Survey' button, we need to scroll further down the page.
+03:36:31 │ INFO    │ workers │ 🔮 EXPECT: More content below the fold, including a prominent survey button.
+03:36:31 │ INFO    │ workers │ ⚡ ACTION: scroll
+03:36:31 │ INFO    │ workers │ 🔎 CLARITY: uncertain (worker flagged needs_vision)
+03:36:31 │ INFO    │ workers │ 🗳️ PRE-ACTION CONSENSUS — worker flagged needs_vision
+03:36:41 │ INFO    │ workers │ 🗳️ CASCADE [abstain] +2 calls, agreement=52% — stuck/hesitation; split {'scroll|e0|': 0.8, 'scroll_to||': 0.85}
+03:36:41 │ WARNING │ workers │ 🛑 ABSTAIN → consulting vision to disambiguate the ambiguous action before acting.
+03:36:41 │ INFO    │ workers │ 🧠→👁️ Escalating to vision: consensus abstention — disambiguate critical action
+03:37:35 │ WARNING │ vision_consult │ vision consult unavailable (ALL 5 models failed. Last: gemini-vision:gemini-3.5-flash:1 timed out (>20s)) — keeping a11y decision
+03:37:35 │ INFO    │ workers │ 🌙 WebDreamer: simulating candidates before a high-stakes ambiguous action (scroll)…
+03:37:37 │ INFO    │ web_dreamer │ WebDreamer: 3 candidates generated by groq:openai/gpt-oss-120b:0: click | scroll | wait
+03:37:38 │ INFO    │ web_dreamer │   📊 Candidate 'scroll on [e0]' → score=0.00 (WRONG): No visible changes; the scroll action cannot be performed because element e0 doe
+03:37:39 │ INFO    │ web_dreamer │   📊 Candidate 'click' → score=0.00 (WRONG): 
+03:37:41 │ INFO    │ web_dreamer │   📊 Candidate 'scroll' → score=0.50 (ON_TRACK): The page scrolls down slightly, moving the viewport lower. Elements that were pr
+03:38:16 │ WARNING │ workers │ 🌙 WebDreamer timed out — keeping the original action
+03:38:17 │ INFO    │ ghost_input │ Ghost scroll: wheel ineffective (Δ0px) → forced scroll Δ0px
+03:38:17 │ INFO    │ overwatch │ ✓ Overwatch L3: Progress detected: Element count changed by +869 [70%]
+03:38:19 │ INFO    │ prm_critic │ 📊 PRM: 0/6 done (0%) → | NO_CHANGE
+03:38:19 │ INFO    │ brain_graph │ 📉 Goal-progress STALL (score window flat) — confidence 0.72→0.50
+03:38:21 │ INFO    │ brain_graph │ ━━━ Step 6/25 ━━━
+03:38:21 │ INFO    │ brain_graph │ URL: https://attapoll.com/en-us/
+03:38:21 │ WARNING │ brain_graph │ 🔁 STAGNATION (level 2): on the same URL for 4 steps; goal-progress score is flat
+03:38:21 │ INFO    │ moe_router │ 🔀 Router → interactor (default)
+03:38:21 │ INFO    │ workers │ 🧭 GUIDANCE: 🔁 STAGNATION: You are NOT making real progress toward the goal (on the same URL for 4 steps; goal-progress score is flat
+03:38:25 │ INFO    │ workers │ Worker answered by: groq:openai/gpt-oss-120b:0
+03:38:25 │ INFO    │ workers │ 👁️ OBSERVE: At the bottom of the Attapoll homepage showing footer navigation links (Privacy Policy, Terms, Referral Program, Advertise, Monetize) and header links (Get Support, Referral Program, Home, Blog, Adver
+03:38:25 │ INFO    │ workers │ 🔄 PREVIOUS: Previous scroll attempt was a NO-OP because the page was already at the bottom.
+03:38:25 │ INFO    │ workers │ 📊 PROGRESS: 20% (still need to launch a survey)
+03:38:25 │ INFO    │ workers │ 🧠 REASONING: The current screen only shows footer and header elements; no survey launch button is visible. Scrolling up will expose the main content where the first 'Take Survey' button should be located, allowing
+03:38:25 │ INFO    │ workers │ 🔮 EXPECT: The page will scroll upward, revealing the main content area where survey cards and a 'Take Survey' button are displayed.
+03:38:25 │ INFO    │ workers │ ⚡ ACTION: scroll_to
+03:38:25 │ INFO    │ workers │ 🔎 CLARITY: uncertain (stagnation detected (no real progress))
+03:38:25 │ INFO    │ workers │ 🗳️ PRE-ACTION CONSENSUS — stagnation detected (no real progress)
+03:38:29 │ INFO    │ workers │ 🗳️ CASCADE [secondary_agree] +1 calls, agreement=100% — stuck/hesitation; secondary confirmed
+03:38:29 │ INFO    │ workers │ 🌙 WebDreamer: simulating candidates before a high-stakes ambiguous action (scroll_to)…
+03:38:47 │ WARNING │ advanced_agent │ SessionGuard: caught SIGINT — closing browser...
+03:38:52 │ WARNING │ advanced_agent │ SessionGuard: caught SIGINT — closing browser...
+03:38:52 │ WARNING │ advanced_agent │ SessionGuard: caught SIGINT — closing browser...

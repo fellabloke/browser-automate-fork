@@ -1,0 +1,19 @@
+01:27:07 │ INFO    │ run_v16 │ 🧠 True Brain v16.0 — LangGraph Architecture
+01:27:07 │ INFO    │ run_v16 │ Objective: open attapoll and complete a survey
+01:27:07 │ INFO    │ virtual_display │ 🖥️ Using existing display :0 — browser runs HEADED
+01:27:07 │ INFO    │ brain_graph │ 🌐 Browser mode: HEADED (stealth)
+01:27:07 │ INFO    │ advanced_agent │ Profile marked clean-exit (crash-restore bubble suppressed)
+01:27:08 │ INFO    │ advanced_agent │ Launching Playwright Chromium (native profile: /home/fellabloke/Attapoll/Agent-first-ide/persistence/browser_sessions/agent_main)
+01:27:08 │ INFO    │ advanced_agent │ Session viewport: 1440x1080
+01:27:08 │ INFO    │ advanced_agent │ SessionGuard: signal + atexit handlers installed
+01:27:08 │ INFO    │ advanced_agent │ SessionGuard: attached to browser context
+01:27:08 │ INFO    │ browser_warmup │ 🔥 Starting human warm-up routine...
+01:27:08 │ INFO    │ browser_warmup │   [1/7] Homepage warm-up → https://www.google.com/search?q=weather
+01:27:09 │ INFO    │ browser_warmup │   [2/7] Reading delay: 3.1s
+01:27:12 │ INFO    │ browser_warmup │   [3/7] Idle scroll simulation
+01:27:14 │ INFO    │ browser_warmup │   [4/7] Mouse wiggle (generating telemetry)
+01:27:18 │ INFO    │ browser_warmup │   [5/7] Refresh jitter
+01:27:21 │ INFO    │ browser_warmup │   [6/7] No target URL provided — skipping domain priming
+01:27:21 │ INFO    │ browser_warmup │   [7/7] Final warm-up wait (networkidle + JS settle)
+01:27:22 │ INFO    │ browser_warmup │ 🔥 Warm-up complete. Browser is hot and ready.
+01:27:23 │ WARNING │ advanced_agent │ SessionGuard: caught SIGINT — closing browser...

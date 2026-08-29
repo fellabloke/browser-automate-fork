@@ -1,0 +1,68 @@
+01:23:38 │ INFO    │ run_v16 │ 🧠 True Brain v16.0 — LangGraph Architecture
+01:23:38 │ INFO    │ run_v16 │ Objective: open attapoll and complete a survey
+01:23:38 │ INFO    │ virtual_display │ 🖥️ Using existing display :0 — browser runs HEADED
+01:23:38 │ INFO    │ brain_graph │ 🌐 Browser mode: HEADED (stealth)
+01:23:38 │ INFO    │ advanced_agent │ Profile marked clean-exit (crash-restore bubble suppressed)
+01:23:39 │ INFO    │ advanced_agent │ Launching Playwright Chromium (native profile: /home/fellabloke/Attapoll/Agent-first-ide/persistence/browser_sessions/agent_main)
+01:23:39 │ INFO    │ advanced_agent │ Session viewport: 1440x1080
+01:23:40 │ INFO    │ advanced_agent │ SessionGuard: signal + atexit handlers installed
+01:23:40 │ INFO    │ advanced_agent │ SessionGuard: attached to browser context
+01:23:40 │ INFO    │ browser_warmup │ 🔥 Starting human warm-up routine...
+01:23:40 │ INFO    │ browser_warmup │   [1/7] Homepage warm-up → https://en.wikipedia.org/wiki/Main_Page
+01:23:40 │ INFO    │ browser_warmup │   [2/7] Reading delay: 3.8s
+01:23:44 │ INFO    │ browser_warmup │   [3/7] Idle scroll simulation
+01:23:46 │ INFO    │ browser_warmup │   [4/7] Mouse wiggle (generating telemetry)
+01:23:49 │ INFO    │ browser_warmup │   [5/7] Refresh jitter
+01:23:52 │ INFO    │ browser_warmup │   [6/7] No target URL provided — skipping domain priming
+01:23:52 │ INFO    │ browser_warmup │   [7/7] Final warm-up wait (networkidle + JS settle)
+01:23:53 │ INFO    │ browser_warmup │ 🔥 Warm-up complete. Browser is hot and ready.
+01:24:02 │ INFO    │ brain_graph │ LLM Failover Chain (8 models): groq:openai/gpt-oss-120b:0 → groq:openai/gpt-oss-120b:1 → nvidia-text:openai/gpt-oss-20b:0 → nvidia-text:openai/gpt-oss-120b:0 → nvidia-text:openai/gpt-oss-20b:1 → nvidia-text:openai/gpt-oss-120b:1 → gemini-text:gemma-4-31b-it:0 → gemini-text:gemma-4-31b-it:1
+01:24:02 │ INFO    │ brain_graph │ 🎯 [free mode] Worker chain (8 top models): groq:openai/gpt-oss-120b:0 → groq:openai/gpt-oss-120b:1 → nvidia-text:openai/gpt-oss-20b:0 → nvidia-text:openai/gpt-oss-120b:0 → nvidia-text:openai/gpt-oss-20b:1 → nvidia-text:openai/gpt-oss-120b:1 → gemini-text:gemma-4-31b-it:0 → gemini-text:gemma-4-31b-it:1
+01:24:02 │ INFO    │ brain_graph │ 🧬 V29 Cognitive Overhaul ACTIVE — V29_REALITY, V29_REALITY_LLM, V29_CLARITY_CONSENSUS, V29_TARGET_LOCK, V29_INTENT_JOURNAL, V29_SUBGOAL_LOCK, V29_STAGNATION, V29_SMART_SCROLL, V29_PAGE_CONTEXT, V29_ADAPTIVE_PERCEPTION, V29_STRICT_VIEWPORT, V29_DIFFING, V29_HYBRID_PRIMITIVES, V29_WEBDREAMER, V29_WEBDREAMER_SITUATIONAL
+01:24:02 │ INFO    │ brain_graph │ 👁️ Vision chain ready for on-demand consults (5 models): gemini-vision:gemini-3.5-flash:0 → gemini-vision:gemini-3.5-flash:1 → nvidia-vision:meta/llama-3.2-11b-vision-instruct:0 → nvidia-vision:meta/llama-3.2-11b-vision-instruct:1 → nvidia-vision:meta/llama-3.2-11b-vision-instruct:2
+01:24:02 │ INFO    │ brain_graph │ 🧠 CriticV12 initialized
+01:24:02 │ INFO    │ brain_graph │ 🌙 WebDreamer initialized
+01:24:02 │ INFO    │ brain_graph │ 📊 PRMCritic initialized
+01:24:02 │ INFO    │ brain_graph │ ⚖️ Outcome judge wired into the done-gate
+01:24:02 │ INFO    │ skill_memory │ SkillMemory: database initialized at /home/fellabloke/Attapoll/Agent-first-ide/persistence/skills.db
+01:24:02 │ INFO    │ brain_graph │ 🧠 SkillMemory: 1 workflows, 0 reliable
+01:24:02 │ INFO    │ brain_graph │ 🧠 Brain Graph compiled with 14 nodes, checkpointer=AsyncSqliteSaver
+01:24:02 │ INFO    │ brain_graph │ 🎯 Goal compiled: open attapoll and complete a survey
+01:24:02 │ INFO    │ brain_graph │ 🌐 Target domain: (none)
+01:24:03 │ INFO    │ brain_graph │ 🧭 Strategy: Navigate to Attapoll, start a new survey, answer the presented questions sequentially, and submit the completed survey.
+01:24:03 │ INFO    │ brain_graph │ 🏁 Done when: A confirmation page or message appears stating that the survey has been submitted successfully.
+01:24:05 │ INFO    │ prm_critic │ 📋 PRM Checklist (6 items by groq:openai/gpt-oss-120b:1): Navigate to attapoll.com(w=0.5) → Click the 'Take Survey' or equivale(w=1.0) → Select appropriate answers for each(w=1.0) → Proceed through all survey pages un(w=1.0) → Click the 'Submit' button to comple(w=1.0) → Verify that a completion confirmati(w=2.0)
+01:24:05 │ INFO    │ brain_graph │ 📋 PRM Checklist (6 items) generated
+01:24:05 │ INFO    │ skill_memory │ 🧠 SkillMemory: Retrieved 1 relevant workflows for 'open attapoll and complete a survey': 'navigate_to_attapoll_attapoll' (100%)
+01:24:05 │ INFO    │ brain_graph │ 🧠 SkillMemory: 1 workflows injected
+01:24:05 │ INFO    │ brain_graph │ 📋 Plan (4 steps): Navigate to https://www.attapoll.com → Click the 'Start Survey' button to begin → For each question, select the first avai → Click the 'Submit' button to complete th
+01:24:06 │ INFO    │ brain_graph │ ━━━ Step 1/25 ━━━
+01:24:06 │ INFO    │ brain_graph │ URL: https://en.wikipedia.org/wiki/Main_Page
+01:24:06 │ INFO    │ moe_router │ 🔀 Router → navigator (plan-step: 'Navigate to https://www.attapoll.com')
+01:24:07 │ INFO    │ workers │ Worker answered by: groq:openai/gpt-oss-120b:1
+01:24:07 │ INFO    │ workers │ 👁️ OBSERVE: Wikipedia main page showing featured articles and many links, no popups or overlays.
+01:24:07 │ INFO    │ workers │ 🔄 PREVIOUS: None - no actions taken yet on this page.
+01:24:07 │ INFO    │ workers │ 📊 PROGRESS: 0% - have not navigated to Attapoll or started a survey.
+01:24:07 │ INFO    │ workers │ 🧠 REASONING: The current sub-task is to navigate to https://www.attapoll.com. The simplest way is to issue a 'goto' action with the target URL, which will load the Attapoll homepage and allow the next steps of sta
+01:24:07 │ INFO    │ workers │ 🔮 EXPECT: The browser will load the Attapoll homepage (URL changes to https://www.attapoll.com) and display its content.
+01:24:07 │ INFO    │ workers │ ⚡ ACTION: goto
+01:24:08 │ INFO    │ overwatch │ ✓ Overwatch L3: Navigation confirmed: https://attapoll.com/ [95%]
+01:24:10 │ INFO    │ prm_critic │ 📊 PRM: 0/6 done (0%) → | NO_CHANGE
+01:24:11 │ INFO    │ brain_graph │ ━━━ Step 2/25 ━━━
+01:24:11 │ INFO    │ brain_graph │ URL: https://attapoll.com/en-us/
+01:24:11 │ INFO    │ moe_router │ 🔀 Router → interactor (default)
+01:24:13 │ INFO    │ workers │ Worker answered by: groq:openai/gpt-oss-120b:0
+01:24:13 │ INFO    │ workers │ 👁️ OBSERVE: Attapoll homepage with header navigation links, a main article containing a 'Start Earning Now' link, and no visible survey start button.
+01:24:13 │ INFO    │ workers │ 🔄 PREVIOUS: Navigated to https://attapoll.com/en-us/ and the page shows Attapoll header links and a 'Start Earning Now' link, but no visible 'Start Survey' button
+01:24:13 │ INFO    │ workers │ 📊 PROGRESS: 25% (navigate completed, need to start survey)
+01:24:13 │ INFO    │ workers │ 🧠 REASONING: The current page structure does not list a 'Start Survey' button, indicating it may be below the fold. Scrolling down is the most reliable way to reveal the button without interacting with unrelated e
+01:24:13 │ INFO    │ workers │ 🔮 EXPECT: The page scrolls down revealing more content, including the 'Start Survey' button.
+01:24:13 │ INFO    │ workers │ ⚡ ACTION: scroll
+01:24:15 │ INFO    │ ghost_input │ Ghost scrolled 600px in 3 chunks (Δ600px)
+01:24:15 │ INFO    │ overwatch │ ✓ Overwatch L3: Progress detected: Page structure changed (A11y hash); 8 new elements appeared; Element count change [90%]
+01:24:16 │ INFO    │ prm_critic │ 📊 PRM: 1/6 done (17%) ↑ +Navigate to attapoll.com | PROGRESS
+01:24:17 │ INFO    │ brain_graph │ ━━━ Step 3/25 ━━━
+01:24:17 │ INFO    │ brain_graph │ URL: https://attapoll.com/en-us/
+01:24:17 │ INFO    │ moe_router │ 🔀 Router → interactor (default)
+01:24:24 │ WARNING │ advanced_agent │ SessionGuard: caught SIGINT — closing browser...
+01:24:24 │ INFO    │ brain_graph │ Browser closed. Profile state persisted.

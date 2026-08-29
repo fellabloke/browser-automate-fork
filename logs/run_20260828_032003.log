@@ -1,0 +1,34 @@
+03:20:04 │ INFO    │ run_v16 │ 🧠 True Brain v16.0 — LangGraph Architecture
+03:20:04 │ INFO    │ run_v16 │ Objective: open attapoll and complete a survey
+03:20:05 │ INFO    │ virtual_display │ 🖥️ Using existing display :0 — browser runs HEADED
+03:20:05 │ INFO    │ brain_graph │ 🌐 Browser mode: HEADED (stealth)
+03:20:05 │ INFO    │ advanced_agent │ Profile marked clean-exit (crash-restore bubble suppressed)
+03:20:05 │ INFO    │ advanced_agent │ Launching Playwright Chromium (native profile: /home/fellabloke/Attapoll/Agent-first-ide/persistence/browser_sessions/agent_main)
+03:20:05 │ INFO    │ advanced_agent │ Session viewport: 1440x1080
+03:20:05 │ INFO    │ advanced_agent │ SessionGuard: signal + atexit handlers installed
+03:20:05 │ INFO    │ advanced_agent │ SessionGuard: attached to browser context
+03:20:05 │ INFO    │ browser_warmup │ 🔥 Starting human warm-up routine...
+03:20:05 │ INFO    │ browser_warmup │   [1/7] Homepage warm-up → https://www.google.com/search?q=weather
+03:20:06 │ INFO    │ browser_warmup │   [2/7] Reading delay: 2.5s
+03:20:09 │ INFO    │ browser_warmup │   [3/7] Idle scroll simulation
+03:20:10 │ INFO    │ browser_warmup │   [4/7] Mouse wiggle (generating telemetry)
+03:20:13 │ INFO    │ browser_warmup │   [5/7] Refresh jitter
+03:20:16 │ INFO    │ browser_warmup │   [6/7] No target URL provided — skipping domain priming
+03:20:16 │ INFO    │ browser_warmup │   [7/7] Final warm-up wait (networkidle + JS settle)
+03:20:18 │ INFO    │ browser_warmup │ 🔥 Warm-up complete. Browser is hot and ready.
+03:20:26 │ INFO    │ brain_graph │ LLM Failover Chain (6 models): nvidia-text:openai/gpt-oss-120b:0 → nvidia-text:openai/gpt-oss-20b:0 → nvidia-text:openai/gpt-oss-120b:1 → nvidia-text:openai/gpt-oss-20b:1 → gemini-text:gemma-4-31b-it:0 → gemini-text:gemma-4-31b-it:1
+03:20:26 │ INFO    │ brain_graph │ 🎯 [free mode] Worker chain (6 top models): nvidia-text:openai/gpt-oss-120b:0 → nvidia-text:openai/gpt-oss-20b:0 → nvidia-text:openai/gpt-oss-120b:1 → nvidia-text:openai/gpt-oss-20b:1 → gemini-text:gemma-4-31b-it:0 → gemini-text:gemma-4-31b-it:1
+03:20:26 │ INFO    │ brain_graph │ 🧬 V29 Cognitive Overhaul ACTIVE — V29_REALITY, V29_REALITY_LLM, V29_CLARITY_CONSENSUS, V29_TARGET_LOCK, V29_INTENT_JOURNAL, V29_SUBGOAL_LOCK, V29_STAGNATION, V29_SMART_SCROLL, V29_PAGE_CONTEXT, V29_ADAPTIVE_PERCEPTION, V29_STRICT_VIEWPORT, V29_DIFFING, V29_HYBRID_PRIMITIVES, V29_WEBDREAMER, V29_WEBDREAMER_SITUATIONAL
+03:20:26 │ INFO    │ brain_graph │ 👁️ Vision chain ready for on-demand consults (2 models): gemini-vision:gemini-3.5-flash:0 → gemini-vision:gemini-3.5-flash:1
+03:20:26 │ INFO    │ brain_graph │ 🧠 CriticV12 initialized
+03:20:26 │ INFO    │ brain_graph │ 🌙 WebDreamer initialized
+03:20:26 │ INFO    │ brain_graph │ 📊 PRMCritic initialized
+03:20:26 │ INFO    │ brain_graph │ ⚖️ Outcome judge wired into the done-gate
+03:20:26 │ INFO    │ skill_memory │ SkillMemory: database initialized at /home/fellabloke/Attapoll/Agent-first-ide/persistence/skills.db
+03:20:26 │ INFO    │ brain_graph │ 🧠 SkillMemory: 0 workflows, 0 reliable
+03:20:26 │ INFO    │ brain_graph │ 🧠 Brain Graph compiled with 14 nodes, checkpointer=AsyncSqliteSaver
+03:20:26 │ INFO    │ brain_graph │ 🎯 Goal compiled: open attapoll and complete a survey
+03:20:26 │ INFO    │ brain_graph │ 🌐 Target domain: (none)
+03:20:46 │ WARNING │ advanced_agent │ SessionGuard: caught SIGINT — closing browser...
+03:20:49 │ WARNING │ advanced_agent │ SessionGuard: caught SIGINT — closing browser...
+03:20:49 │ WARNING │ advanced_agent │ SessionGuard: caught SIGINT — closing browser...

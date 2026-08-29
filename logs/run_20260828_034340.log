@@ -1,0 +1,90 @@
+03:43:41 │ INFO    │ run_v16 │ 🧠 True Brain v16.0 — LangGraph Architecture
+03:43:41 │ INFO    │ run_v16 │ Objective: navigate to attapoll
+03:43:42 │ INFO    │ virtual_display │ 🖥️ Using existing display :0 — browser runs HEADED
+03:43:42 │ INFO    │ brain_graph │ 🌐 Browser mode: HEADED (stealth)
+03:43:42 │ INFO    │ advanced_agent │ Profile marked clean-exit (crash-restore bubble suppressed)
+03:43:42 │ INFO    │ advanced_agent │ Launching Playwright Chromium (native profile: /home/fellabloke/Attapoll/Agent-first-ide/persistence/browser_sessions/agent_main)
+03:43:42 │ INFO    │ advanced_agent │ Session viewport: 1440x1080
+03:43:44 │ INFO    │ advanced_agent │ SessionGuard: signal + atexit handlers installed
+03:43:44 │ INFO    │ advanced_agent │ SessionGuard: attached to browser context
+03:43:44 │ INFO    │ browser_warmup │ 🔥 Starting human warm-up routine...
+03:43:44 │ INFO    │ browser_warmup │   [1/7] Homepage warm-up → https://en.wikipedia.org/wiki/Main_Page
+03:43:45 │ INFO    │ browser_warmup │   [2/7] Reading delay: 3.0s
+03:43:47 │ INFO    │ browser_warmup │   [3/7] Idle scroll simulation
+03:43:49 │ INFO    │ browser_warmup │   [4/7] Mouse wiggle (generating telemetry)
+03:43:52 │ INFO    │ browser_warmup │   [5/7] Refresh jitter
+03:43:54 │ INFO    │ browser_warmup │   [6/7] No target URL provided — skipping domain priming
+03:43:54 │ INFO    │ browser_warmup │   [7/7] Final warm-up wait (networkidle + JS settle)
+03:43:55 │ INFO    │ browser_warmup │ 🔥 Warm-up complete. Browser is hot and ready.
+03:44:04 │ INFO    │ brain_graph │ LLM Failover Chain (8 models): groq:openai/gpt-oss-120b:0 → groq:openai/gpt-oss-120b:1 → nvidia-text:openai/gpt-oss-20b:0 → nvidia-text:openai/gpt-oss-120b:0 → nvidia-text:openai/gpt-oss-20b:1 → nvidia-text:openai/gpt-oss-120b:1 → gemini-text:gemma-4-31b-it:0 → gemini-text:gemma-4-31b-it:1
+03:44:04 │ INFO    │ brain_graph │ 🎯 [free mode] Worker chain (8 top models): groq:openai/gpt-oss-120b:0 → groq:openai/gpt-oss-120b:1 → nvidia-text:openai/gpt-oss-20b:0 → nvidia-text:openai/gpt-oss-120b:0 → nvidia-text:openai/gpt-oss-20b:1 → nvidia-text:openai/gpt-oss-120b:1 → gemini-text:gemma-4-31b-it:0 → gemini-text:gemma-4-31b-it:1
+03:44:04 │ INFO    │ brain_graph │ 🧬 V29 Cognitive Overhaul ACTIVE — V29_REALITY, V29_REALITY_LLM, V29_CLARITY_CONSENSUS, V29_TARGET_LOCK, V29_INTENT_JOURNAL, V29_SUBGOAL_LOCK, V29_STAGNATION, V29_SMART_SCROLL, V29_PAGE_CONTEXT, V29_ADAPTIVE_PERCEPTION, V29_STRICT_VIEWPORT, V29_DIFFING, V29_HYBRID_PRIMITIVES, V29_WEBDREAMER, V29_WEBDREAMER_SITUATIONAL
+03:44:04 │ INFO    │ brain_graph │ 👁️ Vision chain ready for on-demand consults (5 models): gemini-vision:gemini-3.5-flash:0 → gemini-vision:gemini-3.5-flash:1 → nvidia-vision:meta/llama-3.2-11b-vision-instruct:0 → nvidia-vision:meta/llama-3.2-11b-vision-instruct:1 → nvidia-vision:meta/llama-3.2-11b-vision-instruct:2
+03:44:04 │ INFO    │ brain_graph │ 🧠 CriticV12 initialized
+03:44:04 │ INFO    │ brain_graph │ 🌙 WebDreamer initialized
+03:44:04 │ INFO    │ brain_graph │ 📊 PRMCritic initialized
+03:44:04 │ INFO    │ brain_graph │ ⚖️ Outcome judge wired into the done-gate
+03:44:04 │ INFO    │ skill_memory │ SkillMemory: database initialized at /home/fellabloke/Attapoll/Agent-first-ide/persistence/skills.db
+03:44:04 │ INFO    │ brain_graph │ 🧠 SkillMemory: 0 workflows, 0 reliable
+03:44:04 │ INFO    │ brain_graph │ 🧠 Brain Graph compiled with 14 nodes, checkpointer=AsyncSqliteSaver
+03:44:04 │ INFO    │ brain_graph │ 🎯 Goal compiled: navigate to attapoll
+03:44:04 │ INFO    │ brain_graph │ 🌐 Target domain: (none)
+03:44:05 │ INFO    │ brain_graph │ 🧭 Strategy: Directly open the Attapoll homepage by navigating to its main URL.
+03:44:05 │ INFO    │ brain_graph │ 🏁 Done when: The browser displays the Attapoll homepage with the site logo and main navigation visible.
+03:44:07 │ INFO    │ prm_critic │ 📋 PRM Checklist (4 items by groq:openai/gpt-oss-120b:0): Search for "attapoll" using the def(w=0.5) → Click the first result linking to t(w=1.0) → Confirm the page URL contains "atta(w=1.0) → Verify the Attapoll homepage logo i(w=2.0)
+03:44:07 │ INFO    │ brain_graph │ 📋 PRM Checklist (4 items) generated
+03:44:07 │ INFO    │ brain_graph │ 📋 Plan (3 steps): Navigate to https://www.attapoll.com → Wait for the page to fully load → Verify that the Attapoll logo or header 
+03:44:08 │ INFO    │ brain_graph │ ━━━ Step 1/25 ━━━
+03:44:08 │ INFO    │ brain_graph │ URL: https://en.wikipedia.org/wiki/Main_Page
+03:44:08 │ INFO    │ moe_router │ 🔀 Router → navigator (plan-step: 'Navigate to https://www.attapoll.com')
+03:44:10 │ INFO    │ workers │ Worker answered by: groq:openai/gpt-oss-120b:0
+03:44:10 │ INFO    │ workers │ 👁️ OBSERVE: Currently on Wikipedia's Main Page displaying a list of article links and a dark mode toggle; no Attapoll content is visible.
+03:44:10 │ INFO    │ workers │ 🔄 PREVIOUS: 
+03:44:10 │ INFO    │ workers │ 📊 PROGRESS: 0% (0/3 steps done)
+03:44:10 │ INFO    │ workers │ 🧠 REASONING: The task is to navigate directly to the Attapoll website. Using a goto action with the target URL is the most straightforward way to reach the desired page from the current Wikipedia page.
+03:44:10 │ INFO    │ workers │ 🔮 EXPECT: The browser navigates to https://www.attapoll.com and loads the Attapoll homepage, showing the site logo and main navigation bar
+03:44:10 │ INFO    │ workers │ ⚡ ACTION: goto
+03:44:11 │ INFO    │ overwatch │ ✓ Overwatch L3: Navigation confirmed: https://attapoll.com/en-us/ [95%]
+03:44:57 │ INFO    │ prm_critic │ 📊 PRM: 0/4 done (0%) → | NO_CHANGE
+03:44:58 │ INFO    │ brain_graph │ ━━━ Step 2/25 ━━━
+03:44:58 │ INFO    │ brain_graph │ URL: https://attapoll.com/en-us/
+03:44:58 │ INFO    │ moe_router │ 🔀 Router → interactor (default)
+03:45:01 │ INFO    │ workers │ Worker answered by: groq:openai/gpt-oss-120b:0
+03:45:01 │ INFO    │ workers │ 👁️ OBSERVE: Header navigation bar is visible with links: Get Support, Referral Program, Home, Blog, Advertise, English. No obvious logo or main content yet, indicating the page may still be loading.
+03:45:01 │ INFO    │ workers │ 🔄 PREVIOUS: Navigated to https://attapoll.com/en-us/ but the page may not have fully loaded yet; header navigation links are visible.
+03:45:01 │ INFO    │ workers │ 📊 PROGRESS: 33% (waiting for page load after navigation)
+03:45:01 │ INFO    │ workers │ 🧠 REASONING: The current sub-task is to wait for the page to fully load and verify the Attapoll logo/header. A short wait allows the remaining resources to load, after which we can confirm the logo/header presence
+03:45:01 │ INFO    │ workers │ 🔮 EXPECT: The page will finish loading and the Attapoll logo or header text will become visible in the header area.
+03:45:01 │ INFO    │ workers │ ⚡ ACTION: wait
+03:45:04 │ INFO    │ overwatch │ ✓ Overwatch L3: Wait completed [90%]
+03:45:05 │ INFO    │ prm_critic │ 📊 PRM: 1/4 done (25%) ↑ +Confirm the page URL contains  | PROGRESS
+03:45:07 │ INFO    │ brain_graph │ ━━━ Step 3/25 ━━━
+03:45:07 │ INFO    │ brain_graph │ URL: https://attapoll.com/en-us/
+03:45:07 │ INFO    │ moe_router │ 🔀 Router → interactor (default)
+03:46:12 │ ERROR   │ workers │ Worker LLM FAILURE: ALL 8 models failed. Last: nvidia-text:openai/gpt-oss-20b:0 timed out (>7s) — waiting 5.0s
+03:46:17 │ WARNING │ overwatch │ Overwatch: no proposed action
+03:46:18 │ INFO    │ prm_critic │ 📊 PRM: 1/4 done (25%) → | NO_CHANGE
+03:46:20 │ INFO    │ brain_graph │ ━━━ Step 4/25 ━━━
+03:46:20 │ INFO    │ brain_graph │ URL: https://attapoll.com/en-us/
+03:46:20 │ INFO    │ moe_router │ 🔀 Router → interactor (default)
+03:46:22 │ INFO    │ workers │ Worker answered by: groq:openai/gpt-oss-120b:0
+03:46:22 │ INFO    │ workers │ 👁️ OBSERVE: The current screen shows the Attapoll homepage header with navigation links (Get Support, Referral Program, Home, Blog, Advertise, English). No explicit logo element is listed in the provided page str
+03:46:22 │ INFO    │ workers │ 🔄 PREVIOUS: Navigated to https://attapoll.com/en-us/ and waited; header navigation bar with links (Get Support, Referral Program, Home, Blog, Advertise, English) 
+03:46:22 │ INFO    │ workers │ 📊 PROGRESS: 80%
+03:46:22 │ INFO    │ workers │ 🧠 REASONING: The page structure does not list a logo element, so I cannot confirm its presence from the DOM alone. I need visual confirmation to verify that the Attapoll logo or header text is displayed.
+03:46:22 │ INFO    │ workers │ ⚡ ACTION: wait
+03:46:22 │ INFO    │ workers │ 🔎 CLARITY: uncertain (worker flagged needs_vision)
+03:46:22 │ INFO    │ workers │ 🗳️ PRE-ACTION CONSENSUS — worker flagged needs_vision
+03:46:38 │ INFO    │ workers │ 🗳️ CASCADE [abstain] +2 calls, agreement=51% — stuck/hesitation; split {'wait||': 0.95, 'click|e4|': 0.9}
+03:46:38 │ WARNING │ workers │ 🛑 ABSTAIN → consulting vision to disambiguate the ambiguous action before acting.
+03:46:38 │ INFO    │ workers │ 🧠→👁️ Escalating to vision: consensus abstention — disambiguate critical action
+03:47:05 │ INFO    │ vision_consult │ 👁️ Vision consult (gemini-vision:gemini-3.5-flash:0): The AttaPoll logo (red 'A' icon and the text 'AttaPoll') is clearly vi → done [100%]
+03:47:05 │ INFO    │ workers │ 👁️→⚡ Vision refined the action → done []
+03:47:07 │ INFO    │ outcome_judge │ ⚖️ Outcome judge (groq:openai/gpt-oss-120b:0): achieved=True conf=0.90 — Worker stated: "AttaPoll logo/header text is clearly visible on the page." No contradictory evidence
+03:47:07 │ INFO    │ overwatch │ ✅ Overwatch L4: outcome VERIFIED — Worker stated: "AttaPoll logo/header text is clearly visible on the page." No contradictory evidence appears in the current snapshot (no err
+03:47:07 │ INFO    │ skill_memory │ 📝 SkillMemory: Recorded new workflow 'navigate_to_attapoll_attapoll' (2 steps, domain=attapoll.com)
+03:47:07 │ INFO    │ brain_graph │ 📝 Workflow recorded in SkillMemory (success=True)
+03:47:07 │ INFO    │ campaign_memory │ 📝 Recorded post on web: 'navigate to attapoll' (hash=1f24b743a8350acc)
+03:47:07 │ INFO    │ brain_graph │ ✅ MISSION COMPLETE — Task finished successfully!
+03:47:07 │ INFO    │ brain_graph │ ⚖️ Verified outcome: Worker stated: "AttaPoll logo/header text is clearly visible on the page." No contradictory evidence appears in the current snapshot (no error or missing‑logo indication).
+03:47:07 │ INFO    │ brain_graph │ Browser closed. Profile state persisted.

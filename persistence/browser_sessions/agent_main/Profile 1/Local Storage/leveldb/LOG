@@ -1,0 +1,6 @@
+2026/08/29-03:09:38.821 6242 Reusing MANIFEST /home/fellabloke/Attapoll/Agent-first-ide/persistence/browser_sessions/agent_main/Profile 1/Local Storage/leveldb/MANIFEST-000001
+2026/08/29-03:09:38.824 6242 Recovering log #4
+2026/08/29-03:09:38.825 6242 Reusing old log /home/fellabloke/Attapoll/Agent-first-ide/persistence/browser_sessions/agent_main/Profile 1/Local Storage/leveldb/000004.log 
+2026/08/29-03:09:55.363 6245 Level-0 table #8: started
+2026/08/29-03:09:55.367 6245 Level-0 table #8: 59754 bytes OK
+2026/08/29-03:09:55.369 6245 Delete type=0 #4

@@ -1,0 +1,14 @@
+2026/08/28-03:56:27.962 5560 Reusing MANIFEST /home/fellabloke/Attapoll/Agent-first-ide/persistence/browser_sessions/agent_main/Default/IndexedDB/https_earn.attapoll.app_0.indexeddb.leveldb/MANIFEST-000001
+2026/08/28-03:56:27.962 5560 Recovering log #19
+2026/08/28-03:56:27.962 5560 Reusing old log /home/fellabloke/Attapoll/Agent-first-ide/persistence/browser_sessions/agent_main/Default/IndexedDB/https_earn.attapoll.app_0.indexeddb.leveldb/000019.log 
+2026/08/28-03:56:27.962 5560 Delete type=2 #17
+2026/08/28-03:56:28.002 5562 Level-0 table #24: started
+2026/08/28-03:56:28.005 5562 Level-0 table #24: 3772 bytes OK
+2026/08/28-03:56:28.008 5562 Delete type=0 #19
+2026/08/28-03:56:28.008 555f Manual compaction at level-0 from '\x00\x0b\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x0c\x00\x00\x00' @ 0 : 0; will stop at '\x00\x0b\x00\x00\x05' @ 855 : 1
+2026/08/28-03:56:28.008 555f Compacting 1@0 + 1@1 files
+2026/08/28-03:56:28.010 555f Generated table #25@0: 242 keys, 5787 bytes
+2026/08/28-03:56:28.010 555f Compacted 1@0 + 1@1 files => 5787 bytes
+2026/08/28-03:56:28.012 555f compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/08/28-03:56:28.012 555f Delete type=2 #24
+2026/08/28-03:56:28.012 555f Manual compaction at level-0 from '\x00\x0b\x00\x00\x05' @ 855 : 1 .. '\x00\x0c\x00\x00\x00' @ 0 : 0; will stop at (end)
