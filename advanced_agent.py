@@ -385,21 +385,93 @@ class SessionGuard:
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Browser Launch — Pure Native Persistence (v8.0)
 # ═══════════════════════════════════════════════════════════════════════════════
-async def launch_browser(*, headless: bool = False) -> tuple[BrowserContext, Page]:
-    """Launch Playwright with a persistent user_data_dir profile.
 
-    All cookies, localStorage, IndexedDB, and Cache are managed natively
-    by the Chromium engine on disk. No synthetic injection needed.
+
+async def launch_browser(*, headless: bool = False) -> tuple[BrowserContext, Page]:
+    """
+    Connect to an already-running native Chrome via CDP when LOCAL_CDP_ENDPOINT
+    is configured. Otherwise fall back to the existing local Playwright browser.
     """
     _ensure_dirs()
-    _mark_profile_clean_exit()  # suppress the crash-restore bubble (overlaps Star button)
-    pw = await async_playwright().start()
-    cdp_endpoint = os.getenv("LOCAL_CDP_ENDPOINT", "http://localhost:9222")
-    logger.info("Launching Playwright Chromium (native profile: %s)", PROFILE_DIR)
 
-    # Randomize viewport per session to prevent fingerprint linkage
+    pw = await async_playwright().start()
+
+    cdp_endpoint = os.getenv("LOCAL_CDP_ENDPOINT", "").strip()
+
+    # ============================================================
+    # WINDOWS NATIVE CHROME VIA CDP
+    # ============================================================
+    if cdp_endpoint:
+        logger.info("🌐 Connecting to native Chrome via CDP: %s", cdp_endpoint)
+
+        try:
+            browser = await pw.chromium.connect_over_cdp(
+                cdp_endpoint,
+                timeout=15_000,
+            )
+        except Exception as e:
+            logger.error(
+                "❌ Could not connect to Chrome CDP at %s: %s",
+                cdp_endpoint,
+                e,
+            )
+            await pw.stop()
+            raise
+
+        if not browser.contexts:
+            logger.error("❌ CDP Chrome connected, but no browser context exists.")
+            await pw.stop()
+            raise RuntimeError("Chrome CDP connected but returned no browser contexts.")
+
+        context = browser.contexts[0]
+
+        if context.pages:
+            page = context.pages[0]
+        else:
+            page = await context.new_page()
+
+        # Apply the same agent-side instrumentation.
+        await context.add_init_script(STEALTH_INIT_SCRIPT)
+        await context.add_init_script(VISUAL_CURSOR_INIT_SCRIPT)
+        await dom_parser.install_shadow_piercer(context)
+
+        try:
+            await apply_page_stealth(page)
+        except Exception as e:
+            logger.warning("Page stealth setup failed (non-fatal): %s", e)
+
+        guard = SessionGuard.get()
+        guard.attach(context)
+
+        try:
+            await page.bring_to_front()
+        except Exception:
+            pass
+
+        logger.info(
+            "✅ Attached to native Chrome: url=%s title=%s",
+            page.url,
+            await page.title(),
+        )
+
+        return context, page
+
+    # ============================================================
+    # EXISTING LOCAL WSL CHROMIUM FALLBACK
+    # ============================================================
+    _mark_profile_clean_exit()
+
+    logger.info(
+        "Launching local Playwright Chromium (native profile: %s)",
+        PROFILE_DIR,
+    )
+
     session_viewport = get_random_viewport()
-    logger.info("Session viewport: %dx%d", session_viewport["width"], session_viewport["height"])
+    logger.info(
+        "Session viewport: %dx%d",
+        session_viewport["width"],
+        session_viewport["height"],
+    )
 
     context = await pw.chromium.launch_persistent_context(
         user_data_dir=str(PROFILE_DIR),
@@ -414,15 +486,14 @@ async def launch_browser(*, headless: bool = False) -> tuple[BrowserContext, Pag
         args=STEALTH_LAUNCH_ARGS + dom_parser.TLS_STEALTH_ARGS,
         ignore_default_args=["--enable-automation"],
     )
+
     await context.add_init_script(STEALTH_INIT_SCRIPT)
     await context.add_init_script(VISUAL_CURSOR_INIT_SCRIPT)
     await dom_parser.install_shadow_piercer(context)
 
-    # ── Attach lifecycle guard ──
     guard = SessionGuard.get()
     guard.attach(context)
 
-    # Get or create page
     if context.pages:
         page = context.pages[0]
     else:

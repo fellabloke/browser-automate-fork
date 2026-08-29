@@ -1,6 +1,0 @@
-2026/08/28-04:00:49.622 5560 Creating DB /home/fellabloke/Attapoll/Agent-first-ide/persistence/browser_sessions/agent_main/Profile 1/IndexedDB/https_earn.attapoll.app_0.indexeddb.leveldb since it was missing.
-2026/08/28-04:00:49.627 5560 Reusing MANIFEST /home/fellabloke/Attapoll/Agent-first-ide/persistence/browser_sessions/agent_main/Profile 1/IndexedDB/https_earn.attapoll.app_0.indexeddb.leveldb/MANIFEST-000001
-2026/08/28-04:00:49.715 555f Level-0 table #5: started
-2026/08/28-04:00:49.717 555f Level-0 table #5: 1930 bytes OK
-2026/08/28-04:00:49.720 555f Delete type=0 #3
-2026/08/28-04:00:49.720 555f Manual compaction at level-0 from '\x00\x01\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\x02\x00\x00\x00' @ 0 : 0; will stop at (end)

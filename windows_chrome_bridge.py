@@ -41,9 +41,7 @@ def main():
         chrome_path,
         "--remote-debugging-port=9222",
         "--remote-debugging-address=0.0.0.0",
-        "--remote-allow-origins=*",
-        "--enable-webgl",
-        r"--user-data-dir=C:\chrome-automation-profile",
+        "--user-data-dir=C:\\chrome-automation-profile",
         "--no-first-run",
         "--no-default-browser-check",
     ]

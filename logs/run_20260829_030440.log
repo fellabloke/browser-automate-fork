@@ -1,9 +1,0 @@
-03:04:41 │ INFO    │ run_v16 │ 🧠 True Brain v16.0 — LangGraph Architecture
-03:04:41 │ INFO    │ run_v16 │ Objective: go to amazon and search for a mechanical keyboard
-03:04:41 │ INFO    │ virtual_display │ 🖥️ Skipping Xvfb setup. Deferring to native Windows Chrome bridge.
-03:04:41 │ INFO    │ brain_graph │ 🌐 Browser mode: HEADED (stealth)
-03:04:42 │ INFO    │ advanced_agent │ 🔗 Connecting to native Windows Chrome CDP bridge at http://localhost:9222
-03:04:42 │ ERROR   │ advanced_agent │ ❌ Failed to connect to CDP endpoint http://localhost:9222. Ensure windows_chrome_bridge.py is running. Error: BrowserType.connect_over_cdp: connect ECONNREFUSED ::1:9222
-Call log:
-  - <ws preparing> retrieving websocket url from http://localhost:9222
-
