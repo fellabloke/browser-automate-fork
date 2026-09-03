@@ -351,6 +351,17 @@ class CriticV12:
             progress_signals.append(f"Element count changed by {element_delta:+d}")
 
         # ── Action-specific logic ──
+        if action == "abandon_survey":
+            return self._make_verdict(
+                success=True,
+                reason=f"Survey boundary navigation confirmed: {current_url}",
+                confidence=0.98,
+                is_progress=True,
+                url_changed=url_changed,
+                semantic_changed=semantic_changed,
+                element_delta=element_delta,
+            )
+
         if action == "goto":
             if url_changed:
                 return self._make_verdict(

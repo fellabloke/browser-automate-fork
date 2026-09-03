@@ -11,7 +11,7 @@ import uuid
 from enum import Enum
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -60,8 +60,7 @@ class TaskNode(BaseModel):
     error: str | None = Field(default=None, description="Error message if failed")
     retries: int = Field(default=0, description="Number of times this node has been retried")
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

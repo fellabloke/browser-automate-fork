@@ -66,6 +66,7 @@ class PerceptionResult:
     drop in without changing Overwatch, the workers, Target Lock, or the registry."""
     elements: list[dict] = field(default_factory=list)
     markdown: str = ""
+    page_text: str = ""
     selector_map: dict[str, Any] = field(default_factory=dict)
     element_count: int = 0
     tier: int = 1
@@ -80,6 +81,7 @@ class PerceptionResult:
         return cls(
             elements=snap.get("elements", []) or [],
             markdown=snap.get("markdown", "") or "",
+            page_text=snap.get("page_text", "") or "",
             selector_map=snap.get("selector_map", {}) or {},
             element_count=int(snap.get("element_count", 0) or 0),
             tier=tier,

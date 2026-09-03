@@ -70,7 +70,6 @@ def get_random_viewport() -> dict[str, int]:
 
 
 STEALTH_LAUNCH_ARGS = [
-    "--disable-blink-features=AutomationControlled",
     "--disable-dev-shm-usage",
     "--no-first-run",
     "--no-default-browser-check",
@@ -466,6 +465,30 @@ STEALTH_INIT_SCRIPT = r"""
 """
 
 
+def get_stealth_init_script(*, browser_platform: str | None = None) -> str:
+    """Return an init script whose fingerprint matches the browser host OS.
+
+    In Windows-CDP mode Python runs inside WSL while Chrome runs on Windows, so
+    deriving ``navigator.platform`` from the Python process would incorrectly
+    advertise Linux.  Callers attaching to an existing browser can pass the
+    platform reported by that browser; local launches keep the historical
+    process-OS default.
+    """
+    if not browser_platform:
+        platform_string = _PLATFORM_STRING
+    elif "win" in browser_platform.lower():
+        platform_string = "Win32"
+    elif "linux" in browser_platform.lower():
+        platform_string = "Linux x86_64"
+    else:
+        # Do not invent a Windows/Linux fingerprint for an unknown host.
+        platform_string = browser_platform
+
+    original = f"defineSafe(navigator, 'platform', '{_PLATFORM_STRING}');"
+    replacement = f"defineSafe(navigator, 'platform', '{platform_string}');"
+    return STEALTH_INIT_SCRIPT.replace(original, replacement, 1)
+
+
 async def launch_stealth_context(
     *,
     playwright: Playwright,
@@ -477,22 +500,44 @@ async def launch_stealth_context(
     Returns:
       (context, used_cloakbrowser)
     """
-    cdp_endpoint = os.getenv("LOCAL_CDP_ENDPOINT", "http://localhost:9222")
+    cdp_endpoint = os.getenv("LOCAL_CDP_ENDPOINT", "http://127.0.0.1:9222")
     logger.info("🔗 Connecting to native Chrome CDP bridge at %s", cdp_endpoint)
 
     try:
         # Connect Playwright to the natively running Chrome instance
         browser = await playwright.chromium.connect_over_cdp(cdp_endpoint)
         
-        # A persistent context bridged via CDP exposes its main profile as contexts[0]
-        context = browser.contexts[0] if browser.contexts else await browser.new_context()
-        
-        # Inject our stealth scripts into the connected context to ensure hardware hardening remains active
-        await context.add_init_script(STEALTH_INIT_SCRIPT)
+        if not browser.contexts:
+            raise RuntimeError("Chrome CDP connected but returned no browser contexts")
+
+        # A persistent context bridged via CDP exposes its main profile as contexts[0].
+        context = browser.contexts[0]
+        browser_platform = os.getenv("BROWSER_OS", "Windows")
+        if context.pages:
+            try:
+                browser_platform = await context.pages[0].evaluate(
+                    "navigator.userAgentData?.platform || navigator.platform || ''"
+                )
+            except Exception:
+                pass
+
+        # Inject context instrumentation only; the browser already owns all
+        # launch-time settings in CDP mode.
+        await context.add_init_script(
+            get_stealth_init_script(browser_platform=str(browser_platform))
+        )
+        from site_customizations import install_site_customizations
+        current_page = context.pages[0] if context.pages else None
+        await install_site_customizations(context, current_page)
         
         return context, False
     except Exception as e:
-        logger.error("❌ Failed to connect to CDP endpoint %s. Ensure windows_chrome_bridge.py is running. Error: %s", cdp_endpoint, e)
+        logger.error(
+            "❌ Failed to connect to CDP endpoint %s. Use Start-Agent.ps1 to "
+            "start and verify Windows Chrome. Error: %s",
+            cdp_endpoint,
+            e,
+        )
         raise
 
 

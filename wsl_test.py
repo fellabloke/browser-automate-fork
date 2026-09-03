@@ -37,7 +37,6 @@ async def main():
         print("[1/6] Launching Playwright Chromium...")
         browser = await pw.chromium.launch(
             headless=False,
-            args=["--disable-blink-features=AutomationControlled"],
         )
         context = await browser.new_context(
             viewport={"width": 1280, "height": 720},

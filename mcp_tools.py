@@ -23,7 +23,11 @@ import asyncio
 import base64
 import json
 import logging
+import os
+import random
+import re
 from typing import Any
+from urllib.parse import urlparse
 
 try:
     from app.logger import get_logger
@@ -37,12 +41,58 @@ except ImportError:
 
 _PAGE = None  # Set by brain_graph.py at startup
 _SELECTOR_MAP: dict[str, dict] = {}
+_KNOWN_PAGE_IDS: set[int] = set()
+_CRASHED_PAGE_IDS: set[int] = set()
+_WATCHED_PAGE_IDS: set[int] = set()
+
+
+def is_blacklisted_survey_url(url: str) -> bool:
+    """Return whether a survey destination must never remain open."""
+    raw = os.getenv("SURVEY_BLACKLISTED_URLS", "https://welcome.eu.walr.com")
+    host = (urlparse(str(url or "")).hostname or "").lower().removeprefix("www.")
+    if not host:
+        return False
+    for item in re.split(r"[,;\n]+", raw):
+        blocked_host = (urlparse(item.strip()).hostname or "").lower().removeprefix("www.")
+        if blocked_host and (host == blocked_host or host.endswith("." + blocked_host)):
+            return True
+    return False
+
+
+def is_page_crash_error(error: Any) -> bool:
+    message = str(error or "").lower()
+    return any(marker in message for marker in (
+        "target crashed", "page crashed", "target closed", "page has been closed",
+        "browser has been closed", "browser context has been closed",
+    ))
+
+
+def _mark_page_crashed(page) -> None:
+    if page is not None:
+        _CRASHED_PAGE_IDS.add(id(page))
+
+
+def _watch_page(page) -> None:
+    if page is None or id(page) in _WATCHED_PAGE_IDS:
+        return
+    _WATCHED_PAGE_IDS.add(id(page))
+    try:
+        page.on("crash", lambda *_args: _mark_page_crashed(page))
+    except Exception:
+        pass
 
 
 def set_page(page) -> None:
     """Inject the live Playwright page reference (called once at startup)."""
-    global _PAGE
+    global _PAGE, _KNOWN_PAGE_IDS
     _PAGE = page
+    try:
+        _KNOWN_PAGE_IDS = {id(p) for p in page.context.pages}
+        for candidate in page.context.pages:
+            _watch_page(candidate)
+    except Exception:
+        _KNOWN_PAGE_IDS = {id(page)} if page is not None else set()
+        _watch_page(page)
 
 
 def set_selector_map(smap: dict) -> None:
@@ -57,6 +107,274 @@ def _get_page():
     return _PAGE
 
 
+def get_page():
+    """Return the page currently owned by the MCP interaction layer."""
+    return _get_page()
+
+
+async def mcp_close_qmee_svg_popup() -> dict:
+    """Dismiss the known Qmee privacy/feedback popup close control.
+
+    Qmee renders this control as an unlabeled SVG path, sometimes inside a
+    cross-origin survey frame, so it is absent from the accessibility map. The
+    exact path signature keeps this preflight narrowly scoped and avoids
+    guessing at arbitrary page coordinates.
+    """
+    page = _get_page()
+    selector = (
+        'path[stroke="#3C3C3C"]'
+        '[d="M13.368 12.629 8.183 7.814 13.368 3M2.999 3l5.184 4.815L3 12.629"]'
+    )
+    try:
+        for frame in page.frames:
+            path = frame.locator(selector)
+            count = await path.count()
+            for index in range(count):
+                candidate = path.nth(index)
+                if not await candidate.is_visible():
+                    continue
+                result = await candidate.evaluate("""
+                (node) => {
+                    let target = node;
+                    for (let hops = 0; target && hops < 7; hops++, target = target.parentElement) {
+                        if (target.matches && target.matches(
+                            'button,a,[role="button"],[role="link"],[onclick],[tabindex]'
+                        )) break;
+                    }
+                    target = target || node;
+                    target.dispatchEvent(new MouseEvent('click', {
+                        bubbles: true, cancelable: true, view: window,
+                    }));
+                    return {tag: target.tagName || '', className: String(target.className || '').slice(0, 100)};
+                }
+                """)
+                await asyncio.sleep(0.15)
+                remaining = await frame.locator(selector).count()
+                logger.info(
+                    "🪟 Qmee SVG popup close attempted in frame=%s target=%s remaining_paths=%d",
+                    str(getattr(frame, "url", ""))[:120], result.get("tag", "?"), remaining,
+                )
+                if remaining == 0:
+                    return {"closed": True, "success": True}
+        return {"closed": False, "success": True}
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Qmee SVG popup preflight skipped: %s", str(exc)[:160])
+        return {"closed": False, "success": False, "error": str(exc)[:160]}
+
+
+async def recover_unusable_page(
+    current_page=None,
+    *,
+    fallback_url: str = "",
+    force: bool = False,
+) -> dict:
+    """Replace a crashed/closed renderer while preserving its browser context.
+
+    A renderer crash is not a mission-ending condition. Prefer an existing tab
+    on the requested provider; otherwise create a clean target and navigate it
+    to the provider dashboard. Unrelated background tabs are never hijacked.
+    """
+    global _PAGE, _SELECTOR_MAP, _KNOWN_PAGE_IDS
+    current = current_page or _PAGE
+    if current is None:
+        return {"recovered": False, "page": None, "reason": "no active page"}
+    try:
+        closed = current.is_closed()
+    except Exception:
+        closed = True
+    if not force and not closed and id(current) not in _CRASHED_PAGE_IDS:
+        return {"recovered": False, "page": current, "reason": "page is usable"}
+
+    try:
+        context = current.context
+        pages = list(context.pages)
+        fallback_host = urlparse(fallback_url).hostname or ""
+        candidates = []
+        for candidate in pages:
+            if candidate is current or id(candidate) in _CRASHED_PAGE_IDS:
+                continue
+            try:
+                if candidate.is_closed():
+                    continue
+            except Exception:
+                continue
+            if fallback_host and fallback_host not in (getattr(candidate, "url", "") or ""):
+                continue
+            candidates.append(candidate)
+        replacement = candidates[-1] if candidates else await context.new_page()
+        _watch_page(replacement)
+        if fallback_url and (getattr(replacement, "url", "") or "") != fallback_url:
+            await replacement.goto(
+                fallback_url, wait_until="domcontentloaded", timeout=20_000
+            )
+        try:
+            await replacement.bring_to_front()
+        except Exception:
+            pass
+        _PAGE = replacement
+        _SELECTOR_MAP = {}
+        _KNOWN_PAGE_IDS.update(id(page) for page in context.pages)
+        logger.warning(
+            "🛟 Recovered unusable browser target%s",
+            f" at {fallback_url[:100]}" if fallback_url else "",
+        )
+        return {"recovered": True, "page": replacement, "reason": "fresh browser target"}
+    except Exception as exc:
+        logger.error("🛟 Browser target recovery failed: %s", exc)
+        return {"recovered": False, "page": current, "reason": str(exc)[:180]}
+
+
+async def adopt_new_page_if_opened(current_page=None, wait_ms: int = 2500) -> dict:
+    """Adopt a newly opened tab/popup, or recover when the active tab closes.
+
+    Browser actions often launch their real destination in a new tab while the
+    opener re-renders in place. Without an explicit handoff, perception remains
+    attached to the opener and incorrectly concludes that the destination never
+    started. New pages whose opener is the current page are preferred; otherwise
+    the newest live page wins. Existing background tabs are never selected.
+    """
+    global _PAGE, _KNOWN_PAGE_IDS
+
+    current = current_page or _PAGE
+    if current is None:
+        return {"switched": False, "page": None, "reason": "no active page"}
+
+    try:
+        context = current.context
+        pages = list(context.pages)
+    except Exception as exc:
+        return {"switched": False, "page": current, "reason": str(exc)[:120]}
+
+    live_pages = []
+    for candidate in pages:
+        _watch_page(candidate)
+        try:
+            if not candidate.is_closed():
+                live_pages.append(candidate)
+        except Exception:
+            live_pages.append(candidate)
+
+    new_pages = [p for p in live_pages if id(p) not in _KNOWN_PAGE_IDS]
+    _KNOWN_PAGE_IDS.update(id(p) for p in pages)
+
+    try:
+        current_closed = current.is_closed()
+    except Exception:
+        current_closed = current not in live_pages
+
+    # A provider can navigate the existing tab directly to a disallowed
+    # redirect instead of opening a popup. Close it before perception sees it.
+    if not current_closed and is_blacklisted_survey_url(getattr(current, "url", "")):
+        replacement_candidates = [
+            p for p in live_pages
+            if p is not current and not is_blacklisted_survey_url(getattr(p, "url", ""))
+        ]
+        replacement = replacement_candidates[-1] if replacement_candidates else await context.new_page()
+        try:
+            await current.close()
+        except Exception as exc:
+            logger.debug("Blacklisted survey tab close skipped: %s", exc)
+        _PAGE = replacement
+        await replacement.bring_to_front()
+        logger.warning("🚫 Closed blacklisted survey URL: %s", getattr(current, "url", "")[:160])
+        return {
+            "switched": True,
+            "page": replacement,
+            "old_url": getattr(current, "url", ""),
+            "new_url": getattr(replacement, "url", "about:blank"),
+            "blocked_url": getattr(current, "url", ""),
+            "reason": "blacklisted_url",
+        }
+
+    if not new_pages and not current_closed:
+        # A previous post-action handoff may already have updated the MCP page.
+        return {"switched": _PAGE is not current, "page": _PAGE or current,
+                "reason": "already adopted" if _PAGE is not current else "no new page"}
+
+    candidates = new_pages or [p for p in live_pages if p is not current]
+    if not candidates:
+        return {"switched": False, "page": current, "reason": "no live replacement"}
+
+    direct_popups = []
+    for candidate in candidates:
+        try:
+            if await candidate.opener() is current:
+                direct_popups.append(candidate)
+        except Exception:
+            pass
+    selected = (direct_popups or candidates)[-1]
+
+    # Popup creation commonly precedes its navigation. Give the selected page a
+    # short bounded window to leave about:blank and build an inspectable DOM.
+    deadline = asyncio.get_running_loop().time() + max(0, wait_ms) / 1000.0
+    while getattr(selected, "url", "") in ("", "about:blank"):
+        if asyncio.get_running_loop().time() >= deadline:
+            break
+        await asyncio.sleep(0.05)
+    try:
+        remaining_ms = max(100, int((deadline - asyncio.get_running_loop().time()) * 1000))
+        await selected.wait_for_load_state("domcontentloaded", timeout=remaining_ms)
+    except Exception:
+        pass
+
+    if is_blacklisted_survey_url(getattr(selected, "url", "")):
+        blocked_url = getattr(selected, "url", "")
+        try:
+            await selected.close()
+        except Exception as exc:
+            logger.debug("Blacklisted popup close skipped: %s", exc)
+        replacement = current
+        try:
+            if replacement.is_closed() or is_blacklisted_survey_url(getattr(replacement, "url", "")):
+                replacement = next(
+                    (
+                        p for p in live_pages
+                        if not p.is_closed()
+                        and not is_blacklisted_survey_url(getattr(p, "url", ""))
+                    ),
+                    None,
+                )
+                if replacement is None:
+                    replacement = await context.new_page()
+        except Exception:
+            replacement = await context.new_page()
+        _PAGE = replacement
+        try:
+            await replacement.bring_to_front()
+        except Exception:
+            pass
+        logger.warning("🚫 Closed blacklisted survey popup: %s", blocked_url[:160])
+        return {
+            "switched": replacement is not current,
+            "page": replacement,
+            "old_url": old_url if "old_url" in locals() else getattr(current, "url", ""),
+            "new_url": getattr(replacement, "url", "about:blank"),
+            "blocked_url": blocked_url,
+            "reason": "blacklisted_url",
+        }
+    try:
+        await selected.bring_to_front()
+    except Exception:
+        pass
+
+    old_url = getattr(current, "url", "")
+    new_url = getattr(selected, "url", "")
+    _PAGE = selected
+    logger.info(
+        "🗂️ TAB HANDOFF: %s → %s (%s)",
+        old_url[:100] or "about:blank",
+        new_url[:100] or "about:blank",
+        "new popup" if new_pages else "active tab closed",
+    )
+    return {
+        "switched": selected is not current,
+        "page": selected,
+        "old_url": old_url,
+        "new_url": new_url,
+        "reason": "new_popup" if new_pages else "active_closed",
+    }
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Tool: Navigate
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -67,8 +385,12 @@ async def mcp_navigate(url: str) -> dict:
     Delegates to: page.goto()
     Returns: {"success": bool, "url": str, "error": str}
     """
+    global _PAGE, _KNOWN_PAGE_IDS
     page = _get_page()
     try:
+        if is_blacklisted_survey_url(url):
+            logger.warning("🚫 Blocked navigation to blacklisted survey URL: %s", url[:160])
+            return {"success": False, "url": page.url, "error": f"Blacklisted survey URL: {url[:120]}"}
         # Domain safety check (existing module)
         from execution_safety import is_domain_allowed
         if not is_domain_allowed(url):
@@ -86,16 +408,180 @@ async def mcp_navigate(url: str) -> dict:
         return {"success": True, "url": page.url, "error": ""}
     except Exception as e:
         logger.warning("mcp_navigate failed: %s", e)
-        return {"success": False, "url": page.url, "error": str(e)[:200]}
+        error_text = str(e)[:200]
+        # A third-party survey tab can crash its renderer/iframe. A crashed
+        # Playwright Page cannot be navigated again, so recover through a live
+        # dashboard/opener tab or create a fresh tab in the same context.
+        if is_page_crash_error(error_text):
+            _mark_page_crashed(page)
+            recovery = await recover_unusable_page(
+                page, fallback_url=url, force=True
+            )
+            if recovery.get("recovered"):
+                replacement = recovery["page"]
+                return {"success": True, "url": replacement.url, "error": ""}
+            return {"success": False, "url": url, "error": error_text}
+        try:
+            current_url = page.url
+        except Exception:
+            current_url = url
+        return {"success": False, "url": current_url, "error": error_text}
+
+
+async def mcp_abandon_survey(url: str, *, fresh_dashboard: bool = False) -> dict:
+    """Close the active survey target and restore an ordered provider dashboard.
+
+    A fresh target is created before closing the only live tab, preserving the
+    browser context/cookies while ensuring a crashed or wedged questionnaire is
+    not reused. When the provider dashboard/opener is already open, it is reused.
+    """
+    global _PAGE, _KNOWN_PAGE_IDS
+    current = _get_page()
+    if not url:
+        return {"success": False, "url": getattr(current, "url", ""), "error": "Missing provider URL"}
+    try:
+        from execution_safety import is_domain_allowed
+        if not is_domain_allowed(url):
+            return {
+                "success": False,
+                "url": getattr(current, "url", ""),
+                "error": f"Domain blocked: {url[:80]}",
+            }
+
+        context = current.context
+        target_host = (urlparse(url).hostname or "").removeprefix("www.")
+        live = [page for page in context.pages if not page.is_closed() and page is not current]
+
+        def same_provider(page) -> bool:
+            try:
+                host = (urlparse(page.url).hostname or "").removeprefix("www.")
+                return bool(target_host and (host == target_host or host.endswith("." + target_host)))
+            except Exception:
+                return False
+
+        matching = [page for page in live if same_provider(page)]
+        destination = (
+            await context.new_page()
+            if fresh_dashboard
+            else (matching[-1] if matching else await context.new_page())
+        )
+        _PAGE = destination
+        _KNOWN_PAGE_IDS.update(id(page) for page in context.pages)
+
+        if not fresh_dashboard and current is not destination and not current.is_closed():
+            try:
+                await current.close()
+            except Exception as close_error:
+                logger.debug("Survey tab close skipped (non-fatal): %s", close_error)
+
+        await destination.goto(url, wait_until="domcontentloaded", timeout=30000)
+        if fresh_dashboard:
+            # Qmee completion redirects can leave stale concurrency/session
+            # state in both the old survey tab and its dashboard opener. Only
+            # after the new authenticated dashboard has loaded do we close them.
+            stale_tabs = [current, *matching]
+            for stale in stale_tabs:
+                if stale is destination:
+                    continue
+                try:
+                    if not stale.is_closed():
+                        await stale.close()
+                except Exception as close_error:
+                    logger.debug("Stale provider tab close skipped (non-fatal): %s", close_error)
+        try:
+            await destination.bring_to_front()
+        except Exception:
+            pass
+        try:
+            from ghost_input import resync_visual_cursor
+            await resync_visual_cursor(destination)
+        except Exception:
+            pass
+        if fresh_dashboard:
+            logger.info("🗂️ Opened fresh provider dashboard and closed stale tabs: %s", destination.url[:120])
+        else:
+            logger.info("↩️ Closed abandoned survey and restored provider: %s", destination.url[:120])
+        return {"success": True, "url": destination.url, "error": ""}
+    except Exception as exc:
+        logger.warning("mcp_abandon_survey failed: %s", exc)
+        try:
+            fallback = await mcp_navigate(url)
+            if fallback.get("success"):
+                return fallback
+        except Exception:
+            pass
+        return {
+            "success": False,
+            "url": getattr(_PAGE, "url", url),
+            "error": str(exc)[:200],
+        }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Tool: Click
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _sample_click_point(
+    rect: dict,
+    fallback_x: float,
+    fallback_y: float,
+) -> tuple[float, float]:
+    """Choose a bounded point inside a live target box.
+
+    Live resolution used to force every click to the exact centre. Sampling
+    the middle 40% keeps compact controls safe while avoiding a fixed target
+    point on repeated interactions.
+    """
+    try:
+        left = float(rect["x"])
+        top = float(rect["y"])
+        width = float(rect["width"])
+        height = float(rect["height"])
+        if width < 8 or height < 8:
+            return float(fallback_x), float(fallback_y)
+        return (
+            round(left + width * random.uniform(0.30, 0.70), 2),
+            round(top + height * random.uniform(0.30, 0.70), 2),
+        )
+    except (KeyError, TypeError, ValueError):
+        return float(fallback_x), float(fallback_y)
+
+
+async def _sample_coordinate_target(page, x: float, y: float) -> tuple[float, float]:
+    """Sample inside the actionable control currently under raw coordinates.
+
+    Coordinate-only vision actions do not have an element id to resolve.  A
+    short, read-only hit test covers ordinary buttons/labels without changing
+    the behaviour of coordinates that land on a canvas, iframe, or decorative
+    node.
+    """
+    try:
+        target = await asyncio.wait_for(page.evaluate("""
+        ({x, y}) => {
+            const hit = document.elementFromPoint(x, y);
+            if (!hit) return null;
+            const target = hit.closest && (
+                hit.closest('button,a,label,[role="button"],[role="link"],'
+                            + '[role="radio"],[role="checkbox"],[role="option"]')
+                || hit
+            );
+            if (!target || !target.getBoundingClientRect) return null;
+            const r = target.getBoundingClientRect();
+            if (r.width < 8 || r.height < 8) return null;
+            return {x: r.left, y: r.top, width: r.width, height: r.height};
+        }
+        """, {"x": float(x), "y": float(y)}), timeout=1.5)
+        if isinstance(target, dict):
+            return _sample_click_point(target, x, y)
+    except Exception:
+        pass
+    return float(x), float(y)
+
 async def mcp_click(
     x: float, y: float,
     element_id: str | None = None,
+    prevent_deselect: bool = False,
+    replay_safe: bool = False,
 ) -> dict:
     """Click an element at (x, y) with overlay penetration and CDP resilience.
 
@@ -109,6 +595,17 @@ async def mcp_click(
     page = _get_page()
 
     try:
+        # Qmee's close control is an unlabeled SVG path and may be inside the
+        # survey iframe, so it can appear after the last snapshot and bypass
+        # normal popup-first DOM routing. Clear it before any other click.
+        qmee_popup = await mcp_close_qmee_svg_popup()
+        if qmee_popup.get("closed"):
+            logger.info("🪟 Closed Qmee SVG popup before requested click")
+            return {
+                "success": True, "strategy": "qmee_svg_popup_close",
+                "navigated": False, "dom_changed": True, "verified": True,
+                "state_verified": True, "no_op": False, "error": "",
+            }
         # V19: Resolve the chosen element to FRESH, identity-verified coords from
         # the exact node the LLM picked (drift-proof). Falls back to snapshot
         # coords if the registry has no live node for this id.
@@ -116,21 +613,28 @@ async def mcp_click(
             import dom_parser
             r = await dom_parser.resolve_element(page, element_id)
             if r.get("ok"):
-                x, y = float(r["x"]), float(r["y"])
-                logger.info("🎯 Resolved %s → fresh (%d,%d) [%s '%s']",
-                            element_id, int(x), int(y), r.get("tag", ""),
+                center_x, center_y = float(r["x"]), float(r["y"])
+                x, y = _sample_click_point(r.get("rect") or {}, center_x, center_y)
+                logger.info("🎯 Resolved %s → fresh target (%d,%d) from center (%d,%d) [%s '%s']",
+                            element_id, int(x), int(y), int(center_x), int(center_y), r.get("tag", ""),
                             (r.get("text", "") or "")[:25])
-                await asyncio.sleep(0.2)  # let scroll settle
+                await asyncio.sleep(random.uniform(0.04, 0.11))
             else:
                 logger.debug("resolve %s miss (%s) — using snapshot coords",
                              element_id, r.get("reason"))
+        else:
+            sampled_x, sampled_y = await _sample_coordinate_target(page, x, y)
+            if (sampled_x, sampled_y) != (float(x), float(y)):
+                logger.info("🎯 Raw coordinate target (%d,%d) → sampled (%d,%d)",
+                            int(x), int(y), int(sampled_x), int(sampled_y))
+                x, y = sampled_x, sampled_y
 
         # Step 1: Overlay penetration
         from overlay_detector import smart_click_with_penetration
         penetration = await smart_click_with_penetration(page, x, y)
         if penetration.get("overlay_bypassed"):
             logger.info("🎯 Overlay penetrated at (%d, %d) via %s", x, y, penetration.get("method", "?"))
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.04)
 
         # Step 2: Humanized mouse movement
         from ghost_input import ghost_move_to
@@ -139,7 +643,13 @@ async def mcp_click(
         # Step 3: CDP resilient click
         from cdp_click import resilient_click
         click_result = await asyncio.wait_for(
-            resilient_click(page, x, y, max_retries=4, settle_ms=800),
+            resilient_click(
+                page, x, y, max_retries=3,
+                settle_ms=max(200, int(os.getenv("CLICK_SETTLE_MAX_MS", "600"))),
+                element_id=element_id,
+                prevent_deselect=prevent_deselect,
+                replay_safe=replay_safe,
+            ),
             timeout=30.0,
         )
 
@@ -149,6 +659,9 @@ async def mcp_click(
                 "strategy": click_result.strategy,
                 "navigated": click_result.navigation,
                 "dom_changed": click_result.dom_changed,
+                "verified": click_result.verified,
+                "state_verified": "state_verified" in click_result.strategy,
+                "no_op": bool(getattr(click_result, "no_op", False)),
                 "error": "",
             }
         else:
@@ -205,6 +718,8 @@ async def mcp_click(
                 "dom_changed": False, "error": "Click timed out (30s)"}
     except Exception as e:
         logger.warning("mcp_click failed: %s", e)
+        if is_page_crash_error(e):
+            _mark_page_crashed(page)
         return {"success": False, "strategy": "", "navigated": False,
                 "dom_changed": False, "error": str(e)[:200]}
 
@@ -218,6 +733,7 @@ async def mcp_type(
     x: float, y: float,
     element_id: str | None = None,
     clear_first: bool = True,
+    force_retype: bool = False,
 ) -> dict:
     """Type text into an element with CDP resilient typing.
 
@@ -245,7 +761,8 @@ async def mcp_type(
         type_result = await asyncio.wait_for(
             resilient_type(
                 page, text, x=x, y=y,
-                clear_first=clear_first, max_retries=3,
+                clear_first=clear_first, force_retype=force_retype, max_retries=3,
+                element_id=element_id,
             ),
             timeout=60.0,
         )
@@ -255,6 +772,7 @@ async def mcp_type(
                 "success": True,
                 "strategy": type_result["strategy"],
                 "actual_length": type_result["actual_length"],
+                "no_op": bool(type_result.get("no_op")),
                 "error": "",
             }
         else:
@@ -420,6 +938,189 @@ async def mcp_select_option(element_id: str | None, value: str) -> dict:
         return {"success": False, "error": str(e)[:160]}
 
 
+_SET_DATE_OF_BIRTH_JS = r"""
+(args) => {
+  const iso = String(args.iso || '');
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso);
+  if (!match) return {ok:false, reason:'invalid ISO date'};
+  const year = match[1], month = match[2], day = match[3];
+  let target = window.__aid && window.__aid[args.id];
+  const visible = el => {
+    if (!el) return false;
+    const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+    return r.width > 1 && r.height > 1 && s.display !== 'none' && s.visibility !== 'hidden';
+  };
+  const label = el => {
+    if (!el) return '';
+    let text = [el.getAttribute('aria-label'), el.getAttribute('placeholder'),
+      el.getAttribute('name'), el.getAttribute('id'), el.getAttribute('autocomplete')]
+      .filter(Boolean).join(' ');
+    try {
+      const by = el.getAttribute('aria-labelledby') || '';
+      text += ' ' + by.split(/\s+/).map(id => document.getElementById(id)?.textContent || '').join(' ');
+      if (el.labels) text += ' ' + [...el.labels].map(x => x.textContent || '').join(' ');
+    } catch(_) {}
+    return text.replace(/\s+/g, ' ').trim().toLowerCase();
+  };
+  const setNative = (el, value) => {
+    try {
+      const proto = el.tagName === 'SELECT' ? HTMLSelectElement.prototype
+        : el.tagName === 'TEXTAREA' ? HTMLTextAreaElement.prototype : HTMLInputElement.prototype;
+      const setter = Object.getOwnPropertyDescriptor(proto, 'value')?.set;
+      if (setter) setter.call(el, value); else el.value = value;
+      el.dispatchEvent(new Event('input', {bubbles:true}));
+      el.dispatchEvent(new Event('change', {bubbles:true}));
+      el.dispatchEvent(new Event('blur', {bubbles:true}));
+      return true;
+    } catch(_) { return false; }
+  };
+  const choose = (select, variants) => {
+    const options = [...select.options];
+    const norm = x => String(x || '').trim().toLowerCase().replace(/^0+(?=\d)/, '');
+    const wanted = variants.map(norm);
+    const option = options.find(o => wanted.includes(norm(o.value)) || wanted.includes(norm(o.textContent)));
+    return option ? setNative(select, option.value) : false;
+  };
+
+  if (target && target.tagName === 'INPUT' && target.type === 'date') {
+    setNative(target, iso);
+    return target.value === iso ? {ok:true, mode:'native-date'} : {ok:false, reason:'native date rejected value'};
+  }
+
+  let scope = target?.closest('fieldset,[role="group"],[data-question-id],[data-question],.question,.form-group') || document;
+  let controls = [...scope.querySelectorAll('input,select')].filter(visible);
+  let dated = controls.filter(el => /(?:birth|dob|day|month|year|dd|mm|yyyy)/i.test(label(el)));
+  if (!dated.length) {
+    dated = [...document.querySelectorAll('input[type="date"],input,select')]
+      .filter(el => visible(el) && /(?:birth|dob|day|month|year|dd|mm|yyyy)/i.test(label(el)));
+  }
+  const native = dated.find(el => el.tagName === 'INPUT' && el.type === 'date');
+  if (native) {
+    setNative(native, iso);
+    return native.value === iso ? {ok:true, mode:'native-date'} : {ok:false, reason:'native date rejected value'};
+  }
+
+  const allMonths = [
+    ['january','jan'],['february','feb'],['march','mar'],['april','apr'],
+    ['may','may'],['june','jun'],['july','jul'],['august','aug'],
+    ['september','sep'],['october','oct'],['november','nov'],['december','dec']
+  ];
+  const monthNames = allMonths[Math.max(0, Number(month) - 1)] || [];
+  const parts = {day:false, month:false, year:false};
+  for (const el of dated) {
+    const desc = label(el);
+    let part = '';
+    if (/\b(?:day|dd)\b/.test(desc)) part = 'day';
+    else if (/\b(?:month|mm)\b/.test(desc)) part = 'month';
+    else if (/\b(?:year|yyyy)\b/.test(desc)) part = 'year';
+    if (!part) continue;
+    const variants = part === 'day' ? [day, String(Number(day))]
+      : part === 'month' ? [month, String(Number(month)), ...monthNames]
+      : [year];
+    if (el.tagName === 'SELECT') parts[part] = choose(el, variants);
+    else parts[part] = setNative(el, variants[0]);
+  }
+  if (parts.day && parts.month && parts.year) return {ok:true, mode:'segmented-date'};
+  return {ok:false, reason:'could not bind all birthdate components', parts};
+}
+"""
+
+
+_VERIFY_DATE_OF_BIRTH_JS = r"""
+(args) => {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(args.iso || ''));
+  if (!match) return {ok:false, reason:'invalid ISO date'};
+  const expected = {year:match[1], month:match[2], day:match[3]};
+  const target = window.__aid && window.__aid[args.id];
+  const visible = el => {
+    if (!el || !el.isConnected) return false;
+    const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+    return r.width > 1 && r.height > 1 && s.display !== 'none' && s.visibility !== 'hidden';
+  };
+  const label = el => {
+    let text = [el.getAttribute('aria-label'), el.getAttribute('placeholder'),
+      el.getAttribute('name'), el.getAttribute('id'), el.getAttribute('autocomplete')]
+      .filter(Boolean).join(' ');
+    try {
+      const by = el.getAttribute('aria-labelledby') || '';
+      text += ' ' + by.split(/\s+/).map(id => document.getElementById(id)?.textContent || '').join(' ');
+      if (el.labels) text += ' ' + [...el.labels].map(x => x.textContent || '').join(' ');
+    } catch(_) {}
+    return text.replace(/\s+/g, ' ').trim().toLowerCase();
+  };
+  const native = target?.matches?.('input[type="date"]') ? target
+    : [...document.querySelectorAll('input[type="date"]')].find(visible);
+  if (native) return native.value === args.iso
+    ? {ok:true, mode:'native-date'} : {ok:false, reason:'native date value reverted'};
+  const scope = target?.closest?.('fieldset,[role="group"],[data-question-id],[data-question],.question,.form-group') || document;
+  let controls = [...scope.querySelectorAll('input,select')].filter(visible);
+  if (controls.length < 3) controls = [...document.querySelectorAll('input,select')].filter(visible);
+  const actual = {};
+  const monthNames = ['january','february','march','april','may','june','july','august','september','october','november','december'];
+  for (const el of controls) {
+    const desc = label(el);
+    const raw = String(el.value || '').trim().toLowerCase();
+    if (/\b(?:day|dd)\b/.test(desc)) actual.day = raw.replace(/^0+(?=\d)/, '');
+    else if (/\b(?:month|mm)\b/.test(desc)) {
+      const monthIndex = monthNames.findIndex(name => raw === name || raw === name.slice(0,3));
+      actual.month = monthIndex >= 0 ? String(monthIndex + 1) : raw.replace(/^0+(?=\d)/, '');
+    } else if (/\b(?:year|yyyy)\b/.test(desc)) actual.year = raw;
+  }
+  const ok = actual.day === String(Number(expected.day))
+    && actual.month === String(Number(expected.month)) && actual.year === expected.year;
+  return ok ? {ok:true, mode:'segmented-date'}
+    : {ok:false, reason:'one or more date components reverted'};
+}
+"""
+
+
+async def mcp_set_date_of_birth(element_id: str | None, iso_date: str) -> dict:
+    """Fill one native/segmented DOB widget, switching to manual calendar when offered."""
+    page = _get_page()
+    if not element_id:
+        return {"success": False, "error": "date of birth action requires an element_id"}
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", str(iso_date or "")):
+        return {"success": False, "error": "date of birth must use YYYY-MM-DD"}
+    try:
+        # Providers sometimes default to a visual picker and expose a safer
+        # segmented/manual alternative. Prefer it before manipulating controls.
+        switched = await page.evaluate(r"""() => {
+            const candidates = [...document.querySelectorAll('button,a,[role="button"]')];
+            const alternative = candidates.find(el => {
+                const text = (el.innerText || el.textContent || el.getAttribute('aria-label') || '')
+                    .replace(/\s+/g, ' ').trim();
+                if (!/(alternative calendar|enter date manually|type date|manual entry|switch calendar)/i.test(text)) return false;
+                const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+                return r.width > 1 && r.height > 1 && s.display !== 'none' && s.visibility !== 'hidden';
+            });
+            if (!alternative) return false;
+            alternative.click();
+            return true;
+        }""")
+        if switched:
+            await page.wait_for_timeout(400)
+        result = await page.evaluate(
+            _SET_DATE_OF_BIRTH_JS,
+            {"id": element_id, "iso": iso_date},
+        )
+        if not result.get("ok"):
+            return {"success": False, "error": str(result.get("reason") or "date widget failed")[:180]}
+        # Framework-controlled inputs can revert after the event handler runs.
+        # Re-read all components after the render cycle before reporting success.
+        await page.wait_for_timeout(250)
+        verified = await page.evaluate(
+            _VERIFY_DATE_OF_BIRTH_JS,
+            {"id": element_id, "iso": iso_date},
+        )
+        if verified.get("ok"):
+            logger.info("📅 Date-of-birth widget completed via %s", verified.get("mode", "profile date"))
+            return {"success": True, "mode": verified.get("mode", ""), "error": ""}
+        return {"success": False, "error": str(verified.get("reason") or "date verification failed")[:180]}
+    except Exception as exc:
+        logger.warning("mcp_set_date_of_birth failed: %s", exc)
+        return {"success": False, "error": str(exc)[:180]}
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  V33: Comprehensive Browser Action Suite — New Primitives
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -428,6 +1129,7 @@ async def mcp_drag_and_drop(
     element_id: str | None = None,
     x: float = 0, y: float = 0,
     target_x: float = 0, target_y: float = 0,
+    target_element_id: str | None = None,
 ) -> dict:
     """Drag from (x, y) to (target_x, target_y) using CDP mouse events.
 
@@ -444,6 +1146,13 @@ async def mcp_drag_and_drop(
             if r.get("ok"):
                 x, y = float(r["x"]), float(r["y"])
 
+        if target_element_id:
+            import dom_parser
+            destination = await dom_parser.resolve_element(page, target_element_id)
+            if not destination.get("ok"):
+                return {"success": False, "error": "drag destination is no longer grounded"}
+            target_x, target_y = float(destination["x"]), float(destination["y"])
+
         if x == 0 and y == 0:
             return {"success": False, "error": "drag_and_drop requires source coordinates or element_id"}
         if target_x == 0 and target_y == 0:
@@ -454,19 +1163,9 @@ async def mcp_drag_and_drop(
         await ghost_move_to(page, x, y)
         await asyncio.sleep(0.1)
 
-        # CDP mousedown at source
-        cdp = page.context.browser.contexts[0].pages[0]
-        await cdp.evaluate("""
-        ([x, y]) => {
-            const el = document.elementFromPoint(x, y);
-            if (el) {
-                el.dispatchEvent(new MouseEvent('mousedown', {
-                    bubbles: true, cancelable: true,
-                    clientX: x, clientY: y, button: 0
-                }));
-            }
-        }
-        """, [x, y])
+        # Use a real Playwright mouse button sequence. Synthetic JS events do
+        # not start native HTML5/pointer drags in many survey widgets.
+        await page.mouse.down()
         await asyncio.sleep(0.15)
 
         # Humanized move to target (simulates dragging)
@@ -494,27 +1193,61 @@ async def mcp_drag_and_drop(
         """, [target_x, target_y])
         await asyncio.sleep(0.1)
 
-        # CDP mouseup at target
+        # Release the real held button at the destination.
         await page.mouse.up()
-
-        # Also fire drop event for HTML5 drag-and-drop
-        await page.evaluate("""
-        ([x, y]) => {
-            const el = document.elementFromPoint(x, y);
-            if (el) {
-                el.dispatchEvent(new MouseEvent('mouseup', {
-                    bubbles: true, cancelable: true,
-                    clientX: x, clientY: y, button: 0
-                }));
-            }
-        }
-        """, [target_x, target_y])
 
         logger.info("✅ drag_and_drop: (%.0f,%.0f) → (%.0f,%.0f)", x, y, target_x, target_y)
         return {"success": True, "error": ""}
     except Exception as e:
         logger.warning("mcp_drag_and_drop failed: %s", e)
         return {"success": False, "error": str(e)[:160]}
+
+
+async def mcp_find_drag_targets(source_text: str) -> dict:
+    """Locate visually rendered drag source/drop zone when a11y omits them."""
+    page = _get_page()
+    try:
+        result = await page.evaluate("""
+        (wanted) => {
+          const visible = (el) => {
+            const r = el.getBoundingClientRect(), s = getComputedStyle(el);
+            return r.width >= 8 && r.height >= 8 && r.bottom > 0 && r.right > 0
+              && r.top < innerHeight && r.left < innerWidth
+              && s.display !== 'none' && s.visibility !== 'hidden' && Number(s.opacity || 1) > .05;
+          };
+          const nodes = [...document.querySelectorAll('body *')].filter(visible);
+          const exact = nodes.filter(el => (el.innerText || el.textContent || '').trim() === wanted);
+          const source = exact.sort((a,b) => {
+            const score = el => {
+              const s=getComputedStyle(el), c=String(el.className||'').toLowerCase();
+              return (el.draggable?20:0) + (/drag|token|item/.test(c)?12:0)
+                + (/grab|move/.test(s.cursor)?8:0) - el.children.length*2;
+            }; return score(b)-score(a);
+          })[0];
+          if (!source) return {ok:false, reason:'source text not found'};
+          const sr=source.getBoundingClientRect();
+          const targets=nodes.filter(el => el!==source && !el.contains(source)).map(el => {
+            const r=el.getBoundingClientRect(), s=getComputedStyle(el);
+            const c=`${el.id||''} ${el.className||''} ${el.getAttribute('aria-label')||''}`.toLowerCase();
+            const square=Math.abs(r.width-r.height) <= Math.max(12, Math.min(r.width,r.height)*.35);
+            const semantic=/drop|target|square|box|bucket/.test(c);
+            const bordered=parseFloat(s.borderTopWidth||0)>0 || s.boxShadow!=='none';
+            const empty=(el.innerText||el.textContent||'').trim()==='';
+            const distance=Math.hypot((r.x+r.width/2)-(sr.x+sr.width/2),(r.y+r.height/2)-(sr.y+sr.height/2));
+            const score=(semantic?40:0)+(square?20:0)+(bordered?8:0)+(empty?8:0)
+              +(r.width>=30&&r.width<=350&&r.height>=30&&r.height<=350?8:0)-distance/100;
+            return {el,r,score};
+          }).filter(x => x.score >= 15).sort((a,b)=>b.score-a.score);
+          if (!targets.length) return {ok:false, reason:'drop zone not found'};
+          const tr=targets[0].r;
+          return {ok:true, source_x:sr.x+sr.width/2, source_y:sr.y+sr.height/2,
+            target_x:tr.x+tr.width/2, target_y:tr.y+tr.height/2};
+        }
+        """, str(source_text).strip())
+        return result if isinstance(result, dict) else {"ok": False, "reason": "invalid geometry result"}
+    except Exception as exc:
+        logger.warning("mcp_find_drag_targets failed: %s", exc)
+        return {"ok": False, "reason": str(exc)[:160]}
 
 
 async def mcp_upload_file(element_id: str | None, file_path: str) -> dict:
@@ -594,6 +1327,9 @@ async def mcp_snapshot() -> dict:
     """
     page = _get_page()
     try:
+        qmee_popup = await mcp_close_qmee_svg_popup()
+        if qmee_popup.get("closed"):
+            logger.info("🪟 Closed Qmee SVG popup before DOM snapshot")
         import dom_parser
         dom_data = await dom_parser.extract(page, target_hint=None, timeout=5.0)
         elements_list = dom_data.get("elements", [])
@@ -611,13 +1347,14 @@ async def mcp_snapshot() -> dict:
         return {
             "elements": elements_list,
             "markdown": dom_data.get("markdown", ""),
+            "page_text": dom_data.get("page_text", ""),
             "element_count": dom_data.get("element_count", len(elements_list)),
             "selector_map": smap,
             "image_size": dom_data.get("image_size", {}),
         }
     except Exception as e:
         logger.warning("mcp_snapshot failed: %s", e)
-        return {"elements": [], "markdown": "", "element_count": 0,
+        return {"elements": [], "markdown": "", "page_text": "", "element_count": 0,
                 "selector_map": {}, "image_size": {}}
 
 
@@ -644,6 +1381,20 @@ async def mcp_screenshot(full_page: bool = False) -> dict:
             page.screenshot(full_page=full_page, type="png"), timeout=10.0
         )
         vp = page.viewport_size or {"width": 0, "height": 0}
+        if not vp.get("width") or not vp.get("height"):
+            # When attached to an existing Chrome, Playwright often has no
+            # configured viewport even though the page has a real viewport.
+            # Vision coordinates must use the rendered browser dimensions.
+            try:
+                live_vp = await page.evaluate("""
+                    () => ({
+                        width: Math.round(window.innerWidth || document.documentElement.clientWidth || 0),
+                        height: Math.round(window.innerHeight || document.documentElement.clientHeight || 0),
+                    })
+                """)
+                vp = live_vp or vp
+            except Exception:
+                pass
         return {"ok": True, "base64": base64.b64encode(png).decode("utf-8"),
                 "width": int(vp.get("width", 0)), "height": int(vp.get("height", 0)),
                 "error": ""}

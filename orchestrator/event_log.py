@@ -15,7 +15,7 @@ from enum import Enum
 from pathlib import Path
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -50,8 +50,7 @@ class Event(BaseModel):
     summary: str = Field(..., description="Human-readable one-line summary")
     data: dict[str, Any] = Field(default_factory=dict, description="Structured payload")
 
-    class Config:
-        use_enum_values = True
+    model_config = ConfigDict(use_enum_values=True)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

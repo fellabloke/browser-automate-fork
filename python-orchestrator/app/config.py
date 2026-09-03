@@ -110,9 +110,13 @@ SUPERVISOR_MODEL_API_KEYS: list[str] = _merge_unique_keys(
     SUPERVISOR_MODEL_API_KEY_FALLBACKS,
     OPENAI_API_KEYS,
 )
-# Primary endpoint (NVIDIA NIM) vs fallback endpoint (Groq)
+# Supervisor fallbacks use the same NVIDIA endpoint unless explicitly pointed
+# at another supported OpenAI-compatible provider. Groq is intentionally not
+# an implicit fallback for this project.
 SUPERVISOR_PRIMARY_BASE_URL: str = os.getenv("SUPERVISOR_PRIMARY_BASE_URL", "https://integrate.api.nvidia.com/v1")
-SUPERVISOR_FALLBACK_BASE_URL: str = os.getenv("SUPERVISOR_FALLBACK_BASE_URL", "https://api.groq.com/openai/v1")
+SUPERVISOR_FALLBACK_BASE_URL: str = os.getenv(
+    "SUPERVISOR_FALLBACK_BASE_URL", SUPERVISOR_PRIMARY_BASE_URL
+)
 
 # ─── Browser Runtime ─────────────────────────────────────────────────────────
 BROWSER_MODE: str = os.getenv("BROWSER_MODE", "PERSISTENT_CONTEXT")
@@ -203,4 +207,3 @@ PROMOTION_PLATFORMS: list[str] = _split_env_list(
 
 # ─── Persistence ──────────────────────────────────────────────────────────────
 PERSISTENCE_DIR: Path = _PROJECT_ROOT / "persistence"
-

@@ -389,6 +389,9 @@ def dom_data_to_a11y_format(dom_data: dict) -> dict:
                 "properties": {
                     "x": el.get("x", 0),
                     "y": el.get("y", 0),
+                    "selected": bool(el.get("selected", False)),
+                    "disabled": bool(el.get("disabled", False)),
+                    "control_type": el.get("control_type", ""),
                 },
             }
             for i, el in enumerate(elements)
@@ -438,4 +441,3 @@ class AgentMetrics:
         """Fraction of progress verdicts vs total."""
         total = self.critic_progress + self.critic_no_progress
         return self.critic_progress / total if total > 0 else 0.0
-

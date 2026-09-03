@@ -94,8 +94,7 @@ async def launch_google_stealth_context(profile_name: str) -> BrowserContext:
                 "--no-first-run",
                 "--no-default-browser-check",
                 "--password-store=basic",
-                "--disable-features=IsolateOrigins,SitePerProcess",
-                "--disable-blink-features=AutomationControlled"
+                "--disable-features=IsolateOrigins,SitePerProcess"
             ]
             args_str = "','".join(args)
             ps_cmd = f"Start-Process -FilePath '{chrome_exe}' -ArgumentList @('{args_str}')"
@@ -108,20 +107,18 @@ async def launch_google_stealth_context(profile_name: str) -> BrowserContext:
                 "--no-first-run",
                 "--no-default-browser-check",
                 "--password-store=basic",
-                "--disable-features=IsolateOrigins,SitePerProcess",
-                "--disable-blink-features=AutomationControlled"
+                "--disable-features=IsolateOrigins,SitePerProcess"
             ]
             subprocess.Popen(chrome_cmd)
             
         time.sleep(2)  # wait for CDP endpoint
         p = await async_playwright().start()
-        browser = await p.chromium.connect_over_cdp("http://localhost:9222")
+        browser = await p.chromium.connect_over_cdp("http://127.0.0.1:9222")
         context = browser.contexts[0] if browser.contexts else await browser.new_context()
 
     else:
         # MODE 2: Cloud / Remote mode
         args = [
-            "--disable-blink-features=AutomationControlled",
             "--disable-features=IsolateOrigins,SitePerProcess,OptimizeImageLoading",
             "--no-first-run", "--no-default-browser-check",
             "--password-store=basic",

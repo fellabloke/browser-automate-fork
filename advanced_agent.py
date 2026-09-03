@@ -38,6 +38,7 @@ from app.browser_promoter.cdp_stealth_launcher import (
     STEALTH_LAUNCH_ARGS,
     STEALTH_USER_AGENT,
     apply_page_stealth,
+    get_stealth_init_script,
     get_random_viewport,
     VISUAL_CURSOR_INIT_SCRIPT,
 )
@@ -62,6 +63,7 @@ from web_dreamer import WebDreamer, should_invoke_dreamer, DreamerResult, Candid
 from prm_critic import PRMCritic, ChecklistItem, StepScore
 from skill_memory import SkillMemory
 import dom_parser
+from site_customizations import apply_current_site_customizations, install_site_customizations
 
 # Cognitive Architecture V2.1
 from cognitive_core import PlanState, WorkingMemory, dom_data_to_a11y_format, AgentMetrics
@@ -289,6 +291,8 @@ async def _ask_recovery_advisor(
 # ═══════════════════════════════════════════════════════════════════════════════
 PERSISTENCE_ROOT = Path(__file__).parent / "persistence"
 PROFILE_DIR = PERSISTENCE_ROOT / "browser_sessions" / "agent_main"
+_ACTIVE_PLAYWRIGHT = None
+_BROWSER_CONNECTION_MODE = "UNINITIALIZED"
 
 
 def _ensure_dirs():
@@ -392,9 +396,12 @@ async def launch_browser(*, headless: bool = False) -> tuple[BrowserContext, Pag
     Connect to an already-running native Chrome via CDP when LOCAL_CDP_ENDPOINT
     is configured. Otherwise fall back to the existing local Playwright browser.
     """
+    global _ACTIVE_PLAYWRIGHT, _BROWSER_CONNECTION_MODE
+
     _ensure_dirs()
 
     pw = await async_playwright().start()
+    _ACTIVE_PLAYWRIGHT = pw
 
     cdp_endpoint = os.getenv("LOCAL_CDP_ENDPOINT", "").strip()
 
@@ -402,7 +409,9 @@ async def launch_browser(*, headless: bool = False) -> tuple[BrowserContext, Pag
     # WINDOWS NATIVE CHROME VIA CDP
     # ============================================================
     if cdp_endpoint:
-        logger.info("🌐 Connecting to native Chrome via CDP: %s", cdp_endpoint)
+        _BROWSER_CONNECTION_MODE = "LOCAL_CDP"
+        logger.info("🌐 Browser connection mode: LOCAL_CDP")
+        logger.info("🔗 Attaching to existing Chrome via CDP: %s", cdp_endpoint)
 
         try:
             browser = await pw.chromium.connect_over_cdp(
@@ -411,16 +420,24 @@ async def launch_browser(*, headless: bool = False) -> tuple[BrowserContext, Pag
             )
         except Exception as e:
             logger.error(
-                "❌ Could not connect to Chrome CDP at %s: %s",
+                "❌ Playwright attachment failed for Chrome CDP at %s: %s",
                 cdp_endpoint,
                 e,
             )
+            logger.error(
+                "If Chrome is on Windows and Python is in WSL, enable WSL mirrored "
+                "networking so 127.0.0.1 is shared."
+            )
             await pw.stop()
+            _ACTIVE_PLAYWRIGHT = None
+            _BROWSER_CONNECTION_MODE = "UNINITIALIZED"
             raise
 
         if not browser.contexts:
             logger.error("❌ CDP Chrome connected, but no browser context exists.")
             await pw.stop()
+            _ACTIVE_PLAYWRIGHT = None
+            _BROWSER_CONNECTION_MODE = "UNINITIALIZED"
             raise RuntimeError("Chrome CDP connected but returned no browser contexts.")
 
         context = browser.contexts[0]
@@ -430,9 +447,24 @@ async def launch_browser(*, headless: bool = False) -> tuple[BrowserContext, Pag
         else:
             page = await context.new_page()
 
-        # Apply the same agent-side instrumentation.
-        await context.add_init_script(STEALTH_INIT_SCRIPT)
+        # Chrome is hosted by Windows even though this Python process is in WSL.
+        # Derive browser-facing fingerprint values from Chrome itself, not Python.
+        try:
+            browser_platform = await page.evaluate(
+                "navigator.userAgentData?.platform || navigator.platform || ''"
+            )
+        except Exception:
+            browser_platform = os.getenv("BROWSER_OS", "Windows")
+        logger.info("🖥️ Attached browser reports platform: %s", browser_platform or "unknown")
+
+        # These are context/page instrumentation only; launch-only options such
+        # as viewport, locale, timezone, UA and Chromium args are intentionally
+        # not supplied to connect_over_cdp().
+        await context.add_init_script(
+            get_stealth_init_script(browser_platform=str(browser_platform))
+        )
         await context.add_init_script(VISUAL_CURSOR_INIT_SCRIPT)
+        await install_site_customizations(context, page)
         await dom_parser.install_shadow_piercer(context)
 
         try:
@@ -448,11 +480,11 @@ async def launch_browser(*, headless: bool = False) -> tuple[BrowserContext, Pag
         except Exception:
             pass
 
-        logger.info(
-            "✅ Attached to native Chrome: url=%s title=%s",
-            page.url,
-            await page.title(),
-        )
+        try:
+            title = await page.title()
+        except Exception:
+            title = ""
+        logger.info("✅ CDP attachment ready: url=%s title=%s", page.url, title)
 
         return context, page
 
@@ -460,11 +492,10 @@ async def launch_browser(*, headless: bool = False) -> tuple[BrowserContext, Pag
     # EXISTING LOCAL WSL CHROMIUM FALLBACK
     # ============================================================
     _mark_profile_clean_exit()
+    _BROWSER_CONNECTION_MODE = "LOCAL_PLAYWRIGHT"
 
-    logger.info(
-        "Launching local Playwright Chromium (native profile: %s)",
-        PROFILE_DIR,
-    )
+    logger.info("🌐 Browser connection mode: LOCAL_PLAYWRIGHT fallback")
+    logger.info("Launching local Playwright Chromium (native profile: %s)", PROFILE_DIR)
 
     session_viewport = get_random_viewport()
     logger.info(
@@ -473,22 +504,30 @@ async def launch_browser(*, headless: bool = False) -> tuple[BrowserContext, Pag
         session_viewport["height"],
     )
 
-    context = await pw.chromium.launch_persistent_context(
-        user_data_dir=str(PROFILE_DIR),
-        headless=headless,
-        viewport=session_viewport,
-        locale="en-US",
-        timezone_id="America/New_York",
-        user_agent=STEALTH_USER_AGENT,
-        java_script_enabled=True,
-        device_scale_factor=1,
-        extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
-        args=STEALTH_LAUNCH_ARGS + dom_parser.TLS_STEALTH_ARGS,
-        ignore_default_args=["--enable-automation"],
-    )
+    try:
+        context = await pw.chromium.launch_persistent_context(
+            user_data_dir=str(PROFILE_DIR),
+            headless=headless,
+            viewport=session_viewport,
+            locale="en-US",
+            timezone_id="America/New_York",
+            user_agent=STEALTH_USER_AGENT,
+            java_script_enabled=True,
+            device_scale_factor=1,
+            extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
+            args=STEALTH_LAUNCH_ARGS + dom_parser.TLS_STEALTH_ARGS,
+            ignore_default_args=["--enable-automation"],
+        )
+    except Exception as e:
+        logger.error("❌ Local Playwright browser launch failed: %s", e)
+        await pw.stop()
+        _ACTIVE_PLAYWRIGHT = None
+        _BROWSER_CONNECTION_MODE = "UNINITIALIZED"
+        raise
 
     await context.add_init_script(STEALTH_INIT_SCRIPT)
     await context.add_init_script(VISUAL_CURSOR_INIT_SCRIPT)
+    await install_site_customizations(context)
     await dom_parser.install_shadow_piercer(context)
 
     guard = SessionGuard.get()
@@ -500,6 +539,7 @@ async def launch_browser(*, headless: bool = False) -> tuple[BrowserContext, Pag
         page = await context.new_page()
 
     await apply_page_stealth(page)
+    await apply_current_site_customizations(page)
 
     try:
         await page.bring_to_front()
@@ -507,6 +547,29 @@ async def launch_browser(*, headless: bool = False) -> tuple[BrowserContext, Pag
         pass
 
     return context, page
+
+
+async def shutdown_browser(context: BrowserContext) -> None:
+    """Release Playwright without terminating an externally managed CDP Chrome."""
+    global _ACTIVE_PLAYWRIGHT, _BROWSER_CONNECTION_MODE
+
+    mode = _BROWSER_CONNECTION_MODE
+    try:
+        if mode == "LOCAL_CDP":
+            # The PowerShell launcher owns the dedicated Windows Chrome. Stopping
+            # Playwright detaches its CDP transport while leaving Chrome/profile
+            # alive for reuse by the next run.
+            if _ACTIVE_PLAYWRIGHT is not None:
+                await _ACTIVE_PLAYWRIGHT.stop()
+            logger.info("Disconnected from Windows Chrome; automation Chrome remains running.")
+        else:
+            await context.close()
+            if _ACTIVE_PLAYWRIGHT is not None:
+                await _ACTIVE_PLAYWRIGHT.stop()
+            logger.info("Local Playwright browser closed. Profile state persisted.")
+    finally:
+        _ACTIVE_PLAYWRIGHT = None
+        _BROWSER_CONNECTION_MODE = "UNINITIALIZED"
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -533,7 +596,7 @@ async def manual_login_mode():
         logger.info("Input interrupted — closing browser...")
 
     try:
-        await context.close()
+        await shutdown_browser(context)
     except Exception:
         pass
     SessionGuard.get().detach()
@@ -635,6 +698,10 @@ async def _invoke_with_failover(
     circuit_breaker=None,
     base64_image: str | None = None,
     health_tracker=None,
+    timeout_seconds: float = 20.0,
+    total_timeout_seconds: float | None = None,
+    timeout_cooldown_seconds: float = 30.0,
+    timeout_sibling_threshold: int = 2,
 ) -> tuple:
     """V17.0 — Model-first failover (delegates to model_registry).
 
@@ -657,6 +724,10 @@ async def _invoke_with_failover(
         breaker=circuit_breaker,
         health_tracker=health_tracker,
         base64_image=base64_image,
+        timeout_seconds=timeout_seconds,
+        total_timeout_seconds=total_timeout_seconds,
+        timeout_cooldown_seconds=timeout_cooldown_seconds,
+        timeout_sibling_threshold=timeout_sibling_threshold,
     )
 
 
@@ -702,7 +773,7 @@ async def run_agent(objective: str):
 
     if not failover_chain:
         logger.error("No LLM clients available. Check API keys in .env.")
-        await context.close()
+        await shutdown_browser(context)
         guard.detach()
         return
 
@@ -1822,10 +1893,9 @@ async def run_agent(objective: str):
         else:
             logger.info("⚠️  Agent shutting down (mission incomplete — ran out of steps or was interrupted).")
         try:
-            await context.close()
-            logger.info("Browser closed. Native profile state persisted.")
+            await shutdown_browser(context)
         except Exception as e:
-            logger.warning("Browser close failed: %s", e)
+            logger.warning("Browser shutdown/detach failed: %s", e)
         guard.detach()
 
         if mission_success:

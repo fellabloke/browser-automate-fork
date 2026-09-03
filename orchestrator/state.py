@@ -11,7 +11,7 @@ from __future__ import annotations
 import time
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 from orchestrator.actions import TaskDAG, NodeStatus
 
@@ -119,8 +119,7 @@ class OrchestratorState(BaseModel):
     dom_tree: str = ""
     dom_elements: list[dict] = Field(default_factory=list)
 
-    class Config:
-        arbitrary_types_allowed = True
+    model_config = ConfigDict(arbitrary_types_allowed=True)
 
     def elapsed_seconds(self) -> float:
         """Time since orchestration started."""

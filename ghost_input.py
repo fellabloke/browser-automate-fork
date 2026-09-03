@@ -119,7 +119,7 @@ def _movement_delay(distance: float) -> float:
     Shorter distances = slower (human precision), longer = faster (ballistic).
     Returns delay in seconds.
     """
-    base_delay = 0.008  # 8ms base
+    base_delay = 0.005  # 5ms base; path jitter still provides natural telemetry
     if distance < 100:
         return base_delay * random.uniform(1.5, 3.0)
     elif distance < 400:
@@ -181,7 +181,7 @@ async def ghost_click(page: Page, x: float, y: float) -> None:
     distance = math.sqrt((end[0] - start[0])**2 + (end[1] - start[1])**2)
 
     # Scale path complexity with distance
-    num_points = max(8, min(30, int(distance / 15)))
+    num_points = max(6, min(20, int(distance / 22)))
     path = _generate_bezier_path(start, end, num_points=num_points)
 
     step_delay = _movement_delay(distance)
@@ -191,7 +191,7 @@ async def ghost_click(page: Page, x: float, y: float) -> None:
         await asyncio.sleep(step_delay + random.uniform(0, 0.004))
 
     # Small pre-click pause (humans hesitate slightly before clicking)
-    await asyncio.sleep(random.uniform(0.05, 0.15))
+    await asyncio.sleep(random.uniform(0.03, 0.08))
 
     await page.mouse.click(end[0], end[1])
     _last_mouse_pos = end
@@ -214,7 +214,7 @@ async def ghost_move_to(page: Page, x: float, y: float) -> None:
     distance = math.sqrt((end[0] - start[0])**2 + (end[1] - start[1])**2)
 
     # Scale path complexity with distance
-    num_points = max(8, min(30, int(distance / 15)))
+    num_points = max(6, min(20, int(distance / 22)))
     path = _generate_bezier_path(start, end, num_points=num_points)
 
     step_delay = _movement_delay(distance)
@@ -226,7 +226,7 @@ async def ghost_move_to(page: Page, x: float, y: float) -> None:
     _last_mouse_pos = end
 
     # Small pre-click pause (humans hesitate slightly before clicking)
-    await asyncio.sleep(random.uniform(0.05, 0.15))
+    await asyncio.sleep(random.uniform(0.03, 0.08))
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

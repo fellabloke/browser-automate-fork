@@ -1,0 +1,44 @@
+{
+  "schema_version": 1,
+  "quirks": [
+    {
+      "id": "purespectrum_partial_uk_postcode",
+      "description": "PureSpectrum screeners may request a full or partial UK postcode but reject the full postcode.",
+      "host_suffixes": [
+        "screener.purespectrum.com"
+      ],
+      "action": "type",
+      "field_terms": [
+        "postcode",
+        "post code",
+        "postal code",
+        "zipcode",
+        "zip code"
+      ],
+      "transform": "uk_postcode_outward",
+      "guidance": "PureSpectrum's postcode field must receive only the UK outward/partial postcode, even when the page says full or partial. Example: SW1A 1AA becomes SW1A. Never retry the full postcode on this field."
+    },
+    {
+      "id": "qmee_fresh_dashboard_after_completion",
+      "description": "Qmee can retain stale survey/concurrency state in the dashboard tab after a completed survey.",
+      "host_suffixes": [
+        "qmee.com"
+      ],
+      "event": "survey_completed",
+      "fresh_dashboard_after_any_boundary": true,
+      "fresh_dashboard_url": "https://www.qmee.com/en-gb/surveys",
+      "guidance": "After any completed, screened-out, failed, or abandoned survey, open a completely fresh Qmee dashboard tab and close the prior survey/dashboard tabs before choosing the next offer. If Qmee reports that a survey is already active, continue with the new survey and report the previous one as broken/stuck after an abandonment, not finished."
+    },
+    {
+      "id": "prime_opinion_fresh_dashboard_after_completion",
+      "description": "Prime Opinion can retain a stale completion/streak overlay and detached Gotcha control after redirect.",
+      "host_suffixes": [
+        "primeopinion.com"
+      ],
+      "event": "survey_completed",
+      "fresh_dashboard_after_any_boundary": true,
+      "fresh_dashboard_url": "https://app.primeopinion.com/surveys",
+      "guidance": "After a verified completion, immediately recreate the Prime Opinion surveys dashboard. Do not keep clicking a stale Gotcha control. Select a ranked survey card, then use the live Start Survey and Participate controls exposed by the refreshed page."
+    }
+  ]
+}

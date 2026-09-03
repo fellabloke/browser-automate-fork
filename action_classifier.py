@@ -288,7 +288,10 @@ def classify_action(
     # ------------------------------------------------------------------
     # 5. V33: New action types — CAUTIOUS by default (mutate form state)
     # ------------------------------------------------------------------
-    if action in ("select_option", "press_combo", "drag_and_drop", "upload_file"):
+    if action in (
+        "select_option", "press_key", "press_combo", "drag_and_drop", "upload_file",
+        "set_date_of_birth",
+    ):
         logger.debug("V33 action '%s' is CAUTIOUS by default.", action)
         return ActionRisk.CAUTIOUS
 

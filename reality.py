@@ -169,6 +169,21 @@ def classify_reality(
         )
         return RealityVerdict(CONTRADICTED, note, 0.8, matched=bits[:5])
 
+    # Native/custom control state is observed directly by the click engine.
+    # This evidence is stronger than a text snapshot that omits radio styling.
+    mechanically_selected = "control state verified" in _norm(action_outcome)
+    predicts_control_state = any(token in exp for token in (
+        "select", "selected", "check", "checked", "radio", "toggle",
+        "highlight", "active state", "filled circle",
+    ))
+    if mechanically_selected and predicts_control_state:
+        return RealityVerdict(
+            CONFIRMED,
+            "the exact target's control state changed as predicted",
+            0.98,
+            matched=["control state verified"],
+        )
+
     # No prediction to verify against → nothing to confirm/contradict.
     if not exp:
         return RealityVerdict(UNCLEAR if critic_success else NULL, "", 0.0)

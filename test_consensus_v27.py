@@ -111,7 +111,7 @@ def test_distinct_base_models():
 def test_sample_ensemble_polls_each_and_tolerates_failure():
     calls = []
 
-    async def fake_invoke(chain, messages, schema, breaker, health_tracker=None):
+    async def fake_invoke(chain, messages, schema, breaker, health_tracker=None, **options):
         name = chain[0].name
         calls.append(name)
         if "bad" in name:
@@ -153,7 +153,7 @@ def _cascade(primary, voters_decisions, force=False, smap=None):
     seq = list(voters_decisions)
     calls = {"n": 0}
 
-    async def fake_invoke(chain, messages, schema, breaker, health_tracker=None):
+    async def fake_invoke(chain, messages, schema, breaker, health_tracker=None, **options):
         calls["n"] += 1
         d = seq.pop(0)
         return (d, chain[0].name)

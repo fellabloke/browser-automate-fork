@@ -203,8 +203,8 @@ class VisionAgent:
 class ReasoningAgent:
     """Large reasoning model: choose action based on goal + vision JSON.
 
-    Pulls its LLM clients from ModelRegistry.get_text_chain().
-    This ensures ALL text API keys (Groq + NVIDIA + DeepSeek) are available.
+    Pulls its LLM clients from ModelRegistry.get_text_chain(), preserving every
+    independently configured key from the supported provider pool.
     """
 
     def __init__(self) -> None:

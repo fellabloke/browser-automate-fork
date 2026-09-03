@@ -64,61 +64,55 @@ def start_virtual_display(width: int = 1920, height: int = 1080) -> bool:
     """Ensure a usable X display exists so the browser can run HEADED."""
     global _PROC, _OWNED_DISPLAY
 
-    # BYPASS: Xvfb initialization disabled to allow native CDP bridged connections.
-    logger.info("🖥️ Skipping Xvfb setup. Deferring to native Windows Chrome bridge.")
-    return True
-
-    # --- Original Xvfb logic commented out below to prevent execution ---
-
     # 1. A real display (WSLg, X server, VNC) is already present — use it.
-    # real = os.environ.get("DISPLAY", "").strip()
-    # if real:
-    #     logger.info("🖥️ Using existing display %s — browser runs HEADED", real)
-    #     return True
+    real = os.environ.get("DISPLAY", "").strip()
+    if real:
+        logger.info("🖥️ Using existing display %s — browser runs HEADED", real)
+        return True
 
     # 2. No display — need the Xvfb binary to fabricate one.
-    # if not xvfb_available():
-    #     logger.warning(
-    #         "🖥️ No display and Xvfb not installed — running --headless "
-    #         "(more bot-detectable). For stealth, %s", XVFB_INSTALL_HINT)
-    #     return False
+    if not xvfb_available():
+        logger.warning(
+            "🖥️ No display and Xvfb not installed — running --headless "
+            "(more bot-detectable). For stealth, %s", XVFB_INSTALL_HINT)
+        return False
 
     # 3. Start Xvfb directly and point DISPLAY at it.
-    # n = _pick_display_number()
-    # disp = f":{n}"
-    # try:
-    #     _PROC = subprocess.Popen(
-    #         ["Xvfb", disp, "-screen", "0", f"{width}x{height}x24",
-    #          "-nolisten", "tcp", "-ac"],
-    #         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-    #     )
-    # except Exception as e:
-    #     logger.warning("Xvfb launch failed (%s) — falling back to --headless", e)
-    #     _PROC = None
-    #     return False
+    n = _pick_display_number()
+    disp = f":{n}"
+    try:
+        _PROC = subprocess.Popen(
+            ["Xvfb", disp, "-screen", "0", f"{width}x{height}x24",
+             "-nolisten", "tcp", "-ac"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        logger.warning("Xvfb launch failed (%s) — falling back to --headless", e)
+        _PROC = None
+        return False
 
     # Wait for the server to come up (lock file appears) — bounded, no hang.
-    # lock = f"/tmp/.X{n}-lock"
-    # for _ in range(60):  # up to ~6s
-    #     if _PROC.poll() is not None:
-    #         logger.warning("Xvfb exited early (rc=%s) — falling back to --headless",
-    #                        _PROC.returncode)
-    #         _PROC = None
-    #         return False
-    #     if os.path.exists(lock):
-    #         break
-    #     time.sleep(0.1)
-    # else:
-    #     logger.warning("Xvfb did not become ready in time — falling back to --headless")
-    #     _stop_safely()
-    #     return False
+    lock = f"/tmp/.X{n}-lock"
+    for _ in range(60):  # up to ~6s
+        if _PROC.poll() is not None:
+            logger.warning("Xvfb exited early (rc=%s) — falling back to --headless",
+                           _PROC.returncode)
+            _PROC = None
+            return False
+        if os.path.exists(lock):
+            break
+        time.sleep(0.1)
+    else:
+        logger.warning("Xvfb did not become ready in time — falling back to --headless")
+        _stop_safely()
+        return False
 
-    # os.environ["DISPLAY"] = disp
-    # _OWNED_DISPLAY = disp
-    # atexit.register(stop_virtual_display)
-    # logger.info("🖥️ Virtual display %s started (%dx%d) — browser runs HEADED (stealth)",
-    #             disp, width, height)
-    # return True
+    os.environ["DISPLAY"] = disp
+    _OWNED_DISPLAY = disp
+    atexit.register(stop_virtual_display)
+    logger.info("🖥️ Virtual display %s started (%dx%d) — browser runs HEADED (stealth)",
+                disp, width, height)
+    return True
 
 
 def stop_virtual_display() -> None:

@@ -5,8 +5,8 @@ single Pydantic model that flows through the LangGraph StateGraph.
 
 Design principles:
   - Every node reads and writes ONE typed state object
-  - Annotated[list, add] fields use LangGraph reducer semantics (append, not overwrite)
-  - State is kept lean (<10KB) for fast checkpointing (<15ms with SqliteSaver)
+  - Accumulating collections are explicitly bounded before checkpointing
+  - Model-facing history is a compact recent-action + survey-answer ledger
   - Page FSM makes browser lifecycle states explicit
 
 References:
@@ -17,10 +17,31 @@ References:
 
 from __future__ import annotations
 
-from typing import Annotated, Literal, Any
-from operator import add
+import os
+from typing import Literal, Any
 
 from pydantic import BaseModel, Field
+
+
+def _positive_int_env(name: str, default: int, minimum: int = 1) -> int:
+    try:
+        return max(minimum, int(os.getenv(name, str(default))))
+    except (TypeError, ValueError):
+        return default
+
+
+HISTORY_MAX_ENTRIES = _positive_int_env("AGENT_HISTORY_MAX_ENTRIES", 48, 12)
+HISTORY_RECENT_ACTIONS = _positive_int_env("AGENT_HISTORY_RECENT_ACTIONS", 8, 3)
+SURVEY_ANSWER_LEDGER_MAX = _positive_int_env("SURVEY_ANSWER_LEDGER_MAX", 32, 8)
+HISTORY_PROMPT_MAX_CHARS = _positive_int_env("AGENT_HISTORY_PROMPT_MAX_CHARS", 9000, 2000)
+SURVEY_CYCLE_ARCHIVE_MAX = _positive_int_env("SURVEY_CYCLE_ARCHIVE_MAX", 160, 40)
+LOOP_SIGNATURE_MAX = 24
+REFLECTION_MAX = 6
+
+
+def append_bounded(existing: list, new_items: list, limit: int) -> list:
+    """Append collection updates without allowing checkpoint state to grow forever."""
+    return (list(existing or []) + list(new_items or []))[-max(1, int(limit)):]
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -32,11 +53,16 @@ class ProposedAction(BaseModel):
 
     verb: Literal[
         "goto", "click", "type", "scroll", "press_enter", "wait", "done",
-        "hover", "select_option", "press_key",
+        "hover", "select_option", "press_key", "press_combo", "drag_and_drop",
+        "upload_file", "scroll_to", "set_date_of_birth", "abandon_survey",
     ] = "wait"
     element_id: str | None = None
     target_name: str = ""
     text: str | None = None
+    key_combo: str | None = None
+    file_path: str | None = None
+    direction: str | None = None
+    scroll_amount: int | None = None
     url: str | None = None
     x: float | None = None
     y: float | None = None
@@ -65,7 +91,7 @@ class ProposedAction(BaseModel):
 
 
 class StepRecord(BaseModel):
-    """Immutable record of a completed step (appended to history via reducer)."""
+    """Immutable record of a completed step (appended through bounded history)."""
 
     step_id: int = 0
     action_verb: str = ""
@@ -90,8 +116,8 @@ class BrainState(BaseModel):
     Every node in the graph reads from and writes to this object.
     LangGraph's checkpointer serializes it at each super-step.
 
-    Fields marked with `Annotated[list, add]` use LangGraph reducer
-    semantics: updates APPEND to the list rather than overwriting it.
+    Collection writers append explicitly through ``append_bounded``. This makes
+    reset-at-boundary semantics possible and prevents infinite checkpoint growth.
     """
 
     # ── Identity & Goal ──
@@ -102,7 +128,7 @@ class BrainState(BaseModel):
     plan_steps: list[dict] = Field(default_factory=list)
     plan_cursor: int = 0
     plan_progress_pct: int = 0
-    reflections: Annotated[list[str], add] = Field(default_factory=list)
+    reflections: list[str] = Field(default_factory=list)
 
     # ── Cognition Core (V18) — the agent's working theory of the task ──
     # NOTE: `beliefs` deliberately uses overwrite (not the `add` reducer) so the
@@ -120,10 +146,58 @@ class BrainState(BaseModel):
     goal_complete_hint: str = ""        # set when PRM says the goal looks achieved
 
     # ── Working Memory ──
-    history: Annotated[list[dict], add] = Field(default_factory=list)
+    history: list[dict] = Field(default_factory=list)
     facts: dict[str, str] = Field(default_factory=dict)
+    survey_profile: dict[str, Any] = Field(default_factory=dict)
+    survey_profile_render: str = ""
+    survey_audio_analysis: dict[str, Any] = Field(default_factory=dict)
+    survey_audio_challenge_key: str = ""
+    survey_audio_attempts: int = 0
+    continuous_survey_mode: bool = False
+    survey_page_fingerprint: str = ""
+    survey_interaction_fingerprint: str = ""
+    survey_page_advanced: bool = False
+    survey_question_transitions: int = 0
+    survey_cycles_completed: int = 0
+    last_survey_completion_signature: str = ""
+    survey_cycle_boundary_pending: bool = False
+    survey_context_resets: int = 0
+    survey_cycle_answers: list[dict] = Field(default_factory=list)
+    survey_cycle_memory_render: str = ""
+    survey_home_url: str = ""
+    survey_failed_offers: list[str] = Field(default_factory=list)
+    survey_empty_page_streak: int = 0
+    survey_provider_urls: list[str] = Field(default_factory=list)
+    survey_provider_index: int = 0
+    survey_provider_start_step: int = 0
+    survey_provider_started_at: float = 0.0
+    survey_provider_start_transitions: int = 0
+    survey_provider_question_started: bool = False
+    # Number of consecutive perception turns spent on an offer dashboard. This
+    # is independent of same_url_streak because dashboard contents can refresh
+    # and change its fingerprint without any survey actually opening.
+    survey_dashboard_stall_steps: int = 0
+    survey_dashboard_stall_since: float = 0.0
+    survey_provider_rotate_required: bool = False
+    survey_verified_progress_step: int = -1
+    survey_stuck_page_identity: str = ""
+    survey_stuck_since: float = 0.0
+    survey_stuck_progress_step: int = -1
+    survey_stuck_elapsed_seconds: float = 0.0
+    survey_stuck_timed_out: bool = False
+    survey_model_wait_seconds: float = 0.0
+    survey_action_no_effect_counts: dict[str, int] = Field(default_factory=dict)
+    survey_abandon_required: bool = False
+    survey_boundary_reason: str = ""
+    survey_boundary_target_url: str = ""
+    survey_last_boundary_outcome: str = ""
+    survey_offer_reward: str = ""
+    survey_offer_minutes: float = 0.0
+    survey_offer_currency: str = ""
+    survey_abandoned_count: int = 0
+    survey_screened_out_count: int = 0
     failures: list[dict] = Field(default_factory=list)
-    extracted_data: Annotated[list[dict], add] = Field(default_factory=list)
+    extracted_data: list[dict] = Field(default_factory=list)
 
     # ── Page State / FSM ──
     page_fsm: Literal[
@@ -131,6 +205,7 @@ class BrainState(BaseModel):
     ] = "READY"
     current_url: str = ""
     dom_markdown: str = ""
+    page_text: str = ""
     selector_map: dict[str, Any] = Field(default_factory=dict)
     elements_list: list[dict] = Field(default_factory=list)
     element_count: int = 0
@@ -140,14 +215,17 @@ class BrainState(BaseModel):
     step_number: int = 0
     max_steps: int = 25
     error_count: int = 0
+    recovery_count: int = 0
     correction_failures: int = 0
     consecutive_identical_actions: int = 0
     last_action_signature: str = ""
     same_url_streak: int = 0
     last_url_for_streak: str = ""
+    navigation_cycle_note: str = ""
+    navigation_cycle_blocked_action: dict[str, Any] = Field(default_factory=dict)
 
     # ── Loop Detection ──
-    loop_signatures: Annotated[list[str], add] = Field(default_factory=list)
+    loop_signatures: list[str] = Field(default_factory=list)
 
     # ── Routing & Action ──
     next_node: str = ""
@@ -278,28 +356,44 @@ class BrainState(BaseModel):
         return "\n".join(lines)
 
     def compress_history(self) -> str:
-        """SWE-agent style history compression.
-        
-        V17: Deliberately excludes 'expected_change' from history entries.
-        The EXPECT field caused cognitive confusion — when reality differed
-        from the prediction, the next step's OBSERVE tried to reconcile them,
-        creating loops. The agent should react to what IS, not what it predicted.
+        """Render bounded context while retaining recent survey answer consistency.
+
+        The durable respondent profile carries stable facts across cycles. This
+        cycle-local ledger carries recent question/answer pairs that may be
+        referenced later in a long questionnaire. Raw action history is never
+        allowed to expand the model prompt indefinitely.
         """
         if not self.history:
             return "[]"
-        entries = list(self.history)
-        result_lines = []
-        if len(entries) > 5:
-            for e in entries[:-5]:
+        entries = list(self.history)[-HISTORY_MAX_ENTRIES:]
+        result_lines: list[str] = []
+        compacted = max(0, len(self.history) - len(entries))
+        if compacted:
+            result_lines.append(
+                f"• {compacted} older actions compacted; durable respondent facts remain in the profile."
+            )
+
+        answers = [e for e in entries if e.get("question_text") and e.get("answer_value")]
+        if answers:
+            result_lines.append("CURRENT SURVEY ANSWER LEDGER (cycle-local, bounded):")
+            for e in answers[-SURVEY_ANSWER_LEDGER_MAX:]:
                 result_lines.append(
-                    f"Step {e.get('step', '?')}: {e.get('action', '?')} {e.get('outcome', '')}"
+                    f"• Q: {str(e.get('question_text') or '')[:150]} "
+                    f"→ A: {str(e.get('answer_value') or '')[:100]}"
                 )
-        for e in entries[-5:]:
-            line = f"Step {e.get('step', '?')}: {e.get('action', '?')} {e.get('outcome', '')}"
+
+        result_lines.append("RECENT VERIFIED ACTIONS:")
+        for e in entries[-HISTORY_RECENT_ACTIONS:]:
+            line = (f"Action turn {e.get('step', '?')}: {e.get('verb') or e.get('action', '?')} "
+                    f"[{e.get('element_id') or ''}] '{e.get('target_name') or ''}' {e.get('outcome', '')}")
             if e.get("screen"):
                 line += f" | Screen: {e['screen']}"
             result_lines.append(line)
-        return "\n".join(result_lines)
+        rendered = "\n".join(result_lines)
+        if len(rendered) > HISTORY_PROMPT_MAX_CHARS:
+            rendered = rendered[-HISTORY_PROMPT_MAX_CHARS:]
+            rendered = "… earlier compact context omitted …\n" + rendered
+        return rendered
 
     def render_facts(self) -> str:
         """Render facts for system prompt."""

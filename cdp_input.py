@@ -4,9 +4,9 @@ Provides trusted input methods that bypass React SyntheticEvent filtering,
 Lexical editor guards, and contenteditable validation layers.
 
 Typing Strategy Waterfall:
-  1. CDP Input.insertText (fastest, trusted, works on most sites)
-  2. Playwright keyboard.type with human delays (per-character events)
-  3. CDP Input.dispatchKeyEvent per character (lowest level)
+  1. Playwright keyboard events, one character at a time with measured cadence
+  2. CDP Input.dispatchKeyEvent per character (lowest-level fallback)
+  3. CDP Input.insertText only for rich/contenteditable editors that require it
 
 Each strategy includes post-type verification to confirm text was accepted.
 """
@@ -22,6 +22,18 @@ from playwright.async_api import Page
 from app.logger import get_logger
 
 logger = get_logger("cdp_input")
+
+
+# Keep genuine per-key events and jitter while centring ordinary survey text at
+# roughly 80ms/character. The prior distribution averaged ~140ms and spent
+# minutes typing short free-text answers during long runs.
+HUMAN_KEY_INTERVALS = ((0.03, 0.07), (0.07, 0.12), (0.12, 0.20))
+HUMAN_KEY_WEIGHTS = (0.30, 0.60, 0.10)
+
+
+def _human_key_delay() -> float:
+    interval = random.choices(HUMAN_KEY_INTERVALS, weights=HUMAN_KEY_WEIGHTS, k=1)[0]
+    return random.uniform(interval[0], interval[1])
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -41,8 +53,18 @@ async def _get_cdp_session(page: Page):
 #  Post-Type Verification
 # ═══════════════════════════════════════════════════════════════════════════════
 
-async def _verify_typed_text(page: Page, expected_text: str, timeout: float = 3.0) -> dict:
-    """Verify that the active field contains the expected text.
+async def _verify_typed_text(
+    page: Page,
+    expected_text: str,
+    timeout: float = 3.0,
+    expected_element_id: str | None = None,
+) -> dict:
+    """Verify that the intended field contains the expected text.
+
+    When an element ID is available, verification is deliberately scoped to
+    that exact live DOM node. A different populated input must never make a
+    failed type appear successful (for example, a postcode field satisfying a
+    date-of-birth verification).
 
     Returns dict with keys:
       - verified: bool
@@ -52,48 +74,54 @@ async def _verify_typed_text(page: Page, expected_text: str, timeout: float = 3.
     """
     try:
         result = await asyncio.wait_for(page.evaluate("""
-        () => {
-            // Strategy 1: Check focused element
-            const active = document.activeElement;
-            if (active) {
-                // For input/textarea
-                if (active.value !== undefined && active.value.length > 0) {
-                    return { found: true, text: active.value };
+        ({ expectedId }) => {
+            const read = (candidate) => {
+                if (!candidate || !candidate.isConnected) return null;
+                let el = candidate;
+                if (el.value === undefined && !el.isContentEditable) {
+                    el = el.querySelector && el.querySelector(
+                        'input, textarea, [contenteditable="true"], [role="textbox"]'
+                    );
                 }
-                // For contenteditable / Lexical / rich text editors
-                if (active.isContentEditable || active.contentEditable === 'true') {
-                    const text = active.innerText || active.textContent || '';
-                    return { found: true, text: text };
+                if (!el || !el.isConnected) return null;
+                if (el.value !== undefined) return String(el.value || '');
+                if (el.isContentEditable || el.contentEditable === 'true' ||
+                    el.getAttribute('role') === 'textbox') {
+                    return String(el.innerText || el.textContent || '');
                 }
+                return null;
+            };
+
+            // Strong identity path: never fall through to another field.
+            if (expectedId) {
+                const target = (window.__aid || {})[expectedId];
+                const text = read(target);
+                return text === null
+                    ? { found: false, text: '', targetMissing: true }
+                    : { found: true, text };
             }
 
-            // Strategy 2: Check all focused-like elements
+            // Legacy callers without an element ID may verify the focused field.
+            const active = document.activeElement;
+            if (active) {
+                const text = read(active);
+                if (text !== null) return { found: true, text };
+            }
+
+            // Rich editors sometimes move focus to an inner textbox.
             const candidates = document.querySelectorAll(
                 'input:focus, textarea:focus, [contenteditable="true"]:focus, '
                 + '[contenteditable="true"][data-lexical-editor], '
                 + '[role="textbox"]'
             );
             for (const el of candidates) {
-                const text = el.value || el.innerText || el.textContent || '';
-                if (text.length > 0) {
-                    return { found: true, text: text };
-                }
-            }
-
-            // Strategy 3: Broadest sweep — any visible input with content
-            const allInputs = document.querySelectorAll('input[type="text"], textarea');
-            for (const el of allInputs) {
-                if (el.value && el.value.length > 0) {
-                    const rect = el.getBoundingClientRect();
-                    if (rect.width > 0 && rect.height > 0) {
-                        return { found: true, text: el.value };
-                    }
-                }
+                const text = read(el);
+                if (text !== null) return { found: true, text };
             }
 
             return { found: false, text: '' };
         }
-        """), timeout=timeout)
+        """, {"expectedId": expected_element_id or ""}), timeout=timeout)
 
         if not result.get("found"):
             return {"verified": False, "actual_length": 0, "actual_preview": "", "match_ratio": 0.0}
@@ -127,11 +155,25 @@ async def _verify_typed_text(page: Page, expected_text: str, timeout: float = 3.
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Strategy 1: CDP Input.insertText (Fastest, Trusted)
+#  Strategy 3: Rich-editor-only CDP Input.insertText fallback
 # ═══════════════════════════════════════════════════════════════════════════════
 
 async def _strategy_cdp_insert_text(page: Page, text: str) -> bool:
-    """Use CDP Input.insertText — generates trusted InputEvent accepted by most frameworks."""
+    """Bulk-insert only into rich editors that cannot accept normal key events."""
+    try:
+        rich_editor = await page.evaluate("""() => {
+            const el = document.activeElement;
+            if (!el) return false;
+            const tag = String(el.tagName || '').toLowerCase();
+            return !!el.isContentEditable ||
+                (el.getAttribute('role') === 'textbox' && tag !== 'input' && tag !== 'textarea');
+        }""")
+    except Exception:
+        rich_editor = False
+    if not rich_editor:
+        logger.info("Skipping bulk insertText for a normal keyboard field")
+        return False
+
     cdp = await _get_cdp_session(page)
     if not cdp:
         return False
@@ -152,35 +194,41 @@ async def _strategy_cdp_insert_text(page: Page, text: str) -> bool:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Strategy 2: Playwright keyboard.type with human-like delays
+#  Strategy 1: Playwright per-key events with human-like measured cadence
 # ═══════════════════════════════════════════════════════════════════════════════
 
-async def _strategy_playwright_type(page: Page, text: str) -> bool:
-    """Use Playwright's keyboard.type() with variable per-character delays.
+async def _strategy_human_keyboard(page: Page, text: str) -> bool:
+    """Send one key at a time with an independently sampled human pause.
 
     This generates individual keydown/keyup events that React's
-    onChange handlers can process one at a time.
+    onChange handlers process one at a time. It intentionally never uses
+    insert_text(), clipboard APIs, fill(), or a whole-string type operation.
     """
     try:
-        # Adaptive delay based on text length
-        if len(text) > 200:
-            delay_ms = 8  # Fast for long text
-        elif len(text) > 50:
-            delay_ms = 20
-        else:
-            delay_ms = 40  # More human-like for short text
-
-        await page.keyboard.type(text, delay=delay_ms)
+        for index, char in enumerate(text):
+            if char == "\n":
+                await page.keyboard.press("Enter")
+            elif char == "\t":
+                await page.keyboard.press("Tab")
+            else:
+                await page.keyboard.type(char, delay=0)
+            await asyncio.sleep(_human_key_delay())
+            if index and index % 50 == 0:
+                try:
+                    if page.is_closed():
+                        return False
+                except Exception:
+                    return False
         await asyncio.sleep(0.3)
-        logger.debug("Playwright type: typed %d chars (delay=%dms)", len(text), delay_ms)
+        logger.debug("Human keyboard: typed %d chars as individual key events", len(text))
         return True
     except Exception as e:
-        logger.warning("Playwright type failed: %s", e)
+        logger.warning("Human keyboard typing failed: %s", e)
         return False
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Strategy 3: CDP per-character key events (Lowest level, most compatible)
+#  Strategy 2: CDP per-character key events (Lowest level, most compatible)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 async def _strategy_cdp_key_events(page: Page, text: str) -> bool:
@@ -237,10 +285,8 @@ async def _strategy_cdp_key_events(page: Page, text: str) -> bool:
                     "nativeVirtualKeyCode": key_code,
                 })
 
-            # Human-like variable delay between characters
-            delay = random.gauss(0.055, 0.020)
-            delay = max(0.015, min(0.120, delay))
-            await asyncio.sleep(delay)
+            # Same measured cadence as the high-level keyboard path.
+            await asyncio.sleep(_human_key_delay())
 
             # Periodic abort check
             if i > 0 and i % 50 == 0:
@@ -267,7 +313,7 @@ async def _strategy_cdp_key_events(page: Page, text: str) -> bool:
 #  Field Clearing
 # ═══════════════════════════════════════════════════════════════════════════════
 
-async def clear_field(page: Page) -> None:
+async def clear_field(page: Page, element_id: str | None = None) -> None:
     """Clear the currently focused input field using multiple strategies."""
     try:
         # Strategy 1: Select all + delete
@@ -277,7 +323,12 @@ async def clear_field(page: Page) -> None:
         await asyncio.sleep(0.1)
 
         # Strategy 2: Verify it's actually empty, if not try Backspace
-        result = await _verify_typed_text(page, "", timeout=1.0)
+        if element_id:
+            result = await _verify_typed_text(
+                page, "", timeout=1.0, expected_element_id=element_id
+            )
+        else:
+            result = await _verify_typed_text(page, "", timeout=1.0)
         if result.get("actual_length", 0) > 0:
             await page.keyboard.press("Control+A")
             await asyncio.sleep(0.05)
@@ -295,6 +346,7 @@ async def _delayed_recheck(
     page: Page,
     expected_text: str,
     delay_ms: int = 300,
+    element_id: str | None = None,
 ) -> bool:
     """Wait delay_ms, then recheck if the active field still has the expected text.
 
@@ -306,7 +358,12 @@ async def _delayed_recheck(
     Returns True if text is still intact, False if it was reverted.
     """
     await asyncio.sleep(delay_ms / 1000.0)
-    recheck = await _verify_typed_text(page, expected_text, timeout=2.0)
+    if element_id:
+        recheck = await _verify_typed_text(
+            page, expected_text, timeout=2.0, expected_element_id=element_id
+        )
+    else:
+        recheck = await _verify_typed_text(page, expected_text, timeout=2.0)
     if recheck["verified"]:
         return True
     else:
@@ -327,7 +384,9 @@ async def resilient_type(
     x: Optional[float] = None,
     y: Optional[float] = None,
     clear_first: bool = True,
+    force_retype: bool = False,
     max_retries: int = 3,
+    element_id: str | None = None,
 ) -> dict:
     """Type text into the focused field using a multi-strategy waterfall.
 
@@ -350,9 +409,9 @@ async def resilient_type(
     from ghost_input import ghost_click  # Avoid circular import
 
     strategies = [
-        ("cdp_insertText", _strategy_cdp_insert_text),
-        ("playwright_type", _strategy_playwright_type),
+        ("human_keyboard", _strategy_human_keyboard),
         ("cdp_key_events", _strategy_cdp_key_events),
+        ("rich_text_insert", _strategy_cdp_insert_text),
     ]
 
     for attempt in range(max_retries):
@@ -392,7 +451,7 @@ async def resilient_type(
                 logger.warning("Focus click failed: %s", e)
 
         # V15.1 Patch B: Smart clear detection — auto-detect append vs replace
-        if clear_first:
+        if clear_first and not force_retype:
             try:
                 existing_val = await page.evaluate("""() => {
                     const el = document.activeElement;
@@ -415,6 +474,7 @@ async def resilient_type(
                                 "success": True, "strategy": "smart_skip",
                                 "verified": True, "actual_length": len(existing_val),
                                 "attempts": attempt + 1, "react_stable": True,
+                                "no_op": True,
                             }
                         clear_first = False
                     elif existing_val.endswith(text):
@@ -424,13 +484,17 @@ async def resilient_type(
                             "success": True, "strategy": "smart_skip",
                             "verified": True, "actual_length": len(existing_val),
                             "attempts": attempt + 1, "react_stable": True,
+                            "no_op": True,
                         }
             except Exception as e:
                 logger.debug("Smart clear detection failed: %s — falling back to normal clear", e)
 
         # Clear existing content
         if clear_first:
-            await clear_field(page)
+            if element_id:
+                await clear_field(page, element_id=element_id)
+            else:
+                await clear_field(page)
 
         # Execute the typing strategy
         ok = await strategy_fn(page, text)
@@ -440,7 +504,12 @@ async def resilient_type(
 
         # ── Phase 1: Immediate verification ──
         await asyncio.sleep(0.3)
-        verification = await _verify_typed_text(page, text)
+        if element_id:
+            verification = await _verify_typed_text(
+                page, text, expected_element_id=element_id
+            )
+        else:
+            verification = await _verify_typed_text(page, text)
 
         if not verification["verified"]:
             # Text wasn't accepted at all — try next strategy
@@ -454,11 +523,13 @@ async def resilient_type(
             continue
 
         # ── Phase 2: Delayed React reversion check (v2.0) ──
-        # Only for non-keystroke strategies (insertText, playwright_type)
-        # CDP key events fire onChange per character, so React can't revert
+        # The rich-editor bulk fallback needs a delayed framework reversion
+        # check. Both keyboard strategies already fire onChange per character.
         react_stable = True
-        if strategy_name != "cdp_key_events":
-            react_stable = await _delayed_recheck(page, text, delay_ms=300)
+        if strategy_name == "rich_text_insert":
+            react_stable = await _delayed_recheck(
+                page, text, delay_ms=300, element_id=element_id
+            )
             if not react_stable:
                 logger.warning(
                     "⚠️ %s passed immediate verify but React reverted text — "

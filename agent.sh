@@ -11,9 +11,9 @@
 #
 #     ./agent.sh
 #
-# This script uses the project's Python environment and connects to a native
-# host-OS Chrome instance via CDP bridge for maximum undetectability and WebGL support.
-# Ensure `windows_chrome_bridge.py` is running before executing this.
+# This script remains the Linux/manual-WSL entry point. If LOCAL_CDP_ENDPOINT is
+# configured, Python attaches to that browser; otherwise it explicitly falls
+# back to launching Playwright Chromium locally (with Xvfb when available).
 #
 set -uo pipefail
 
@@ -50,9 +50,8 @@ if [[ -z "$TASK" ]]; then
   exit 1
 fi
 
-# ── 3. Native CDP Bridge heads-up ──
-echo "🖥️  Native Browser Mode: Connecting to external Chrome CDP bridge."
-echo "⚠️   Make sure windows_chrome_bridge.py is actively running on the host OS!"
+# ── 3. Browser routing is configuration-driven ──
+echo "🖥️  Browser route: LOCAL_CDP when LOCAL_CDP_ENDPOINT is configured; local Playwright otherwise."
 echo
 
 echo "🚀 Starting agent…"

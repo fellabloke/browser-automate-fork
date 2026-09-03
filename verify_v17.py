@@ -1,3 +1,4 @@
+import os
 import sys
 sys.path.insert(0, '.')
 
@@ -14,10 +15,9 @@ print("All modules imported successfully!")
 # Check WorkerAction has new fields
 fields = list(WorkerAction.model_fields.keys())
 print(f"WorkerAction fields: {fields}")
-assert "missing_data" in fields, "missing_data field not found!"
-assert "ask_user" in WorkerAction.model_fields["action_type"].description
-print("  ask_user action type: OK")
-print("  missing_data field: OK")
+assert "ask_user" not in WorkerAction.model_fields["action_type"].description
+assert "missing_data" not in fields
+print("  autonomous action schema (no ask_user): OK")
 
 # Check ChecklistItem weighted scoring
 from prm_critic import ChecklistItem
@@ -36,7 +36,10 @@ assert ci2.score == 0.5
 
 # Check PRM audit frequency
 print(f"PRM_AUDIT_EVERY: {cognition.PRM_AUDIT_EVERY}")
-assert cognition.PRM_AUDIT_EVERY == 2, f"Expected 2, got {cognition.PRM_AUDIT_EVERY}"
+expected_prm_cadence = max(1, int(os.getenv("PRM_AUDIT_EVERY", "4")))
+assert cognition.PRM_AUDIT_EVERY == expected_prm_cadence, (
+    f"Expected {expected_prm_cadence}, got {cognition.PRM_AUDIT_EVERY}"
+)
 
 # Check URL extraction fix
 from app.browser_promoter.browser_warmup import extract_target_url_from_objective

@@ -28,6 +28,8 @@ import mcp_tools
 import vision_consult
 from vision_consult import (
     MAX_VISION_CONSULTS,
+    VISION_FAILOVER_BUDGET_SECONDS,
+    VISION_MODEL_TIMEOUT_SECONDS,
     VisionVerdict,
     apply_vision_verdict,
     consult_vision,
@@ -62,14 +64,14 @@ def test_ladder_vision_rung_triggers():
 
 def test_ineffective_streak_triggers():
     consult, reason = should_consult_vision(
-        needs_vision=False, state={"ineffective_streak": 2}, action_type="click")
+        needs_vision=False, state={"ineffective_streak": 1}, action_type="click")
     assert consult is True
     assert "ineffective" in reason
 
-    # One ineffective action is not yet enough.
+    # Keyboard actions use the same safety net as clicks and typing.
     consult, _ = should_consult_vision(
-        needs_vision=False, state={"ineffective_streak": 1}, action_type="click")
-    assert consult is False
+        needs_vision=False, state={"ineffective_streak": 1}, action_type="press_key")
+    assert consult is True
 
 
 def test_budget_caps_consults():
@@ -80,10 +82,14 @@ def test_budget_caps_consults():
     assert "budget" in reason
 
 
-def test_wait_never_consults():
+def test_routine_wait_skips_vision_but_uncertain_wait_consults():
     consult, _ = should_consult_vision(
-        needs_vision=True, state={}, action_type="wait")
+        needs_vision=False, state={}, action_type="wait")
     assert consult is False
+    consult, reason = should_consult_vision(
+        needs_vision=True, state={}, action_type="wait")
+    assert consult is True
+    assert "request" in reason
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -130,6 +136,43 @@ def test_null_verdict_keeps_a11y():
     assert out == _base_action()
 
 
+def test_drag_verdict_preserves_both_visual_endpoints():
+    v = VisionVerdict(
+        observation="11 is in the blue source box and the dashed square is below it",
+        action_type="drag_and_drop",
+        coord_x=960,
+        coord_y=240,
+        target_x=960,
+        target_y=340,
+        reasoning="The source and drop zone are both visible",
+        confidence=0.95,
+    )
+    out, overridden = apply_vision_verdict(_base_action(), v)
+    assert overridden is True
+    assert out["verb"] == "drag_and_drop"
+    assert out["element_id"] is None
+    assert (out["x"], out["y"]) == (960.0, 240.0)
+    assert (out["target_x"], out["target_y"]) == (960.0, 340.0)
+    assert out["vision_coords"] is True
+
+
+def test_drag_verdict_can_use_grounded_destination_id():
+    v = VisionVerdict(
+        observation="source and destination are mapped",
+        action_type="drag_and_drop",
+        element_id="e11",
+        target_element_id="e12",
+        reasoning="Both endpoints are in the element map",
+        confidence=0.9,
+    )
+    out, overridden = apply_vision_verdict(_base_action(), v)
+    assert overridden is True
+    assert out["verb"] == "drag_and_drop"
+    assert out["element_id"] == "e11"
+    assert out["target_element_id"] == "e12"
+    assert out["target_x"] is None and out["target_y"] is None
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  consult_vision — screenshot attach + graceful unavailability
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -148,9 +191,13 @@ def test_consult_attaches_screenshot_and_returns_verdict(monkeypatch):
     monkeypatch.setattr(mcp_tools, "mcp_screenshot", fake_shot)
 
     captured = {}
-    async def fake_invoke(chain, messages, schema, breaker, base64_image=None, health_tracker=None):
+    async def fake_invoke(
+        chain, messages, schema, breaker, base64_image=None,
+        health_tracker=None, **failover_options,
+    ):
         captured["image"] = base64_image
         captured["schema"] = schema
+        captured["failover_options"] = failover_options
         return VisionVerdict(observation="seen", action_type="click",
                              element_id="e9", reasoning="r", confidence=0.8), "vlm-1"
     verdict, model = asyncio.run(consult_vision(
@@ -161,6 +208,11 @@ def test_consult_attaches_screenshot_and_returns_verdict(monkeypatch):
     assert model == "vlm-1"
     assert captured["image"] == "ZmFrZQ=="          # screenshot actually attached
     assert captured["schema"] is VisionVerdict
+    assert captured["failover_options"]["timeout_seconds"] == VISION_MODEL_TIMEOUT_SECONDS
+    assert (
+        captured["failover_options"]["total_timeout_seconds"]
+        == VISION_FAILOVER_BUDGET_SECONDS
+    )
 
 
 def test_consult_screenshot_failure_falls_back(monkeypatch):
@@ -182,6 +234,58 @@ def test_consult_model_error_falls_back(monkeypatch):
     verdict, model = asyncio.run(consult_vision(
         boom, ["vlm"], None, None, objective="x", question="y", a11y_markdown="z"))
     assert verdict is None
+
+
+def test_identical_non_captcha_screenshot_uses_short_cache(monkeypatch):
+    vision_consult._VISION_CACHE.clear()
+    async def fake_shot(full_page=False):
+        return {"ok": True, "base64": "cache-image", "error": ""}
+    monkeypatch.setattr(mcp_tools, "mcp_screenshot", fake_shot)
+    calls = 0
+    async def fake_invoke(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return VisionVerdict(
+            observation="same screen", action_type="click", element_id="e1",
+            reasoning="grounded", confidence=0.9,
+        ), "vlm"
+    async def run():
+        first = await consult_vision(
+            fake_invoke, ["vlm"], None, None,
+            objective="x", question="which?", a11y_markdown="[e1] Next",
+        )
+        second = await consult_vision(
+            fake_invoke, ["vlm"], None, None,
+            objective="x", question="which?", a11y_markdown="[e1] Next",
+        )
+        return first, second
+    first, second = asyncio.run(run())
+    assert calls == 1
+    assert first[0].element_id == second[0].element_id == "e1"
+
+
+def test_cache_can_be_bypassed_for_independent_captcha_read(monkeypatch):
+    vision_consult._VISION_CACHE.clear()
+    async def fake_shot(full_page=False):
+        return {"ok": True, "base64": "captcha-image", "error": ""}
+    monkeypatch.setattr(mcp_tools, "mcp_screenshot", fake_shot)
+    calls = 0
+    async def fake_invoke(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return VisionVerdict(
+            observation="AB12", action_type="type", element_id="e1",
+            text="AB12", reasoning="read", confidence=0.9,
+        ), "vlm"
+    async def run():
+        for _ in range(2):
+            await consult_vision(
+                fake_invoke, ["vlm"], None, None,
+                objective="verify", question="read code", a11y_markdown="[e1] code",
+                allow_cache=False,
+            )
+    asyncio.run(run())
+    assert calls == 2
 
 
 if __name__ == "__main__":

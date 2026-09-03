@@ -2,7 +2,7 @@
 
 > How the agent chooses, validates, and routes LLMs so that **only models capable
 > of agentic structured reasoning ever drive the agent** — while serving two very
-> different users equally well: the **free-tier scrapper** (juggling Groq + NVIDIA
+> different users equally well: the **free-tier scrapper** (juggling NVIDIA
 > NIM keys against rate limits) and the **premium power user** (one paid, top-tier
 > multimodal key, no juggling).
 
@@ -12,7 +12,7 @@
 
 | | **Free-tier scrapper** | **Premium power user** |
 |---|---|---|
-| Keys | Several free keys (Groq, NVIDIA NIM, Gemini, Cerebras) | One paid key (OpenAI / OpenRouter / Anthropic / Gemini-paid) |
+| Keys | Several free keys (NVIDIA NIM, Gemini, Cloudflare) | One paid key (OpenAI / OpenRouter / Anthropic / Gemini-paid) |
 | Pain | Rate limits, dead models, weak models that break JSON | None — the model is reliable and multimodal |
 | Needs | Deep fallback, capability gating, probing, role separation | **Get out of the way.** Use my model for everything. |
 
@@ -78,7 +78,7 @@ output. It is the shipped default **and** the safety net (if probing can't run,
 fall back to allowlisted-and-alive models so the agent is never bricked).
 
 Proven set (probed 2026-06):
-- **Tier 0 (primary):** `gpt-oss-120b` (Groq + NVIDIA), `gpt-oss-20b` (NVIDIA, fast 1.1s)
+- **Tier 0 (primary):** `gpt-oss-120b` (NVIDIA), `gpt-oss-20b` (NVIDIA, fast 1.1s)
 - **Tier 1 (native API only):** `gemma-4-31b-it` **via Gemini** (fails on NVIDIA — see C)
 - **Tier 2 (works but slow, last resort):** `llama-3.3-70b-instruct`,
   `llama-3.3-nemotron-super-49b` (NVIDIA)
@@ -137,7 +137,7 @@ ran `gpt-oss-120b` and `llama-3.2-11b-vision`). The registry keeps text and
 vision key pools **separate** (`NVIDIA_NIM_API_KEY` vs `NVIDIA_VISION_API_KEY`)
 so their rate budgets are isolated — a burst of vision consults can't starve
 text. If only one NVIDIA key exists, vision transparently falls back to it;
-clashes stay rare because NVIDIA-text is a *secondary* (behind Groq) and vision
+clashes stay rare because NVIDIA-text is isolated from the vision pipeline and vision
 is *on-demand*.
 
 ---

@@ -1,0 +1,45 @@
+{
+  "schema_version": 5,
+  "active_profile": "default",
+  "profiles": {
+    "default": {
+      "learning": {
+        "mode": "synthetic_persona",
+        "auto_expand": false
+      },
+      "demographics": {
+        "country": null,
+        "region": null,
+        "age": null,
+        "date_of_birth": null,
+        "gender": null,
+        "marital_status": null,
+        "household_size": null,
+        "children": null,
+        "employment_status": null,
+        "occupation": null,
+        "education": null,
+        "income_band": null
+      },
+      "stable_facts": {
+        "home_ownership": null,
+        "vehicle_ownership": null,
+        "pets": null,
+        "health_conditions": null
+      },
+      "personality": {
+        "name": "balanced_pragmatist",
+        "traits": [
+          "moderately curious",
+          "practical",
+          "socially considerate",
+          "not strongly partisan",
+          "consistent rather than extreme"
+        ],
+        "interests": [],
+        "response_style": "Answer subjective questions contextually and consistently; avoid random extremes."
+      },
+      "learned_answers": {}
+    }
+  }
+}

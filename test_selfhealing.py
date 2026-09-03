@@ -4,29 +4,27 @@ sys.path.insert(0, "python-orchestrator")
 from collections import Counter
 
 # Test 1: Circuit Breaker
-from advanced_agent import CircuitBreaker
+from model_registry import CircuitBreaker
 
-cb = CircuitBreaker(max_requests=5, max_failures=3)
+cb = CircuitBreaker(window_size=5, min_calls=3, failure_rate_threshold=0.6)
 assert not cb.tripped
 cb.record_success()
 cb.record_success()
-assert cb.request_count == 2
 assert not cb.tripped
 
 cb.record_failure()
 cb.record_failure()
 cb.record_failure()
 assert cb.tripped
-assert "ceiling" in cb.reason
+assert "OPEN" in cb.reason
 print(f"✅ Circuit Breaker: trips correctly — {cb.reason}")
 
-cb2 = CircuitBreaker(max_requests=3, max_failures=10)
+cb2 = CircuitBreaker(window_size=3, min_calls=3, failure_rate_threshold=2 / 3)
 cb2.record_success()
-cb2.record_success()
-cb2.record_success()
+cb2.record_failure()
+cb2.record_failure()
 assert cb2.tripped
-assert "Request ceiling" in cb2.reason
-print(f"✅ Circuit Breaker: trips correctly at {cb2.request_count} requests — {cb2.reason}")
+print(f"✅ Circuit Breaker: sliding failure-rate trip works — {cb2.reason}")
 
 # Test 2: Anti-Loop Watchdog (simulate the Counter logic)
 url_history = [

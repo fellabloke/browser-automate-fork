@@ -44,6 +44,12 @@ THETA_AGREE = 0.6      # min winning weight-share to ACT on an irreversible acti
 THETA_CONF = 0.5       # min mean self-confidence of the winning voters
 DEFAULT_CONF = 0.7     # assumed confidence when a model omits the field
 HIGH_CONF = 0.85       # primary executes IMMEDIATELY at/above this (if structurally sound)
+try:
+    CONSENSUS_VOTER_TIMEOUT_SECONDS = max(
+        1.0, float(os.getenv("CONSENSUS_VOTER_TIMEOUT_SECONDS", "6"))
+    )
+except (TypeError, ValueError):
+    CONSENSUS_VOTER_TIMEOUT_SECONDS = 6.0
 
 
 def consensus_enabled() -> bool:
@@ -130,7 +136,7 @@ def should_abstain(vote: VoteResult | None,
 
 def _logical_model(name: str) -> str:
     """Normalize an instance name to its LOGICAL model id, so the same model on
-    different providers counts ONCE (e.g. 'openai/gpt-oss-120b' and the Cerebras
+    different providers counts ONCE (e.g. 'openai/gpt-oss-120b' and a second-provider
     'gpt-oss-120b' → 'gpt-oss-120b'; 'google/gemma-4-31b-it' and the Gemini
     'gemma-4-31b-it' → 'gemma-4-31b-it'). This keeps the cascade voters genuinely
     independent rather than the same model polled twice."""
@@ -175,6 +181,8 @@ async def sample_ensemble(models: list, messages: list, schema,
         try:
             return await invoke_fn(
                 [mc], messages, schema, breaker, health_tracker=health_tracker,
+                timeout_seconds=CONSENSUS_VOTER_TIMEOUT_SECONDS,
+                total_timeout_seconds=CONSENSUS_VOTER_TIMEOUT_SECONDS,
             )
         except Exception as e:  # noqa: BLE001 — a failed voter just abstains
             logger.debug("ensemble voter failed: %s", e)
@@ -234,9 +242,6 @@ def structural_ok(decision, selector_map: dict | None = None) -> bool:
                 and getattr(decision, "y", None) is not None)
     if verb == "goto":
         return bool(getattr(decision, "url", None))
-    if verb == "ask_user":
-        return bool(getattr(decision, "missing_data", "")
-                    or getattr(decision, "rationale", ""))
     # done / wait / scroll / press_enter need no target → structurally fine
     return bool(verb)
 
@@ -255,7 +260,9 @@ class CascadeResult:
 async def _poll_one(mc, messages, schema, invoke_fn, breaker, health_tracker):
     try:
         decision, _model = await invoke_fn(
-            [mc], messages, schema, breaker, health_tracker=health_tracker)
+            [mc], messages, schema, breaker, health_tracker=health_tracker,
+            timeout_seconds=CONSENSUS_VOTER_TIMEOUT_SECONDS,
+            total_timeout_seconds=CONSENSUS_VOTER_TIMEOUT_SECONDS)
         return decision
     except Exception as e:  # noqa: BLE001
         logger.debug("cascade voter failed: %s", e)

@@ -32,6 +32,7 @@ References:
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -48,7 +49,10 @@ GAMMA = 0.3          # confidence EWMA rate: 3 consecutive no-progress → below
 TAU = 0.4            # confidence below this triggers a strategy review
 STALL_EPS = 0.05     # goal-score spread below this over the window = stalled
 STALL_WINDOW = 4     # number of recent goal-scores to inspect for a stall
-PRM_AUDIT_EVERY = 2  # V17: tightened from 3 — catches sub-goal regression faster
+try:
+    PRM_AUDIT_EVERY = max(1, int(os.getenv("PRM_AUDIT_EVERY", "4")))
+except (TypeError, ValueError):
+    PRM_AUDIT_EVERY = 4
 MAX_RESTRATEGIZE = 3 # hard cap on full re-strategy calls per task
 MAX_BELIEFS = 6      # keep injected memory LEAN — never flood the prompt
 BELIEF_MAXLEN = 120  # truncate each belief so one bad line can't dominate
@@ -345,6 +349,8 @@ def build_guidance(state: dict[str, Any]) -> str:
                       "blind execution" failure — so it outranks everything.
       1. WIN/DONE  — `goal_complete_hint` (commit_node win-state / PRM ceiling):
                      acting further is actively harmful (post-action wandering).
+      1.25 NAV-CYCLE — `navigation_cycle_note`: an observed action-effect loop;
+                     the exact loop-closing element is now forbidden.
       1.5 STAGNATION — `stagnation_note` (V29 Phase 3): busy but not progressing —
                      break the loop before it deepens.
       2. REPETITION — `consecutive_identical_actions >= 2`: break loops first.
@@ -365,6 +371,9 @@ def build_guidance(state: dict[str, Any]) -> str:
 
     elif win:
         directive = win
+
+    elif (state.get("navigation_cycle_note") or "").strip():
+        directive = f"🔂 LEARNED NAVIGATION LOOP: {state['navigation_cycle_note'].strip()}"
 
     elif (state.get("stagnation_note") or "").strip():
         directive = f"🔁 STAGNATION: {state['stagnation_note'].strip()}"

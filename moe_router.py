@@ -44,6 +44,9 @@ except ImportError:
     logger = logging.getLogger("moe_router")
 
 
+MAX_CONSECUTIVE_RECOVERIES = 2
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Route Decision
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -68,11 +71,24 @@ def route_to_worker(state: dict[str, Any]) -> str:
     proposed = state.get("proposed_action")
 
     # ── Terminal conditions ──
-    if step_number >= max_steps:
+    if step_number >= max_steps and not state.get("continuous_survey_mode"):
         logger.info("🔀 Router → finalize (budget exhausted: %d/%d)", step_number, max_steps)
         return "finalize"
 
     if error_count >= 8:
+        recovery_count = int(state.get("recovery_count", 0) or 0)
+        if recovery_count >= MAX_CONSECUTIVE_RECOVERIES:
+            if state.get("continuous_survey_mode"):
+                logger.warning(
+                    "🔀 Router → recovery (continuous run stays alive after %d recovery cycles)",
+                    recovery_count,
+                )
+                return "recovery"
+            logger.error(
+                "🔀 Router → finalize (stuck after %d bounded recovery cycles)",
+                recovery_count,
+            )
+            return "finalize"
         logger.info("🔀 Router → recovery (error_count=%d)", error_count)
         return "recovery"
 
@@ -84,17 +100,19 @@ def route_to_worker(state: dict[str, Any]) -> str:
             logger.info("🔀 Router → overwatch (done verification)")
             return "done_check"
 
-        # V17: ask_user — agent needs user input before proceeding
+        # Cached/legacy proposals cannot pause an autonomous run for a person.
         if verb == "ask_user":
-            missing = proposed.get("missing_data") or proposed.get("rationale", "")
-            logger.info("🙋 Router → finalize (ask_user: %s)", missing[:100])
-            return "finalize"
+            logger.warning("Router rejected unsupported human-assistance action")
+            return "recovery"
 
         if verb in ("goto", "scroll"):
             logger.info("🔀 Router → navigator (verb=%s)", verb)
             return "navigator"
 
-        if verb in ("click", "type", "press_enter", "hover", "select_option", "press_key"):
+        if verb in (
+            "click", "type", "press_enter", "hover", "select_option",
+            "press_key", "drag_and_drop", "abandon_survey",
+        ):
             logger.info("🔀 Router → interactor (verb=%s)", verb)
             return "interactor"
 

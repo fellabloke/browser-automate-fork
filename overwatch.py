@@ -32,6 +32,16 @@ import logging
 import time
 from typing import Any
 
+
+# Actions that can be judged by whether the rendered page made the predicted
+# transition. Keyboard actions are included deliberately: the latest run got
+# stuck pressing Enter because only click/type contributed to the escalation
+# streak.
+_PROGRESS_ACTIONS = {
+    "click", "type", "select_option", "press_enter", "press_key",
+    "press_combo", "drag_and_drop", "upload_file", "set_date_of_birth",
+}
+
 try:
     from app.logger import get_logger
     logger = get_logger("overwatch")
@@ -92,6 +102,61 @@ def _escalate(state: dict, reason: str, updates: dict) -> dict:
 #  Overwatch Node — The verification gate
 # ═══════════════════════════════════════════════════════════════════════════════
 
+def _action_loop_signature(state: dict[str, Any], verb: str, element_id: Any) -> str:
+    """Identify repeats without conflating the same control on new SPA questions."""
+    try:
+        from survey_context import survey_semantic_page_identity
+        page_identity = survey_semantic_page_identity(
+            state.get("current_url", ""),
+            state.get("survey_page_fingerprint", ""),
+            state.get("survey_interaction_fingerprint", ""),
+        )
+    except Exception:
+        page_identity = state.get("survey_page_fingerprint", "")
+    return f"{verb}|{element_id or ''}|{page_identity}"
+
+
+def _note_survey_no_effect(
+    state: dict[str, Any], proposed: dict[str, Any], updates: dict[str, Any]
+) -> None:
+    if not state.get("continuous_survey_mode"):
+        return
+    try:
+        from survey_context import survey_action_attempt_key
+        key = survey_action_attempt_key(state, proposed)
+        if not key:
+            return
+        counts = dict(state.get("survey_action_no_effect_counts") or {})
+        counts[key] = int(counts.get(key, 0) or 0) + 1
+        while len(counts) > 40:
+            counts.pop(next(iter(counts)))
+        updates["survey_action_no_effect_counts"] = counts
+    except Exception:
+        return
+
+
+def _record_survey_recipe_failure(
+    state: dict[str, Any], proposed: dict[str, Any]
+) -> None:
+    """Teach recipe memory that a forward/replayed action did not advance."""
+    if not state.get("continuous_survey_mode"):
+        return
+    target = str(proposed.get("target_name") or "").lower()
+    is_forward = any(term in target for term in ("next", "continue", "submit", "finish", "complete"))
+    if not (is_forward or proposed.get("recipe_signature")):
+        return
+    try:
+        from survey_recipe_memory import get_survey_recipe_memory
+        get_survey_recipe_memory().observe_failure(
+            url=str(state.get("current_url") or ""),
+            page_text=str(state.get("page_text") or ""),
+            selector_map=state.get("selector_map", {}) or {},
+            action=proposed,
+        )
+    except Exception as exc:
+        logger.debug("Survey recipe failure observation skipped (non-fatal): %s", exc)
+
+
 async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=None) -> dict:
     """Multi-layered verification before committing state.
 
@@ -106,8 +171,68 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
     """
     proposed = state.get("proposed_action")
     if not proposed:
-        logger.warning("Overwatch: no proposed action")
-        return {"overwatch_verdict": "pass"}
+        # A model timeout is not a verified browser step. Treating this as pass
+        # sent the graph through commit_node, consumed the action budget, reset
+        # recovery context, and produced long runs with dozens of fake steps.
+        logger.warning("Overwatch: no proposed action — retrying without committing a step")
+        return {
+            "overwatch_verdict": "retry",
+            "correction_context": (
+                "The previous model attempt returned no executable action. Re-read the "
+                "current page and choose one grounded supported action; request vision "
+                "if the obstacle cannot be resolved from the element map."
+            ),
+        }
+
+    try:
+        from survey_context import survey_ineffective_action_violation
+        ineffective_violation = survey_ineffective_action_violation(state, proposed)
+        if ineffective_violation:
+            logger.warning("🚫 Ineffective survey action quarantined: %s", ineffective_violation)
+            return {
+                "overwatch_verdict": "retry",
+                "proposed_action": None,
+                "action_outcome": "SEMANTIC_NO_EFFECT_QUARANTINE",
+                "correction_context": ineffective_violation[:500],
+            }
+    except Exception as exc:
+        logger.debug("Semantic action quarantine skipped (non-fatal): %s", exc)
+
+    # Outcome-memory backstop: a worker/failover/vision override may still pick
+    # the exact element learned to close an A→B→A→B navigation loop. Refuse it
+    # before any side effect; same-labelled sibling elements remain legal.
+    try:
+        from stagnation import navigation_cycle_action_violation
+        cycle_violation = navigation_cycle_action_violation(state, proposed)
+        if cycle_violation:
+            logger.warning("🔂 Navigation-cycle action blocked before execution: %s",
+                           cycle_violation[:160])
+            return {
+                "overwatch_verdict": "retry",
+                "proposed_action": None,
+                "action_outcome": "NAVIGATION_CYCLE_BLOCKED",
+                "correction_context": cycle_violation[:500],
+            }
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Navigation-cycle backstop skipped (non-fatal): %s", exc)
+
+    # A deterministic survey gate may replace an unsafe click with a short
+    # wait while requesting fresh perception. Do not execute/journal that wait:
+    # counting it as progress is what turns an unresolved gate into a tight
+    # retry loop and trips the no-progress circuit breaker. Re-enter the worker
+    # with the same page state instead.
+    if proposed.get("survey_gate_hold"):
+        logger.warning("🧷 Overwatch: survey-gate hold -> fresh perception (no progress committed)")
+        return {
+            "overwatch_verdict": "retry",
+            "proposed_action": None,
+            "action_outcome": "SURVEY_GATE_HOLD",
+            "correction_context": (
+                "\n\nThe previous action was held by the survey safety gate. "
+                "Refresh perception and inspect the currently selected choice; "
+                "do not repeat the held click or wait."
+            ),
+        }
 
     verb = proposed.get("verb", "")
     element_id = proposed.get("element_id")
@@ -115,6 +240,85 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
     step_number = state.get("step_number", 0)
 
     updates: dict[str, Any] = {}
+
+    # Defense in depth: Overwatch is the last authority before Chrome. Pin
+    # typed facts, factual choices, and DOB widgets to the active profile after
+    # every possible model-side override.
+    if verb in {"type", "click", "select_option", "set_date_of_birth"}:
+        try:
+            from survey_context import is_survey_mission
+            if is_survey_mission(state.get("objective", "")):
+                from survey_profile import (
+                    enforce_profile_choice,
+                    enforce_profile_date_action,
+                    enforce_typed_profile_fact,
+                    load_active_profile,
+                )
+                active_profile = load_active_profile() or (state.get("survey_profile", {}) or {})
+                # A native SELECT is sometimes exposed as kind=input. Typing
+                # into it can alter its displayed value without firing the
+                # change event used by form validation. Convert that proposal
+                # to the real select primitive before profile enforcement.
+                target = selector_map.get(str(element_id or "")) or {}
+                if verb == "type" and (
+                    str(target.get("tag") or "").lower() == "select"
+                    or str(target.get("control_type") or "").lower()
+                    in {"select", "select-one"}
+                ):
+                    proposed = {**proposed, "verb": "select_option"}
+                    verb = "select_option"
+                    updates["proposed_action"] = proposed
+                if verb == "type":
+                    proposed, profile_note, profile_violation = enforce_typed_profile_fact(
+                        proposed, active_profile, selector_map,
+                        page_text=state.get("page_text", ""),
+                    )
+                elif verb in {"click", "select_option"}:
+                    proposed, profile_note, profile_violation = enforce_profile_choice(
+                        proposed, active_profile, selector_map,
+                        page_text=state.get("page_text", ""),
+                    )
+                else:
+                    proposed, profile_note, profile_violation = enforce_profile_date_action(
+                        proposed, active_profile
+                    )
+                if profile_note:
+                    updates["proposed_action"] = proposed
+                    logger.info("🛡️ Overwatch profile guard: %s", profile_note)
+                if profile_violation:
+                    logger.warning("🛡️ Overwatch blocked ungrounded profile action: %s",
+                                   profile_violation)
+                    return {
+                        "overwatch_verdict": "retry",
+                        "proposed_action": None,
+                        "action_outcome": "PROFILE_FACT_REQUIRED",
+                        "correction_context": profile_violation[:500],
+                    }
+                verb = str(proposed.get("verb") or verb)
+                element_id = proposed.get("element_id")
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Overwatch profile guard skipped (non-fatal): %s", exc)
+
+    # Known provider defects are corrected deterministically immediately before
+    # journaling/execution. This is intentionally later than all model/failover
+    # decisions so no downstream model can put the invalid value back.
+    applied_site_quirk = ""
+    try:
+        from survey_site_quirks import apply_site_quirks_to_action
+        proposed, applied_site_quirk = apply_site_quirks_to_action(
+            proposed,
+            url=state.get("current_url", ""),
+            selector_map=selector_map,
+            page_text=state.get("page_text", ""),
+        )
+        if applied_site_quirk:
+            updates["proposed_action"] = proposed
+            logger.info(
+                "🧩 Applied URL-scoped survey quirk %s (typed value redacted)",
+                applied_site_quirk,
+            )
+    except Exception as exc:  # noqa: BLE001 - optional workaround, never break execution
+        logger.debug("Site quirk action transform skipped (non-fatal): %s", exc)
 
     # ═══════════════════════════════════════════════════════════════════
     #  Layer 1: Deterministic State Validation (~0ms)
@@ -136,14 +340,32 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
     # ═══════════════════════════════════════════════════════════════════
 
     if verb in ("click", "type"):
-        from mcp_tools import mcp_ground_action
-        ground_result = await mcp_ground_action(
-            element_id=element_id,
-            x=proposed.get("x"),
-            y=proposed.get("y"),
-            selector_map=selector_map,
-            elements_list=state.get("elements_list", []),
-        )
+        if (
+            verb == "click"
+            and not element_id
+            and proposed.get("vision_coords")
+            and proposed.get("coord_validated")
+            and proposed.get("x") is not None
+            and proposed.get("y") is not None
+        ):
+            # A second, independent vision call has already verified this
+            # non-DOM target. Requiring a nearby accessibility node here would
+            # reject the very class of modal/canvas controls vision resolves.
+            ground_result = {
+                "grounded": True,
+                "x": float(proposed["x"]),
+                "y": float(proposed["y"]),
+                "reason": "independently vision-validated coordinates",
+            }
+        else:
+            from mcp_tools import mcp_ground_action
+            ground_result = await mcp_ground_action(
+                element_id=element_id,
+                x=proposed.get("x"),
+                y=proposed.get("y"),
+                selector_map=selector_map,
+                elements_list=state.get("elements_list", []),
+            )
 
         if not ground_result["grounded"]:
             logger.warning(
@@ -216,10 +438,58 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
         logger.debug("Intent journal write-ahead skipped (non-fatal): %s", e)
 
     # Execute the action via MCP tools
+    execution_started_at = time.monotonic()
     action_outcome = await _execute_action(proposed, page)
+    if applied_site_quirk:
+        action_outcome += f"; SITE QUIRK APPLIED ({applied_site_quirk})"
+
+    # A successful click may launch the real destination in a popup while the
+    # opener changes its own DOM. Adopt that page before verification so Reality,
+    # the Critic, and the next perception inspect the destination rather than
+    # mistakenly continuing on the qualification/dashboard tab.
+    try:
+        import mcp_tools
+        handoff = await mcp_tools.adopt_new_page_if_opened(page)
+        if handoff.get("blocked_url"):
+            action_outcome += f"; BLACKLISTED SURVEY CLOSED ({handoff['blocked_url'][:80]})"
+        if handoff.get("switched") and handoff.get("page") is not None:
+            page = handoff["page"]
+            try:
+                critic._page = page
+            except Exception:
+                pass
+            destination = handoff.get("new_url", "") or "about:blank"
+            action_outcome += f"; NEW TAB ADOPTED (navigated to {destination[:80]})"
+    except Exception as exc:
+        logger.debug("Post-action tab check skipped (non-fatal): %s", exc)
+
+    queued_executed = 0
+    if _action_execution_confirmed(action_outcome) and proposed.get("queued_actions"):
+        queue_outcomes, queued_executed = await _execute_guarded_survey_queue(
+            proposed, state, page
+        )
+        if queue_outcomes:
+            action_outcome += "; " + "; ".join(queue_outcomes)
+        if queued_executed:
+            proposed["transaction_executed"] = queued_executed
+            proposed["expected_change"] = (
+                "The guarded page-local answer transaction is applied in order and, "
+                "when its final forward control is reached, a new question or validation appears."
+            )
+            updates["proposed_action"] = proposed
+    if proposed.get("recipe_signature") and not _action_execution_confirmed(action_outcome):
+        try:
+            from survey_recipe_memory import get_survey_recipe_memory
+            get_survey_recipe_memory().record_replay_failure(
+                str(proposed.get("recipe_signature") or ""),
+                str(proposed.get("recipe_action_key") or ""),
+            )
+        except Exception as exc:
+            logger.debug("Survey recipe failure update skipped (non-fatal): %s", exc)
+
     updates["action_outcome"] = action_outcome
     updates["page_fsm"] = "ACTION_PENDING"
-    updates["total_actions"] = state.get("total_actions", 0) + 1
+    updates["total_actions"] = state.get("total_actions", 0) + 1 + queued_executed
 
     # Stamp the journal with the post-execution status so every downstream return
     # path (contradiction / ineffective / retry) carries an accurate ledger. The
@@ -265,6 +535,8 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
 
     # Post-action DOM check
     post_markdown = ""
+    post_page_text = ""
+    post_selector_map: dict[str, dict] = {}
     post_url = state.get("current_url", "")
     try:
         import dom_parser
@@ -273,6 +545,12 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
         post_a11y = dom_data_to_a11y_format(post_dom)
         # V29 Reality Monitor inputs (free — we already extracted the post DOM).
         post_markdown = post_dom.get("markdown", "") or ""
+        post_page_text = post_dom.get("page_text", "") or ""
+        post_selector_map = {
+            str(item.get("id") or item.get("ref") or ""): item
+            for item in (post_dom.get("elements") or [])
+            if item.get("id") or item.get("ref")
+        }
         try:
             post_url = page.url or post_url
         except Exception:
@@ -285,11 +563,18 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
     x_val = int(px) if px is not None else 0
     y_val = int(py) if py is not None else 0
     target_ref = element_id or f"({x_val},{y_val})"
+    execution_confirmed = _action_execution_confirmed(action_outcome)
     verdict = await critic.evaluate(
         action=verb,
         target_ref=target_ref,
         target_name=proposed.get("text", "")[:30] if proposed.get("text") else proposed.get("target_name", ""),
         a11y_data_after=post_a11y,
+        # Executor truth outranks unrelated DOM churn. Previously every verb
+        # except abandon_survey was reported as skill_success=True, so an
+        # explicit CLICK/DRAG FAILED could become "progress" merely because a
+        # dashboard carousel or modal changed its element count.
+        skill_success=execution_confirmed,
+        skill_error=("" if execution_confirmed else action_outcome),
     )
     # V29 Phase A: surface the unified state-change score (CriticV12 diffing).
     updates["state_change_score"] = float(getattr(verdict, "state_change_score", 0.0) or 0.0)
@@ -346,9 +631,11 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
                             "and let the ensemble vote.")
                 updates["reality_note"] = note[:500]
                 updates["critic_no_progress"] = state.get("critic_no_progress", 0) + 1
-                if verb in ("click", "type"):
+                if verb in _PROGRESS_ACTIONS:
                     updates["ineffective_streak"] = state.get("ineffective_streak", 0) + 1
                 updates["reflexion_triggers"] = state.get("reflexion_triggers", 0) + 1
+                _note_survey_no_effect(state, proposed, updates)
+                _record_survey_recipe_failure(state, proposed)
                 # Escalate a DISTINCT tactic and re-evaluate the real screen.
                 _escalate(state,
                           "The screen did NOT do what the action predicted.",
@@ -382,15 +669,22 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
         updates["correction_failures"] = 0
         updates["correction_context"] = ""
         updates["critic_progress"] = state.get("critic_progress", 0) + 1
-        updates["ineffective_streak"] = 0  # V21: progress clears the visual-trigger
+        # A generic DOM mutation is not enough to clear this trigger. Keyboard
+        # actions can return OK while leaving the same screen in place. Only a
+        # reality confirmation proves meaningful progress for these actions.
+        if (updates.get("reality_status") == "CONFIRMED"
+                or verb not in _PROGRESS_ACTIONS):
+            updates["ineffective_streak"] = 0
         logger.info("✓ Overwatch L3: %s [%.0f%%]", verdict.reason[:100], verdict.confidence * 100)
     else:
+        _note_survey_no_effect(state, proposed, updates)
+        _record_survey_recipe_failure(state, proposed)
         cf = state.get("correction_failures", 0) + 1
         updates["correction_failures"] = cf
         updates["critic_no_progress"] = state.get("critic_no_progress", 0) + 1
         # V21: a click/type that produced no visible effect — count it so that a
         # short streak escalates to a vision look (the DOM says act, page doesn't).
-        if verb in ("click", "type"):
+        if verb in _PROGRESS_ACTIONS:
             updates["ineffective_streak"] = state.get("ineffective_streak", 0) + 1
 
         if verdict.circuit_breaker_triggered:
@@ -417,7 +711,10 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
     #  Layer 5: Loop Detection + Circuit Breaker (~0ms)
     # ═══════════════════════════════════════════════════════════════════
 
-    sig = f"{verb}|{element_id or ''}|{state.get('current_url', '')}"
+    # Element IDs are snapshot-local. Survey SPAs reuse e.g. e18='Next' across
+    # many different questions under one URL, so include the question identity
+    # to avoid treating legitimate forward progress as an action loop.
+    sig = _action_loop_signature(state, verb, element_id)
     loop_sigs = state.get("loop_signatures", [])
     sig_count = loop_sigs[-12:].count(sig) if loop_sigs else 0  # sliding window
 
@@ -431,7 +728,10 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
     # ── All layers passed ──
     updates["overwatch_verdict"] = "pass"
     updates["page_fsm"] = "VALIDATED"
-    updates["loop_signatures"] = [sig]
+    from brain_state import LOOP_SIGNATURE_MAX, append_bounded
+    updates["loop_signatures"] = append_bounded(
+        loop_sigs, [sig], LOOP_SIGNATURE_MAX
+    )
 
     # V29: the action is VERIFIED-effective → resolve the intent journal. There is
     # no ambiguity to carry forward, so the next decision starts with a clean slate.
@@ -443,15 +743,145 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
         except Exception:  # noqa: BLE001
             pass
 
+    # A character answer becomes durable only here, after every execution and
+    # reality layer has accepted the browser action. Failed, ambiguous, held, or
+    # merely proposed answers can therefore never pollute the respondent profile.
+    try:
+        from survey_context import is_survey_mission
+        if is_survey_mission(state.get("objective", "")):
+            from survey_profile import (
+                commit_confirmed_survey_answer,
+                compact_runtime_profile,
+                render_profile,
+            )
+            learned_profile, learned, learning_note = commit_confirmed_survey_answer(
+                state.get("survey_profile", {}) or {}, proposed
+            )
+            if learned:
+                current_question = str(proposed.get("question_text") or "")
+                updates["survey_profile"] = compact_runtime_profile(
+                    learned_profile, current_question
+                )
+                updates["survey_profile_render"] = render_profile(
+                    learned_profile, current_question
+                )
+                logger.info("🧑‍💾 PROFILE MEMORY: %s", learning_note[:160])
+            elif learning_note not in {
+                "profile learning disabled",
+                "answer does not establish character memory",
+                "age already derives from date_of_birth",
+            }:
+                logger.warning("Profile memory not committed: %s", learning_note[:160])
+    except Exception as e:  # noqa: BLE001 — profile persistence never breaks a step
+        logger.warning("Profile memory commit failed (browser action remains valid): %s", e)
+
     # Record step in history
+    pre_page_fingerprint = ""
+    post_page_fingerprint = ""
+    pre_semantic_identity = ""
+    post_semantic_identity = ""
+    survey_transition_verified = False
+    survey_completion_verified = False
+    try:
+        from survey_context import (
+            is_verified_survey_page_transition,
+            survey_action_signature,
+            survey_completion_evidence,
+            survey_interaction_fingerprint,
+            survey_page_fingerprint,
+            survey_semantic_page_identity,
+        )
+        pre_page_fingerprint = survey_page_fingerprint(
+            state.get("page_text", ""), state.get("selector_map", {}) or {}
+        )
+        post_page_fingerprint = survey_page_fingerprint(
+            post_page_text or post_markdown, post_selector_map
+        )
+        pre_semantic_identity = survey_semantic_page_identity(
+            state.get("current_url", ""),
+            pre_page_fingerprint,
+            survey_interaction_fingerprint(state.get("selector_map", {}) or {}),
+        )
+        post_semantic_identity = survey_semantic_page_identity(
+            post_url,
+            post_page_fingerprint,
+            survey_interaction_fingerprint(post_selector_map),
+        )
+        survey_transition_verified = is_verified_survey_page_transition(
+            pre_page_fingerprint,
+            post_page_fingerprint,
+            action_outcome,
+            previous_url=str(state.get("current_url") or ""),
+            current_url=post_url,
+            current_page_text=post_page_text or post_markdown,
+            action=proposed,
+        )
+        survey_completion_verified = bool(
+            survey_completion_evidence(post_page_text or post_markdown)
+        )
+    except Exception:
+        survey_action_signature = lambda _action: ""  # type: ignore[assignment]
     history_entry = {
         "step": step_number + 1,
+        "verb": verb,
+        "element_id": element_id,
+        "target_name": proposed.get("target_name", "")[:100],
+        "target_context": proposed.get("target_context", "")[:120],
         "action": f"{verb}" + (f"({x_val},{y_val})" if px is not None else ""),
         "outcome": action_outcome,
+        "reality_status": updates.get("reality_status", ""),
         "screen": proposed.get("screen_state", "")[:80],
+        "question_text": proposed.get("question_text", "")[:300],
+        "answer_value": str(
+            proposed.get("text")
+            if verb in {"type", "select_option"} and proposed.get("text") is not None
+            else proposed.get("target_name", "")
+        )[:120],
+        "answer_basis": proposed.get("answer_basis", "")[:80],
+        "profile_update_category": proposed.get("profile_update_category", "none")[:40],
+        "profile_update_key": proposed.get("profile_update_key", "")[:80],
+        "profile_update_mode": proposed.get("profile_update_mode", "none")[:20],
+        "pre_url": state.get("current_url", ""),
+        "pre_page_fingerprint": pre_page_fingerprint,
+        "post_page_fingerprint": post_page_fingerprint,
+        "pre_semantic_identity": pre_semantic_identity,
+        "post_semantic_identity": post_semantic_identity,
+        "action_signature": survey_action_signature(proposed),
+        "survey_transition_verified": survey_transition_verified,
+        "survey_completion_verified": survey_completion_verified,
         "url": page.url if page else "",
     }
-    updates["history"] = [history_entry]
+    from brain_state import HISTORY_MAX_ENTRIES, append_bounded
+    updates["history"] = append_bounded(
+        state.get("history", []), [history_entry], HISTORY_MAX_ENTRIES
+    )
+    if history_entry["question_text"] and history_entry["answer_value"]:
+        from brain_state import SURVEY_CYCLE_ARCHIVE_MAX
+        updates["survey_cycle_answers"] = append_bounded(
+            state.get("survey_cycle_answers", []),
+            [{
+                "question_text": history_entry["question_text"],
+                "answer_value": history_entry["answer_value"],
+                "answer_basis": history_entry["answer_basis"],
+            }],
+            SURVEY_CYCLE_ARCHIVE_MAX,
+        )
+
+    if survey_transition_verified or survey_completion_verified:
+        try:
+            from survey_recipe_memory import get_survey_recipe_memory
+            get_survey_recipe_memory().observe_success(
+                url=state.get("current_url", ""),
+                page_text=state.get("page_text", ""),
+                selector_map=state.get("selector_map", {}) or {},
+                action=proposed,
+                elapsed_ms=(time.monotonic() - execution_started_at) * 1000.0,
+                verified_transition=True,
+            )
+        except Exception as exc:
+            logger.debug("Survey recipe observation skipped (non-fatal): %s", exc)
+    else:
+        _record_survey_recipe_failure(state, proposed)
 
     return updates
 
@@ -495,11 +925,12 @@ def _block_done(state: dict, updates: dict, reason: str,
     from outcome_judge import MAX_DONE_BLOCKS
     blocked = state.get("done_blocked", 0) + 1
     updates["done_blocked"] = blocked
-    updates["history"] = [{
+    from brain_state import HISTORY_MAX_ENTRIES, append_bounded
+    updates["history"] = append_bounded(state.get("history", []), [{
         "step": state.get("step_number", 0) + 1,
         "action": "done",
         "outcome": f"BLOCKED: {reason[:80]}",
-    }]
+    }], HISTORY_MAX_ENTRIES)
 
     # ── V31 WORKER VETO: Confidence Override ──
     # If the worker has fired done 2+ times with substantive proof, the worker's
@@ -603,6 +1034,24 @@ async def _layer_4_cove_check(state: dict, page, updates: dict) -> dict:
     from outcome_judge import judge_done, should_accept, rejection_feedback
 
     objective = state.get("objective", "")
+
+    if state.get("continuous_survey_mode"):
+        correction = (
+            "\n\n♾️ CONTINUOUS SURVEY MODE: 'done' is not a valid autonomous action. "
+            "If a paid survey has just started, complete it. If one survey was credited, "
+            "return to the dashboard and select the next best reward-per-minute offer."
+        )
+        updates["overwatch_verdict"] = "retry"
+        updates["mission_success"] = False
+        updates["correction_context"] = correction
+        from brain_state import HISTORY_MAX_ENTRIES, append_bounded
+        updates["history"] = append_bounded(state.get("history", []), [{
+            "step": state.get("step_number", 0) + 1,
+            "action": "done",
+            "outcome": "BLOCKED: continuous survey cycle must continue",
+        }], HISTORY_MAX_ENTRIES)
+        logger.warning("♾️ Overwatch blocked terminal done during continuous survey mode")
+        return updates
 
     # ── Cheap, high-precision pre-block: an auth wall is never success ──
     try:
@@ -739,6 +1188,132 @@ def _fmt_fail(clean: bool, verb: str, legacy_prefix: str, error: str) -> str:
     return render_failure(classify_failure(verb, error), error)
 
 
+def _action_execution_confirmed(outcome: str) -> bool:
+    """Only an executor-confirmed action may be credited as progress."""
+    return str(outcome or "").lstrip().startswith("→ OK")
+
+
+async def _execute_guarded_survey_queue(
+    proposed: dict[str, Any], state: dict[str, Any], page
+) -> tuple[list[str], int]:
+    """Execute a validated page-local queue, rechecking live state each time."""
+    queued = list(proposed.get("queued_actions") or [])[:8]
+    if not queued or not state.get("continuous_survey_mode"):
+        return [], 0
+
+    outcomes: list[str] = []
+    executed = 0
+    initial_page_fingerprint = str(state.get("survey_page_fingerprint") or "")
+    for index, queued_action in enumerate(queued):
+        try:
+            from mcp_tools import mcp_snapshot
+            from survey_context import (
+                _element_label,
+                blocking_popup_action_id,
+                survey_gate_violation,
+                survey_page_fingerprint,
+            )
+
+            snapshot = await mcp_snapshot()
+            selector_map = snapshot.get("selector_map", {}) or {}
+            page_text = snapshot.get("page_text", "") or ""
+            live_fingerprint = survey_page_fingerprint(page_text, selector_map)
+            if (
+                initial_page_fingerprint
+                and live_fingerprint
+                and live_fingerprint != initial_page_fingerprint
+            ):
+                outcomes.append("TRANSACTION STOPPED (page changed before next queued action)")
+                break
+            if blocking_popup_action_id(selector_map):
+                outcomes.append("TRANSACTION STOPPED (new blocking popup appeared)")
+                break
+
+            action = dict(queued_action or {})
+            element_id = str(action.get("element_id") or "")
+            expected_label = str(action.get("target_name") or "").strip().lower()
+            live_element = selector_map.get(element_id) or {}
+            if expected_label and _element_label(live_element) != expected_label:
+                matches = [
+                    str(eid) for eid, element in selector_map.items()
+                    if _element_label(element) == expected_label
+                ]
+                if len(matches) != 1:
+                    outcomes.append("TRANSACTION STOPPED (queued target became ambiguous)")
+                    break
+                element_id = matches[0]
+                live_element = selector_map[element_id]
+            if action.get("verb") in {"click", "type", "select_option"} and not live_element:
+                outcomes.append("TRANSACTION STOPPED (queued target disappeared)")
+                break
+            action["element_id"] = element_id or None
+            action["target_name"] = _element_label(live_element)[:160]
+
+            if action.get("verb") == "type":
+                try:
+                    from survey_profile import enforce_typed_profile_fact, load_active_profile
+                    action, profile_note, profile_violation = enforce_typed_profile_fact(
+                        action,
+                        load_active_profile() or (state.get("survey_profile", {}) or {}),
+                        selector_map,
+                        page_text=page_text,
+                    )
+                    if profile_violation or not profile_note:
+                        outcomes.append("TRANSACTION STOPPED (profile fact required)")
+                        break
+                except Exception:
+                    outcomes.append("TRANSACTION STOPPED (queued profile validation failed)")
+                    break
+            elif action.get("verb") in {"click", "select_option"}:
+                try:
+                    from survey_profile import enforce_profile_choice, load_active_profile
+                    action, _note, profile_violation = enforce_profile_choice(
+                        action,
+                        load_active_profile() or (state.get("survey_profile", {}) or {}),
+                        selector_map,
+                        page_text=page_text,
+                    )
+                    if profile_violation:
+                        outcomes.append("TRANSACTION STOPPED (profile choice conflict)")
+                        break
+                except Exception:
+                    outcomes.append("TRANSACTION STOPPED (queued profile validation failed)")
+                    break
+
+            violation = survey_gate_violation(
+                action,
+                selector_map,
+                page_text=page_text,
+                audio_analysis=state.get("survey_audio_analysis") or {},
+                continuous_mode=True,
+            )
+            if violation:
+                outcomes.append(f"TRANSACTION STOPPED ({violation[:100]})")
+                break
+
+            try:
+                from survey_site_quirks import apply_site_quirks_to_action
+                action, _quirk = apply_site_quirks_to_action(
+                    action,
+                    url=getattr(page, "url", "") or state.get("current_url", ""),
+                    selector_map=selector_map,
+                    page_text=page_text,
+                )
+            except Exception:
+                pass
+
+            result = await _execute_action(action, page)
+            if not _action_execution_confirmed(result):
+                outcomes.append(f"TRANSACTION STOPPED ({result[:120]})")
+                break
+            executed += 1
+            outcomes.append(f"TRANSACTION {index + 1}/{len(queued)} OK")
+        except Exception as exc:
+            outcomes.append(f"TRANSACTION STOPPED ({str(exc)[:100]})")
+            break
+    return outcomes, executed
+
+
 async def _execute_action(proposed: dict, page) -> str:
     """Execute a proposed action via MCP tools. Returns an outcome string.
 
@@ -763,25 +1338,103 @@ async def _execute_action(proposed: dict, page) -> str:
                 return f"→ OK (navigated to {result['url'][:60]})"
             return _fmt_fail(clean, verb, "FAILED", result["error"])
 
+        elif verb == "abandon_survey":
+            from mcp_tools import mcp_abandon_survey
+            boundary_reason = str(proposed.get("survey_boundary_reason") or "")
+            fresh_dashboard = boundary_reason == "completed:fresh_dashboard"
+            try:
+                from survey_site_quirks import fresh_dashboard_after_boundary
+                fresh_dashboard = bool(
+                    fresh_dashboard
+                    or fresh_dashboard_after_boundary(
+                        proposed.get("url", ""), boundary_reason
+                    )
+                )
+            except Exception:
+                pass
+            result = await mcp_abandon_survey(
+                proposed.get("url", ""),
+                fresh_dashboard=fresh_dashboard,
+            )
+            if result["success"]:
+                return f"→ OK (survey closed; provider restored at {result['url'][:60]})"
+            return _fmt_fail(clean, verb, "ABANDON FAILED", result["error"])
+
         elif verb == "click":
             from mcp_tools import mcp_click
+            answer_basis = str(proposed.get("answer_basis") or "").lower()
+            target_name = str(proposed.get("target_name") or "").lower()
+            answer_choice = bool(
+                answer_basis
+                and answer_basis not in {
+                    "page_navigation", "reward_per_minute", "unknown_needs_vision",
+                }
+                and not any(
+                    token in target_name
+                    for token in ("next", "continue", "submit", "finish")
+                )
+            )
+            replay_safe_navigation = bool(
+                answer_basis == "page_navigation"
+                and not any(
+                    token in target_name
+                    for token in (
+                        "next", "continue", "submit", "finish", "complete",
+                        "confirm", "place order", "pay",
+                    )
+                )
+            )
             result = await mcp_click(
                 x=proposed.get("x", 0),
                 y=proposed.get("y", 0),
                 element_id=proposed.get("element_id"),
+                prevent_deselect=answer_choice,
+                replay_safe=replay_safe_navigation,
             )
             if result["success"]:
+                if result.get("no_op"):
+                    return (
+                        "→ NO-OP: answer target was already selected; click "
+                        "suppressed to avoid deselecting it"
+                    )
+                # At-most-once controls may have accepted the native click even
+                # when their custom CSS/DOM exposes no machine-readable change.
+                # Do not call that a confirmed OK: keeping it explicitly pending
+                # preserves the Intent Journal's do-not-repeat guard until the
+                # fresh screen/DOM proves whether the effect applied.
+                if result.get("verified") is False:
+                    return (
+                        "→ DISPATCHED ONCE [verification pending]: click was sent "
+                        "but no observable effect was confirmed; automatic replay "
+                        "was suppressed. Re-read the live page before repeating."
+                    )
                 bits = []
                 if result.get("navigated"):
                     bits.append("navigated")
                 if result.get("dom_changed"):
                     bits.append("DOM changed")
+                if result.get("state_verified"):
+                    bits.append("control state verified")
                 if clean:  # terse, NO internal strategy name
                     return "→ OK" + (f" ({', '.join(bits)})" if bits else "")
                 return (f"→ OK (click via {result['strategy']}"
                         f"{',' + ' navigated' if result['navigated'] else ''}"
                         f"{',' + ' DOM changed' if result['dom_changed'] else ''})")
             return _fmt_fail(clean, verb, "CLICK INEFFECTIVE", result["error"])
+
+        elif verb == "drag_and_drop":
+            from mcp_tools import mcp_drag_and_drop
+            result = await mcp_drag_and_drop(
+                element_id=proposed.get("element_id"),
+                x=proposed.get("x", 0) or 0,
+                y=proposed.get("y", 0) or 0,
+                target_x=proposed.get("target_x", 0) or 0,
+                target_y=proposed.get("target_y", 0) or 0,
+                target_element_id=proposed.get("target_element_id"),
+            )
+            if result["success"]:
+                return "→ OK (dragged source to destination)"
+            return _fmt_fail(clean, verb, "DRAG FAILED", result["error"])
 
         elif verb == "type":
             from mcp_tools import mcp_type
@@ -790,12 +1443,29 @@ async def _execute_action(proposed: dict, page) -> str:
                 x=proposed.get("x", 0),
                 y=proposed.get("y", 0),
                 element_id=proposed.get("element_id"),
+                force_retype=bool(
+                    proposed.get("force_retype") or proposed.get("replace_existing")
+                ),
             )
             if result["success"]:
+                if result.get("no_op"):
+                    return (
+                        "→ NO-OP: input already contained the exact requested "
+                        "value; no browser mutation was made"
+                    )
                 if clean:
                     return f"→ OK (typed {result['actual_length']} chars)"
                 return f"→ OK (typed {result['actual_length']} chars via {result['strategy']})"
             return _fmt_fail(clean, verb, "TYPE FAILED", result["error"])
+
+        elif verb == "set_date_of_birth":
+            from mcp_tools import mcp_set_date_of_birth
+            result = await mcp_set_date_of_birth(
+                proposed.get("element_id"), proposed.get("text", "") or ""
+            )
+            if result["success"]:
+                return "→ OK (date-of-birth widget completed)"
+            return _fmt_fail(clean, verb, "DATE INPUT FAILED", result["error"])
 
         elif verb == "scroll":
             from mcp_tools import mcp_scroll
@@ -831,6 +1501,28 @@ async def _execute_action(proposed: dict, page) -> str:
             from mcp_tools import mcp_press_key
             result = await mcp_press_key(proposed.get("text", "") or proposed.get("key", ""))
             return "→ OK" if result["success"] else _fmt_fail(clean, verb, "FAILED", result["error"])
+
+        elif verb == "press_combo":
+            from mcp_tools import mcp_press_key
+            result = await mcp_press_key(
+                proposed.get("key_combo", "") or proposed.get("text", "")
+            )
+            return "→ OK" if result["success"] else _fmt_fail(clean, verb, "FAILED", result["error"])
+
+        elif verb == "scroll_to":
+            from mcp_tools import mcp_scroll_directional
+            result = await mcp_scroll_directional(
+                proposed.get("direction", "down") or "down",
+                proposed.get("scroll_amount", 500) or 500,
+            )
+            return "→ OK" if result["success"] else _fmt_fail(clean, verb, "FAILED", result["error"])
+
+        elif verb == "upload_file":
+            from mcp_tools import mcp_upload_file
+            result = await mcp_upload_file(
+                proposed.get("element_id"), proposed.get("file_path", "") or ""
+            )
+            return "→ OK" if result["success"] else _fmt_fail(clean, verb, "UPLOAD FAILED", result["error"])
 
         elif verb == "wait":
             from mcp_tools import mcp_wait

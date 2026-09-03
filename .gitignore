@@ -13,12 +13,21 @@ __pycache__/
 # Runtime
 logs/
 persistence/
+ChromeProfile/
 *.log
 *.db
 *.db-shm
 *.db-wal
 *.sqlite
 *.sqlite3
+
+# Tool/test caches
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Build
 build/

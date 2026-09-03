@@ -18,7 +18,9 @@ Drop-in usage:
 from __future__ import annotations
 
 import asyncio
+import os
 import random
+import time
 from urllib.parse import urlparse
 
 from playwright.async_api import Page
@@ -38,6 +40,14 @@ _HOMEPAGE_POOL = [
     "https://www.google.com/search?q=weather",
     "https://en.wikipedia.org/wiki/Main_Page",
 ]
+_WARMED_CONTEXTS: dict[int, float] = {}
+
+
+def _enabled(name: str, default: bool) -> bool:
+    raw = os.getenv(name)
+    if raw is None:
+        return default
+    return raw.strip().lower() not in {"0", "false", "no", "off", ""}
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -61,6 +71,25 @@ async def run_warmup(page: Page, *, target_url: str = "") -> None:
         target_url: The deep URL the agent will eventually navigate to.
                     Used to extract the base domain for priming.
     """
+    if not _enabled("BROWSER_WARMUP_ENABLED", True):
+        logger.info("🔥 Browser warm-up disabled")
+        return
+    # A CDP-attached browser already has its cookies, history and telemetry.
+    # Navigating its active authenticated tab to Google both wastes time and can
+    # destroy the target. Operators can opt in if a disposable CDP profile is
+    # intentionally used.
+    if os.getenv("LOCAL_CDP_ENDPOINT", "").strip() and not _enabled(
+        "BROWSER_WARMUP_ATTACHED_CDP", False
+    ):
+        logger.info("🔥 Warm-up skipped for existing CDP-attached browser")
+        return
+    context_id = id(getattr(page, "context", page))
+    ttl = max(60.0, float(os.getenv("BROWSER_WARMUP_CACHE_SECONDS", "21600")))
+    warmed_at = _WARMED_CONTEXTS.get(context_id, 0.0)
+    if warmed_at and time.time() - warmed_at < ttl:
+        logger.info("🔥 Warm-up cache hit for this browser context")
+        return
+
     logger.info("🔥 Starting human warm-up routine...")
 
     # ── Step 1: Homepage visit ──
@@ -118,6 +147,7 @@ async def run_warmup(page: Page, *, target_url: str = "") -> None:
         pass
     await asyncio.sleep(random.uniform(1.0, 2.0))
 
+    _WARMED_CONTEXTS[context_id] = time.time()
     logger.info("🔥 Warm-up complete. Browser is hot and ready.")
 
 
@@ -230,6 +260,11 @@ def extract_target_url_from_objective(objective: str) -> str:
     import re
     urls = re.findall(r'https?://[^\s\'"<>]+', objective)
     if not urls:
+        bare = re.search(
+            r"(?<![\w.-])(qmee\.com/[A-Za-z0-9_./?=&-]+)", objective, re.I
+        )
+        if bare:
+            return "https://" + bare.group(1).rstrip(".,;:!?)]'\"")
         return ""
     url = urls[0].rstrip('.,;:!?)]\'"')
     return url

@@ -52,10 +52,15 @@ _GOD_MODE_JS = r"""
        budget. They still resolve to fresh, scrolled-into-view coordinates at
        action time via the V19 window.__aid registry. */
     const ACTION_RE = /add to (cart|bag|basket)|buy\s?it\s?now|buy\s?now|buy\s?at\b|place order|order now|go to (cart|checkout)|view cart|proceed( to (checkout|pay(ment)?|buy))?|checkout|pay now|make payment|notify me|sold out|out of stock|coming soon|add to wishlist|subscribe/i;
+    const SURVEY_REWARD_RE = /(?:[£$€]\s*\d+(?:[.,]\d{1,2})?|\d+(?:[.,]\d+)?\s*(?:[£$€]|points?|pts?|coins?|tokens?|credits?))/i;
+    const SURVEY_DURATION_RE = /\b\d+(?:[.,]\d+)?\s*min(?:ute)?s?\b/i;
+    const SURVEY_OFFER_RE = /(?:[£$€]\s*\d+(?:[.,]\d{1,2})?|\d+(?:[.,]\d+)?\s*(?:[£$€]|points?|pts?|coins?|tokens?|credits?)).{0,80}\b\d+(?:[.,]\d+)?\s*min(?:ute)?s?\b/i;
 
     /* ━━━ 1. COLLECT CANDIDATES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
     const seen = new WeakSet();
     const candidates = [];
+    const surveyOfferNodes = new WeakSet();
+    const surveyOfferText = new WeakMap();
 
     const SEMANTIC = [
         '[role="button"]','[role="link"]','[role="textbox"]',
@@ -70,6 +75,48 @@ _GOD_MODE_JS = r"""
         '[tabindex]:not([tabindex="-1"])',
     ];
     const ALL_SEL = SEMANTIC.concat(STRUCTURAL);
+
+    function effectivelyVisible(el) {
+        if (!el || !el.isConnected) return false;
+        let cur = el;
+        while (cur && cur.nodeType === Node.ELEMENT_NODE) {
+            try {
+                if (cur.hidden || cur.inert || cur.getAttribute('aria-hidden') === 'true') return false;
+                const style = window.getComputedStyle(cur);
+                if (style.display === 'none' || style.visibility === 'hidden'
+                    || style.contentVisibility === 'hidden'
+                    || parseFloat(style.opacity || '1') <= 0.01) return false;
+            } catch(_) { return false; }
+            cur = cur.parentElement || (cur.parentNode && cur.parentNode.host) || null;
+        }
+        return true;
+    }
+
+    function isActionable(el) {
+        if (!el || !el.matches) return false;
+        if (el.matches('a[href],button,input,select,textarea,summary,[role="button"],[role="link"],'
+                       + '[role="radio"],[role="checkbox"],[data-action],'
+                       + '[tabindex]:not([tabindex="-1"])')) return true;
+        try {
+            return typeof el.onclick === 'function' || window.getComputedStyle(el).cursor === 'pointer';
+        } catch(_) { return false; }
+    }
+
+    function actionableFor(container) {
+        if (!container) return null;
+        let cur = container;
+        for (let hops = 0; cur && hops < 5; hops++, cur = cur.parentElement) {
+            if (isActionable(cur) && effectivelyVisible(cur)) return cur;
+        }
+        try {
+            const child = container.querySelector(
+                'a[href],button,[role="button"],[role="link"],[data-action],'
+                + '[tabindex]:not([tabindex="-1"])'
+            );
+            if (child && effectivelyVisible(child)) return child;
+        } catch(_) {}
+        return effectivelyVisible(container) ? container : null;
+    }
 
     function collect(root) {
         for (const sel of ALL_SEL) {
@@ -115,6 +162,57 @@ _GOD_MODE_JS = r"""
                     seen.add(el); candidates.push(el);
                 }
             } catch(_) {}
+        }
+    } catch(_) {}
+
+    /* Survey dashboards frequently split reward and duration into sibling spans.
+       Promote the nearest actionable card/ancestor and attach its combined text,
+       so the click lands on the card rather than an inert points/duration leaf. */
+    try {
+        const allOfferParts = [...document.querySelectorAll(
+            'button,a,[role="button"],[role="link"],div,span,li,article,section'
+        )];
+        for (const el of allOfferParts) {
+            let t = '';
+            try { t = (el.textContent || '').replace(/\s+/g, ' ').trim(); } catch(_) { continue; }
+            if (!t || t.length > 260 || !SURVEY_REWARD_RE.test(t) || !SURVEY_DURATION_RE.test(t)) continue;
+            let childHasOffer = false;
+            for (const ch of el.children || []) {
+                let ct = '';
+                try { ct = (ch.textContent || '').replace(/\s+/g, ' ').trim(); } catch(_) {}
+                if (ct && ct.length <= 260 && SURVEY_REWARD_RE.test(ct) && SURVEY_DURATION_RE.test(ct)) {
+                    childHasOffer = true;
+                    break;
+                }
+            }
+            if (childHasOffer) continue;
+            const action = actionableFor(el);
+            if (!action) continue;
+            surveyOfferNodes.add(action);
+            surveyOfferText.set(action, t.slice(0, 240));
+            if (!seen.has(action)) { seen.add(action); candidates.push(action); }
+        }
+
+        /* Fragment fallback: climb from a reward-only or duration-only leaf to
+           the smallest ancestor containing both values. */
+        for (const leaf of allOfferParts) {
+            let own = '';
+            try { own = (leaf.innerText || leaf.textContent || '').replace(/\s+/g, ' ').trim(); } catch(_) {}
+            if (!own || own.length > 80 || !(SURVEY_REWARD_RE.test(own) || SURVEY_DURATION_RE.test(own))) continue;
+            let card = leaf.parentElement;
+            for (let hops = 0; card && hops < 6; hops++, card = card.parentElement) {
+                let combined = '';
+                try { combined = (card.innerText || card.textContent || '').replace(/\s+/g, ' ').trim(); } catch(_) {}
+                if (!combined || combined.length > 260) continue;
+                if (!SURVEY_REWARD_RE.test(combined) || !SURVEY_DURATION_RE.test(combined)) continue;
+                const action = actionableFor(card);
+                if (action) {
+                    surveyOfferNodes.add(action);
+                    surveyOfferText.set(action, combined.slice(0, 240));
+                    if (!seen.has(action)) { seen.add(action); candidates.push(action); }
+                }
+                break;
+            }
         }
     } catch(_) {}
 
@@ -181,19 +279,39 @@ _GOD_MODE_JS = r"""
                 try { roleU = (el.getAttribute('role') || '').toLowerCase(); } catch(_) {}
                 isAction = (tagU === 'BUTTON' || tagU === 'INPUT' || roleU === 'button' || qn.length <= 24);
             }
+            if (surveyOfferNodes.has(el)) isAction = true;
             if (!isAction) continue;
         }
 
+        if (!effectivelyVisible(el)) continue;
         let cs;
         try { cs = window.getComputedStyle(el); } catch(_) { continue; }
-        if (cs.display === 'none' || cs.visibility === 'hidden') continue;
-        try { if (parseFloat(cs.opacity) <= 0.01) continue; } catch(_) {}
+        if (cs.pointerEvents === 'none') continue;
+
+        /* An on-screen center covered by an unrelated overlay is not clickable.
+           Do not clamp an off-screen center onto the viewport edge: that tests
+           an unrelated element and used to discard every control just below
+           the fold (including survey Next buttons). */
+        const centerInViewport = (
+            rect.left + rect.width / 2 >= 0 && rect.left + rect.width / 2 < vw
+            && rect.top + rect.height / 2 >= 0 && rect.top + rect.height / 2 < vh
+        );
+        if (centerInViewport) {
+            try {
+                const px = Math.max(0, Math.min(vw - 1, rect.left + rect.width / 2));
+                const py = Math.max(0, Math.min(vh - 1, rect.top + rect.height / 2));
+                const hit = document.elementFromPoint(px, py);
+                if (hit && !(el.contains(hit) || hit.contains(el))) continue;
+            } catch(_) {}
+        }
 
         /* ── Text extraction cascade ── */
         const tag = (el.tagName || '').toUpperCase();
         let text = '';
+        const offerOverride = surveyOfferText.get(el) || '';
         const al = el.getAttribute('aria-label');
-        if (al && al.trim()) text = al.trim();
+        if (offerOverride) text = offerOverride;
+        else if (al && al.trim()) text = al.trim();
         else {
             text = (el.textContent || '').trim();
             if (!text) text = el.getAttribute('placeholder') || '';
@@ -204,8 +322,13 @@ _GOD_MODE_JS = r"""
             if (!text) text = el.getAttribute('value') || '';
             text = text.trim();
         }
-        text = text.replace(/\s+/g, ' ').slice(0, 120);
+        text = text.replace(/\s+/g, ' ').slice(0, surveyOfferNodes.has(el) ? 240 : 120);
         if (!text && tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT') continue;
+
+        /* Only retain the innermost card selected by the survey-offer sweep.
+           This prevents wrappers with the same reward/time text from consuming
+           ranking slots or masquerading as separate offers. */
+        if (SURVEY_OFFER_RE.test(text) && !surveyOfferNodes.has(el)) continue;
 
         /* V19.1: a SHORT element whose text is exactly a commerce action is a
            primary "goal" button even when rendered as a <div> (Flipkart/Amazon).
@@ -237,7 +360,7 @@ _GOD_MODE_JS = r"""
         /* V19.1: guarantee primary-action buttons survive the budget cut —
            whether off-screen (isAction rescue) or a div-rendered action bar
            (isActionText). This bonus beats the +10000 off-viewport penalty. */
-        if (isAction || isActionText) score -= 16000;
+        if (isAction || isActionText || surveyOfferNodes.has(el)) score -= 16000;
 
         /* ── V15.0 F1: Fixed/sticky elements are ALWAYS visible (W3C getComputedStyle) ── */
         const cssPos = cs.position;
@@ -256,6 +379,166 @@ _GOD_MODE_JS = r"""
                     : { filled: false, length: 0 };
             } catch(_) { inputState = { filled: false, length: 0 }; }
         }
+
+        /* ── Selection state detection ──
+           Survey/rating controls are frequently <label>/<div> wrappers whose
+           only visible state is a selected CSS class around a nested radio.
+           Surface that state in BOTH structured data and Markdown so every
+           failover model sees an authoritative [selected] marker. */
+        let selectedState = false;
+        let disabledState = false;
+        let controlType = '';
+        let requiredState = false;
+        let choiceGroup = '';
+        let groupLabel = '';
+        let inModal = false;
+        let fieldLabel = '';
+        let fieldName = '';
+        let fieldPlaceholder = '';
+        let fieldAutocomplete = '';
+        let fieldValue = '';
+        let fieldOptions = [];
+        let questionKey = '';
+        try {
+            const stateSel = [
+                'input', 'option', '[role="radio"]', '[role="checkbox"]',
+                '[role="option"]', '[aria-checked]', '[aria-selected]',
+                '[data-state]', '[data-selected]', '[data-checked]'
+            ].join(',');
+            const control = (el.matches(stateSel) ? el : null)
+                || el.querySelector(stateSel) || el;
+            fieldName = control.getAttribute('name') || '';
+            fieldPlaceholder = control.getAttribute('placeholder') || '';
+            fieldAutocomplete = control.getAttribute('autocomplete') || '';
+            fieldValue = String(control.value || '').slice(0, 160);
+            if ((control.tagName || '').toUpperCase() === 'SELECT') {
+                fieldOptions = [...control.options].slice(0, 60).map(option => ({
+                    value: String(option.value || '').slice(0, 120),
+                    label: String(option.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 120),
+                    disabled: !!option.disabled,
+                }));
+            }
+            const ariaLabel = control.getAttribute('aria-label') || '';
+            let explicitLabel = '';
+            try {
+                const labelledBy = control.getAttribute('aria-labelledby') || '';
+                if (labelledBy) {
+                    explicitLabel = labelledBy.split(/\s+/).map(id => {
+                        const node = document.getElementById(id);
+                        return node ? (node.innerText || node.textContent || '') : '';
+                    }).join(' ');
+                }
+                if (!explicitLabel && control.labels && control.labels.length) {
+                    explicitLabel = [...control.labels].map(label => label.innerText || label.textContent || '').join(' ');
+                }
+                if (!explicitLabel) {
+                    const wrappingLabel = control.closest('label');
+                    if (wrappingLabel) explicitLabel = wrappingLabel.innerText || wrappingLabel.textContent || '';
+                }
+            } catch(_) {}
+            fieldLabel = (ariaLabel || explicitLabel || fieldPlaceholder || fieldName || '')
+                .replace(/\s+/g, ' ').trim().slice(0, 160);
+            controlType = (control.getAttribute('type')
+                || control.getAttribute('role') || '').toLowerCase();
+            const cls = `${el.className || ''} ${control.className || ''}`;
+            selectedState = !!(
+                control.checked || control.selected
+                || control.getAttribute('aria-checked') === 'true'
+                || control.getAttribute('aria-selected') === 'true'
+                || control.getAttribute('aria-pressed') === 'true'
+                || ['checked','selected','on'].includes((control.getAttribute('data-state') || '').toLowerCase())
+                || control.getAttribute('data-selected') === 'true'
+                || control.getAttribute('data-checked') === 'true'
+                || control.getAttribute('data-active') === 'true'
+                || /(^|\s)(is-)?(selected|checked|chosen)(\s|$)/i.test(cls)
+            );
+            disabledState = !!(
+                control.disabled || el.getAttribute('aria-disabled') === 'true'
+                || control.getAttribute('aria-disabled') === 'true'
+            );
+            const requiredAncestor = control.closest('[aria-required="true"], fieldset[required]');
+            requiredState = !!(
+                control.required || control.getAttribute('aria-required') === 'true'
+                || requiredAncestor
+            );
+            if (controlType === 'radio') {
+                const nativeName = control.getAttribute('name') || '';
+                const groupNode = control.closest(
+                    '[role="radiogroup"], fieldset, tr, [role="row"], [data-question-id], [data-row-id]'
+                );
+                if (nativeName) choiceGroup = 'name:' + nativeName;
+                else if (groupNode) {
+                    const identity = groupNode.getAttribute('id')
+                        || groupNode.getAttribute('data-question-id')
+                        || groupNode.getAttribute('data-row-id')
+                        || (groupNode.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 100);
+                    if (identity) choiceGroup = 'group:' + identity;
+                }
+                if (groupNode) {
+                    groupLabel = (groupNode.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 120);
+                }
+            }
+            const questionNode = control.closest(
+                '[data-question-id],[data-question],[data-testid*="question"],'
+                + '[id*="question"],[class*="question"],fieldset,[role="group"],[role="radiogroup"]'
+            );
+            if (questionNode) {
+                const questionIdentity = questionNode.getAttribute('data-question-id')
+                    || questionNode.getAttribute('data-question')
+                    || questionNode.getAttribute('id')
+                    || questionNode.getAttribute('data-testid') || '';
+                /* Never use the entire question container: an autocomplete
+                   listbox is often mounted inside it, making every suggestion
+                   update look like a new survey question. */
+                const titleNode = questionNode.querySelector(
+                    'legend,h1,h2,h3,h4,[data-testid*="title"],'
+                    + '[class*="question-title"],[class*="questionText"]'
+                );
+                const stableQuestionText = ((titleNode && (titleNode.innerText || titleNode.textContent))
+                    || fieldLabel || '').replace(/\s+/g, ' ').trim().slice(0, 140);
+                questionKey = [questionIdentity, stableQuestionText].filter(Boolean).join('|');
+            }
+            const modalNode = control.closest(
+                'dialog, [role="dialog"], [role="alertdialog"], [aria-modal="true"], '
+                + '.modal, .modal-dialog, .popup, .popup-content, .overlay-content, '
+                + '.snap-modal, [class*="snap-modal"], [class*="snap-show"]'
+            );
+            if (modalNode) {
+                const semanticModal = modalNode.matches(
+                    'dialog, [role="dialog"], [role="alertdialog"], [aria-modal="true"]'
+                );
+                let styledOverlay = false;
+                try {
+                    const modalStyle = window.getComputedStyle(modalNode);
+                    const modalRect = modalNode.getBoundingClientRect();
+                    const z = parseInt(modalStyle.zIndex || '0', 10) || 0;
+                    styledOverlay = ['fixed', 'absolute'].includes(modalStyle.position)
+                        && modalRect.width >= 180 && modalRect.height >= 80 && z >= 10;
+                } catch(_) {}
+                const classModal = /(?:snap-modal|snap-show|cookie-modal|privacy-modal)/i
+                    .test(String(modalNode.className || ''));
+                inModal = semanticModal || styledOverlay || classModal;
+            }
+            if (!inModal) {
+                /* React dashboards often use generated class names and omit
+                   dialog semantics entirely. Detect a substantial high-z
+                   fixed ancestor so its Close/Not now control is still marked
+                   as modal and wins the popup-first action gate. */
+                let overlayAncestor = control.parentElement;
+                for (let hops = 0; overlayAncestor && hops < 7; hops++, overlayAncestor = overlayAncestor.parentElement) {
+                    try {
+                        const os = window.getComputedStyle(overlayAncestor);
+                        const or = overlayAncestor.getBoundingClientRect();
+                        const oz = parseInt(os.zIndex || '0', 10) || 0;
+                        const substantial = or.width * or.height >= vw * vh * 0.12;
+                        if (os.position === 'fixed' && oz >= 10 && substantial) {
+                            inModal = true;
+                            break;
+                        }
+                    } catch(_) {}
+                }
+            }
+        } catch(_) {}
 
         /* ── Semantic container path (for Markdown grouping) ── */
         let container = '';
@@ -322,7 +605,12 @@ _GOD_MODE_JS = r"""
             actionCenters.push({ x: cx, y: cy });
         }
 
-        scored.push({ el, text, kind, cx, cy, score, tag, inputState, container, hint });
+        if (!hint && fieldLabel) hint = 'field: ' + fieldLabel;
+        scored.push({ el, text, kind, cx, cy, score, tag, inputState,
+                      selectedState, disabledState, controlType, requiredState,
+                      choiceGroup, groupLabel, inModal, container, hint,
+                      fieldLabel, fieldName, fieldPlaceholder, fieldAutocomplete,
+                      fieldValue, fieldOptions, questionKey });
     }
 
     scored.sort((a, b) => a.score - b.score);
@@ -348,7 +636,10 @@ _GOD_MODE_JS = r"""
     const elements = [];
     window.__aid = {};
     for (let i = 0; i < top.length; i++) {
-        const { text, kind, cx, cy, inputState } = top[i];
+        const { text, kind, cx, cy, inputState, selectedState, disabledState,
+                controlType, requiredState, choiceGroup, groupLabel, inModal,
+                fieldLabel, fieldName, fieldPlaceholder, fieldAutocomplete,
+                fieldValue, fieldOptions, questionKey } = top[i];
         const eid = 'e' + (i + 1);
         let label = text || top[i].tag.toLowerCase();
         if (inputState) {
@@ -356,8 +647,19 @@ _GOD_MODE_JS = r"""
                 ? ` [filled: "${inputState.preview}"${inputState.length > 250 ? ' ...(' + inputState.length + ' total)' : ''} ${inputState.length}ch]`
                 : ' [empty]';
         }
+        if (selectedState) label += ' [selected]';
+        if (disabledState) label += ' [disabled]';
         try { window.__aid[eid] = top[i].el; } catch(_) {}
-        elements.push({ id: eid, kind, text: label, x: cx, y: cy, hint: top[i].hint || '' });
+        elements.push({ id: eid, kind, text: label, x: cx, y: cy,
+                        hint: top[i].hint || '', selected: !!selectedState,
+                        disabled: !!disabledState, control_type: controlType || '',
+                        required: !!requiredState, choice_group: choiceGroup || '',
+                        group_label: groupLabel || '', in_modal: !!inModal,
+                        question_key: questionKey || '', visible: true,
+                        name: fieldLabel || fieldName || '',
+                        placeholder: fieldPlaceholder || '',
+                        autocomplete: fieldAutocomplete || '', value: fieldValue || '',
+                        options: fieldOptions || [], tag: top[i].tag || '' });
     }
 
     /* 3b. Semantic Markdown (Crawl4AI-inspired compression) */
@@ -380,9 +682,19 @@ _GOD_MODE_JS = r"""
         md += '\n';
     }
 
+    /* Rendered page text contains the static question/instructions that are not
+       interactive and therefore absent from the element map. Keep it bounded;
+       workers use it to solve attention checks and interpret answer choices. */
+    let pageText = '';
+    try {
+        pageText = (document.body.innerText || '')
+            .replace(/\n{3,}/g, '\n\n').trim().slice(0, 5000);
+    } catch(_) {}
+
     return {
         elements,
         markdown: md.trim(),
+        page_text: pageText,
         image_size: { width: vw, height: vh },
         element_count: candidates.length,
         source: 'god_mode_v11',
@@ -447,7 +759,6 @@ SHADOW_PIERCER_INIT_SCRIPT = r"""
 
 TLS_STEALTH_ARGS = [
     # Force real Chrome TLS stack (no Playwright-specific modifications)
-    "--disable-blink-features=AutomationControlled",
     "--disable-features=IsolateOrigins,site-per-process",
     # HTTP/2 frame order alignment with Chrome
     "--enable-features=NetworkService,NetworkServiceInProcess",
@@ -520,6 +831,7 @@ def _empty_result() -> dict[str, Any]:
     return {
         "elements": [],
         "markdown": "## page\n- _(no elements detected)_",
+        "page_text": "",
         "image_size": {"width": 1920, "height": 1080},
         "element_count": 0,
         "source": "god_mode_v11_fallback",
@@ -559,7 +871,18 @@ _RESOLVE_JS = r"""
         text = (el.getAttribute('aria-label') || el.textContent || '')
             .replace(/\s+/g, ' ').trim().slice(0, 40);
     } catch(_) {}
-    return { ok: true, x: cx, y: cy, tag, role, text, onscreen };
+    return {
+        ok: true,
+        x: cx,
+        y: cy,
+        // Preserve the live box for virtual-mouse target sampling. The centre
+        // remains the fallback for very small controls.
+        rect: { x: r.left, y: r.top, width: r.width, height: r.height },
+        tag,
+        role,
+        text,
+        onscreen,
+    };
 }
 """
 
@@ -568,7 +891,7 @@ async def resolve_element(page, eid: str, timeout: float = 2.0) -> dict[str, Any
     """Resolve an element id to FRESH, identity-verified center coordinates.
 
     Returns:
-        {"ok": True, "x", "y", "tag", "role", "text", "onscreen"} on success, or
+        {"ok": True, "x", "y", "rect", "tag", "role", "text", "onscreen"} on success, or
         {"ok": False, "reason": ...} when the id is not a live node (caller should
         fall back to snapshot coordinates).
     """

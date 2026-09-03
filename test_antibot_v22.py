@@ -21,7 +21,11 @@ import pytest
 sys.path.append(str(Path(__file__).parent / "python-orchestrator"))
 
 import virtual_display
-from app.browser_promoter.cdp_stealth_launcher import STEALTH_INIT_SCRIPT
+import dom_parser
+from app.browser_promoter.cdp_stealth_launcher import (
+    STEALTH_INIT_SCRIPT,
+    STEALTH_LAUNCH_ARGS,
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -50,6 +54,23 @@ def test_stealth_script_webgl_is_platform_consistent():
 def test_stealth_script_core_layers_present():
     for needle in ("webdriver", "UNMASKED", "AudioContext", "plugins"):
         assert needle in STEALTH_INIT_SCRIPT, needle
+
+
+def test_unsupported_automation_blink_flag_is_absent_from_every_launcher():
+    unsupported = "--disable-blink-" + "features=" + "Automation" + "Controlled"
+    root = Path(__file__).parent
+    launchers = (
+        root / "Start-Agent.ps1",
+        root / "windows_chrome_bridge.py",
+        root / "wsl_test.py",
+        root / "python-orchestrator/app/browser_promoter/cdp_stealth_launcher.py",
+        root / "python-orchestrator/app/browser_promoter/google_stealth_auth_graph.py",
+    )
+
+    assert unsupported not in STEALTH_LAUNCH_ARGS
+    assert unsupported not in dom_parser.TLS_STEALTH_ARGS
+    for launcher in launchers:
+        assert unsupported not in launcher.read_text(encoding="utf-8"), launcher
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

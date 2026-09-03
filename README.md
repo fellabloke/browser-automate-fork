@@ -12,7 +12,7 @@
 
 ## Overview
 
-**Agent First Browse** turns a plain-English instruction — *“search Flipkart for a water bottle under ₹300 and add it to the cart”*, *“star this GitHub repo”*, *“log in and create an API key”* — into a fully autonomous browser session that completes the task on a **real, headed Chromium browser**.
+**Agent First Browse** turns a plain-English instruction — *“search Flipkart for a water bottle under ₹300 and add it to the cart”*, *“star this GitHub repo”*, *“log in and create an API key”* — into a fully autonomous session in a **real, headed browser**. The primary Windows flow controls a dedicated native Chrome through CDP while the Python agent runs in WSL.
 
 Unlike screen-scrapers or brittle click-bots, it runs on a **LangGraph cognitive “brain”**: a graph of specialized reasoning nodes that perceives the page through the **accessibility tree first** (fast and cheap), escalates to a **vision model only when genuinely confused**, and **verifies every outcome with evidence** before declaring success. It plans, predicts the consequence of each action, recovers from failure with a non-repeating tactical ladder, and presents a human-grade fingerprint to evade bot detection.
 
@@ -39,6 +39,9 @@ In short: it is engineered to be a **critical thinker**, not an obedient parrot 
   - [Text Models](#text-models)
   - [Vision Models (Optional)](#vision-models-optional)
   - [Graceful Fallback](#graceful-fallback)
+  - [Self-Expanding Survey Profiles](#self-expanding-survey-profiles)
+  - [Continuous Survey Sessions](#continuous-survey-sessions)
+  - [Survey Audio Questions](#survey-audio-questions)
 - [Usage](#usage)
 - [Project Status](#project-status)
 - [License](#license)
@@ -54,7 +57,7 @@ Most browser agents do one of two things: drive everything through an expensive 
 | Clicks the *wrong* look-alike element on dense pages | **Stable element registry** resolves the exact node the LLM chose, with fresh, drift-proof coordinates |
 | “Completes” a task but can’t confirm it, then **loops re-doing it** | **Sticky Verification Ledger** — once a sub-goal is verified, it can never be silently un-completed |
 | Misses a button that’s off-screen or rendered as a styled `<div>` | **Primary-action recall** + real-scroll fix surface the goal button even when the DOM hides it |
-| Gets flagged as a bot and has its clicks ignored | **Headed-under-Xvfb** real browser + 12-layer fingerprint stealth + trusted OS-level clicks |
+| Gets flagged as a bot and has its clicks ignored | **Native headed Windows Chrome** (or Xvfb for Linux fallback) + fingerprint stealth + trusted CDP input |
 | Burns tokens/latency sending every frame to a vision model | **A11y-DOM by default**, vision **only** when the text view is ambiguous |
 | Declares success without checking, or never stops | **Evidence-grounded outcome judge** that cites on-page proof |
 
@@ -115,7 +118,7 @@ This is the heart of the system — the mechanism that makes the agent trustwort
 
 ### 6. Human-Grade Anti-Bot Realism
 
-- **Headed under a virtual display (Xvfb).** The browser runs as a *genuinely headed* Chromium — no `HeadlessChrome` tell, real window/compositor — while staying invisible on a server/WSL machine.
+- **Native Windows Chrome via CDP (primary).** A dedicated Chrome profile runs on Windows with a real window/compositor; Playwright in WSL attaches to that exact browser instead of launching WSL Chromium. Linux-only runs retain the headed-under-Xvfb fallback.
 - **12-layer fingerprint stealth:** `navigator.webdriver` proxy masking, canvas/WebGL/audio noise seeding, **platform-consistent GPU** spoofing, plugin/`chrome` stubs, WebRTC IP sanitization, and font hardening.
 - **Trusted, human-like input:** Bézier-curve mouse paths and OS-level CDP clicks (`isTrusted = true`), a **realistic native arrow cursor** with accurate, continuous coordinate awareness, and automatic suppression of the Chrome “didn’t shut down correctly” crash bubble.
 
@@ -151,7 +154,38 @@ This is the heart of the system — the mechanism that makes the agent trustwort
 
 ## Installation
 
-**Requirements:** Python **3.11+**, Linux / WSL / macOS, and (for stealth mode) the `xvfb` system package.
+### Windows + WSL single-command flow (primary)
+
+Requirements: Windows Chrome, WSL 2, and Python **3.11+** with this project's `.venv` created inside WSL. Run the Python installation steps below in WSL; installing Playwright Chromium and Xvfb is optional unless you want the Linux fallback.
+
+WSL must use mirrored networking so WSL and Windows share `127.0.0.1`. Add this manually to `%UserProfile%\.wslconfig` (the launcher never edits it):
+
+```ini
+[wsl2]
+networkingMode=mirrored
+```
+
+Then apply it once from PowerShell:
+
+```powershell
+wsl --shutdown
+```
+
+From Windows PowerShell in the project directory, run:
+
+```powershell
+.\Start-Agent.ps1 "Go to Reddit and find the top post about X"
+```
+
+The launcher finds Chrome, reuses a valid automation CDP endpoint when one already exists, otherwise starts Chrome with `%LOCALAPPDATA%\AgentFirstBrowse\ChromeProfile`, verifies `/json/version` from both Windows and WSL, and invokes `.venv/bin/python run_v16.py` itself. No bridge terminal or transient WSL gateway IP is used. If your repository is in a non-default distribution, add `-Distro <name>`.
+
+Launcher transcripts are saved under `logs/windows_launcher_<timestamp>.log`; Python runs are saved under `logs/run_<timestamp>.log`.
+
+See [Microsoft's mirrored networking documentation](https://learn.microsoft.com/windows/wsl/networking#mirrored-mode-networking) for Windows/WSL version requirements.
+
+### Python environment and Linux fallback
+
+**Requirements:** Python **3.11+**, Linux / WSL / macOS, and optionally `xvfb` for a headed local-browser fallback.
 
 ```bash
 # 1. Clone
@@ -165,10 +199,10 @@ source .venv/bin/activate
 # 3. Install Python dependencies
 pip install -e .
 
-# 4. Install the Chromium browser engine
+# 4. Install the Chromium browser engine (Linux/local fallback only)
 python -m playwright install chromium
 
-# 5. (Recommended) Install Xvfb for headed "stealth" mode on a display-less machine
+# 5. Install Xvfb for headed local fallback on a display-less machine (optional)
 sudo apt-get install -y xvfb
 
 # 6. Configure your API keys (see next section)
@@ -186,7 +220,104 @@ chmod +x agent.sh
 
 All configuration lives in a `.env` file at the project root. The system is provider-agnostic and reads keys for any combination of providers you have.
 
+### Survey Profiles
+
+Survey identity is stored in `persistence/survey_profiles.json` (git-ignored) and
+selected with `SURVEY_PROFILE_NAME`. Durable growth is disabled by default. It
+requires both `SURVEY_PROFILE_AUTO_EXPAND_ENABLED=true` and
+`learning.auto_expand: true`; even then, only allowlisted identity fields can be
+stored. Survey-specific opinions, brands, purchases, recall answers and temporary
+intentions stay cycle-local. Reusing a configured fact never creates another
+learned record.
+
+Profile maintenance is deterministic rather than model-authored: after
+`SURVEY_PROFILE_SANITIZE_AFTER_WRITES` verified updates or
+`SURVEY_PROFILE_SANITIZE_INTERVAL_HOURS`, it removes duplicate/transient DOM
+answers, removes non-identity keys, normalizes canonical postcode aliases, and
+writes a `.last-good` snapshot. The schema-v5 migration also keeps a one-time
+`.pre-v5-backup`. It never invents or semantically rewrites personal facts. Invalid JSON
+blocks factual survey input instead of silently falling back to an example
+identity.
+
+Attention checks, objective logic answers, and navigation actions are excluded
+from character memory. Runtime checkpoints retain cycle-local continuity without
+promoting those answers into the permanent respondent profile.
+
+### Continuous Survey Sessions
+
+Survey objectives run continuously by default. The agent treats qualification,
+entry into the paid questionnaire, and each credited completion as intermediate
+states. After a completed survey it returns to the dashboard, chooses the next
+best reward-per-minute offer, and continues until you stop the process with
+Ctrl+C. Question-text fingerprints count progress even when a provider keeps the
+same URL and reuses the same `Next` element ID across its single-page app.
+
+Set `SURVEY_CONTINUOUS_MODE=false` to restore one-task behavior, or say
+"complete exactly one survey" in the objective for a one-run override.
+`CONTINUOUS_GRAPH_RECURSION_LIMIT` is a high transition safety ceiling; it does
+not control provider usage or API spend.
+
+The ordered `SURVEY_PROVIDER_URLS` loop starts with Qmee by default. A provider
+is rotated after `SURVEY_PROVIDER_ENTRY_STEP_LIMIT` committed browser actions or
+`SURVEY_PROVIDER_ENTRY_TIMEOUT_SECONDS` elapsed seconds if no survey answer has
+passed Overwatch verification. Once inside a survey, the
+agent abandons it only when its canonical route, normalized question, and
+meaningful form state have all remained identical for
+`SURVEY_STUCK_TIMEOUT_SECONDS` (180 by default). Volatile tracking-query values
+do not count as progress, while filling another field or matrix row does. Screen-outs, load failures, and this
+confirmed timeout close the survey target, restore the provider dashboard, and
+reset cycle-local context before selecting the next reward-per-minute offer.
+
+Routine survey perception is event-driven: true navigations retain the generous
+load ceiling, while same-page answers use `SURVEY_SAME_PAGE_SETTLE_MS`. Simple
+pages may execute a guarded local action transaction (including automatic Next),
+re-snapshotting and re-validating before every follow-up. Exact page recipes are
+replayed only after two strictly verified question transitions and are stored in the git-ignored
+`persistence/survey_recipes.db` database.
+
+Long sessions use a bounded context lifecycle:
+
+- During a survey, the model receives a compact cycle-local ledger of recent
+  verified answers plus older answers retrieved when their wording is relevant
+  to the current question, along with only the latest browser actions. Stable
+  identity and preference answers remain in the durable respondent profile.
+- The raw history, loop signatures, reflections, and model-facing history text
+  all have hard size limits, so a long questionnaire cannot grow prompts without
+  bound.
+- Cleanup does not run merely because a survey is long. A stronger cycle reset
+  occurs only after high-confidence completion/credit evidence was observed and
+  the browser has left that completion page. It preserves the profile and cycle
+  count while resetting prior-survey reasoning, retries, PRM state, and vision
+  budget for the next offer.
+- SQLite keeps a recent crash-recovery window for the active run, two snapshots
+  for a bounded number of prior runs, and prunes redundant snapshots periodically.
+  Logs and respondent-profile storage are separate and are never pruned by this.
+
+The limits can be tuned with `AGENT_HISTORY_MAX_ENTRIES`,
+`SURVEY_ANSWER_LEDGER_MAX`, `AGENT_HISTORY_PROMPT_MAX_CHARS`, and the
+`CHECKPOINT_*` variables shown in `.env.example`.
+
+### Survey Audio Questions
+
+For animal-sound questions, the agent detects the listening instruction, captures
+short audio/video media from the page (including accessible frames), and asks the
+dedicated Gemini audio chain to choose among the visible answers. Media analysis
+runs only for a detected challenge. If bytes are initially inaccessible, the agent
+clicks Play and retries; if capture or classification still fails, it makes a
+constrained non-`none of these` guess instead of looping or skipping the attempt.
+
+Inline media is capped below Gemini's request-size limit. Configure or disable the
+audio-only chain with `SURVEY_AUDIO_MODEL` and `SURVEY_AUDIO_ENABLED`.
+
 ### Operating Modes
+
+Browser routing is endpoint-driven. With `LOCAL_CDP_ENDPOINT` set, `advanced_agent.py` attaches with Playwright `connect_over_cdp()` and does not launch a browser or touch Xvfb. With the endpoint unset, the existing local Playwright persistent-context path is the explicit fallback.
+
+```dotenv
+BROWSER_MODE=LOCAL_CDP
+BROWSER_HEADLESS=false
+LOCAL_CDP_ENDPOINT=http://127.0.0.1:9222
+```
 
 Set `AGENT_MODE` to choose how the model layer behaves:
 
@@ -209,60 +340,121 @@ PREMIUM_BASE_URL=https://api.openai.com/v1     # any OpenAI-compatible endpoint 
 
 ### Text Models
 
-The reasoning chain. `gpt-oss-120b` is the proven default and is fast on Groq / Cerebras / NVIDIA.
+The reasoning chain leads with Gemini 3.5 Flash-Lite, followed by NVIDIA and
+Cloudflare fallbacks. High-volume planner, critic, simulation, and outcome-judge
+calls use a separate auxiliary ordering so they prefer Google and Cloudflare.
 
 ```dotenv
 # Provider keys (any subset; comma-separate multiple keys of one provider)
-GROQ_API_KEY=gsk_...
 NVIDIA_NIM_API_KEY=nvapi-...
-CEREBRAS_API_KEY=csk-...
 GEMINI_API_KEY=...
+CLOUDFLARE_ACCOUNT_ID=...
+CLOUDFLARE_API_TOKEN=...
 
 # Optional model overrides
-GROQ_MODEL=openai/gpt-oss-120b
-NVIDIA_TEXT_MODELS=openai/gpt-oss-120b,openai/gpt-oss-20b   # comma-separated
-CEREBRAS_MODEL=gpt-oss-120b
-GEMINI_TEXT_MODEL=gemma-4-31b-it
+NVIDIA_TEXT_MODELS=nvidia/nemotron-3.5-lightning-30b-a3b,openai/gpt-oss-120b
+GEMINI_TEXT_MODEL=gemini-3.5-flash-lite
+SURVEY_AUDIO_ENABLED=true
+SURVEY_AUDIO_MODEL=gemini-3.5-flash
+CLOUDFLARE_TEXT_MODELS=@cf/meta/llama-3.3-70b-instruct-fp8-fast
+CLOUDFLARE_MAX_TOKENS=2048
+WORKER_MODEL_ORDER=google:gemini-3.5-flash-lite,nvidia:nemotron-3.5-lightning-30b-a3b,cloudflare:llama-3.3-70b-instruct-fp8-fast,nvidia:gpt-oss-120b
+AUXILIARY_PROVIDER_ORDER=google,cloudflare,nvidia
 ```
 
-#### ⭐ Recommended setup — two keys per provider (rate-limit resilience)
+#### Cloudflare Workers AI
 
-The agent **rotates across keys** and fails over automatically, so providing **two keys for each provider**
-keeps it running smoothly when one hits a free-tier rate limit. A solid, fully-free configuration:
+Workers AI exposes an
+[OpenAI-compatible endpoint](https://developers.cloudflare.com/workers-ai/configuration/open-ai-compatibility/),
+so no extra Python SDK is required. Create an API token with Workers AI access,
+copy the account ID from the Cloudflare dashboard, and fill in:
 
 ```dotenv
-# 2× Groq  — primary worker (gpt-oss-120b: fast + accurate)
-GROQ_API_KEY=gsk_key1,gsk_key2
+CLOUDFLARE_ENABLED=true
+CLOUDFLARE_ACCOUNT_ID=your-account-id
+CLOUDFLARE_API_TOKEN=your-api-token
+CLOUDFLARE_BASE_URL=  # blank selects the account-specific endpoint automatically
+CLOUDFLARE_TEXT_MODELS=@cf/meta/llama-3.3-70b-instruct-fp8-fast
+CLOUDFLARE_MAX_TOKENS=2048
 
-# 2× NVIDIA NIM — secondary (gpt-oss-120b / gpt-oss-20b)
-NVIDIA_NIM_API_KEY=nvapi-key1
-NVIDIA_NIM_API_KEYS=nvapi-key2
-
-# 2× Google Gemini — fallback (Gemma 4 31B; generous free daily quota)
-GEMINI_API_KEY=AIza-key1
-GEMINI_API_KEY_FALLBACKS=AIza-key2
-GEMINI_TEXT_MODEL=gemma-4-31b-it
+# Optional screenshot fallback on the same account
+CLOUDFLARE_VISION_ENABLED=true
+CLOUDFLARE_VISION_MODELS=@cf/meta/llama-3.2-11b-vision-instruct
 ```
 
-> 💡 **Get the two keys per provider from different accounts/projects.** Free-tier quotas are billed
-> **per project**, so two keys from the same project don't add capacity. `gpt-oss-120b` (Groq/NVIDIA) is the
-> proven worker; `gemma-4-31b-it` via Gemini is the validated free fallback.
+Before enabling that optional vision model, complete Cloudflare's one-time
+[Meta license acceptance step](https://developers.cloudflare.com/workers-ai/models/llama-3.2-11b-vision-instruct/).
+Text-only Cloudflare routing does not require that step.
 
-> ⚠️ **A note on API keys & speed.** If your keys are valid and not rate-limited, the agent runs at
-> **100% capability and full speed — the best value.** If a key is missing, invalid, or hitting its rate
-> limit, the agent does **not** fail — it transparently fails over to the next key/provider, so a task may
-> just run **slightly slower** while it juggles limits. For the smoothest experience, keep at least one
-> healthy key per provider (two is better).
+Cloudflare currently includes 10,000 neurons per account per day at no charge;
+its rate limits are per account/model. The configured text model supports
+function calling. Check the live
+[Workers AI pricing](https://developers.cloudflare.com/workers-ai/platform/pricing/)
+and [limits](https://developers.cloudflare.com/workers-ai/platform/limits/), as
+free allocations and catalogs can change. `CLOUDFLARE_MAX_TOKENS` is explicitly
+set because Workers AI otherwise defaults this model to a 256-token response.
+
+#### Recommended setup — diversify providers, not keys
+
+Use one valid, authorized key for each provider first: Cloudflare + Google
+Gemini + NVIDIA provides more real headroom than adding keys that share the same
+account, organization, or project. Additional keys are still useful for credential
+rotation and genuinely independent projects you are authorized to operate, but do
+not assume they create quota:
+
+- Gemini limits apply per project, not per API key. See
+  [Gemini rate limits](https://ai.google.dev/gemini-api/docs/rate-limits).
+- Cloudflare's allocation is account-level; multiple models or tokens do not
+  multiply the daily neuron allocation.
+
+The startup capability gate removes invalid, unavailable, or structurally
+incompatible model/provider combinations before normal work begins.
+
+#### Free-tier usage controls
+
+The following defaults prevent routine browser turns from triggering several
+extra model calls. Irreversible/high-risk actions still force safety consensus.
+
+```dotenv
+V29_CLARITY_CONSENSUS=0
+V29_REALITY_LLM=0
+V29_WEBDREAMER=0
+PRM_AUDIT_EVERY=4
+WEB_DREAMER_NUM_CANDIDATES=1
+WEB_DREAMER_NUM_SIMULATIONS=1
+MODEL_TIMEOUT_FLOOR_SECONDS=15
+CONSENSUS_VOTER_TIMEOUT_SECONDS=12
+```
+
+Model/key health is stored anonymously in `persistence/model_health.json`, so a
+new run reuses the responsive key/model instead of relearning the pool. Gemini
+also keeps a local per-project RPM/TPM/RPD ledger. The Gemini API key itself
+cannot read exact remaining project quota, so copy the limits shown in AI Studio
+into the ordered lists when the six projects have different limits:
+
+```dotenv
+MODEL_HEALTH_PERSISTENCE=true
+MODEL_FAILOVER_MAX_ATTEMPTS=12
+MODEL_ROLE_PRIORITY_PENALTY_SECONDS=6
+MODEL_TIER_PENALTY_SECONDS=5
+# Illustrative only—replace every number with that project's displayed limit.
+GEMINI_PROJECT_RPM_LIMITS=10,15,10,5,20,10
+GEMINI_PROJECT_TPM_LIMITS=250000,250000,100000,100000,250000,100000
+GEMINI_PROJECT_RPD_LIMITS=500,1000,500,250,1000,500
+GEMINI_USAGE_SOFT_LIMIT_PERCENT=90
+```
+
+List position zero is `GEMINI_API_KEY`; the remaining positions follow
+`GEMINI_API_KEY_FALLBACKS`. Leave a position blank to inherit the corresponding
+singular `GEMINI_PROJECT_*_LIMIT` value, or leave all limits at zero when they
+are unknown. Provider retry delays and daily-quota failures are learned and
+persisted automatically.
 
 ### Vision Models (Optional)
 
-Vision is **entirely optional** — used only for on-demand visual confirmation. Defaults to the Llama 4 family (Scout on Groq, Maverick on NVIDIA).
+Vision is **entirely optional** — used only for on-demand visual confirmation. Defaults to the NVIDIA Llama 4 family.
 
 ```dotenv
-# Groq Vision — Llama 4 Scout (primary)
-GROQ_VISION_API_KEY=gsk_...
-GROQ_VISION_MODEL=meta-llama/llama-4-scout-17b-16e-instruct
-
 # NVIDIA Vision — Llama 4 Maverick (+ optional fallbacks, comma-separated)
 NVIDIA_VISION_API_KEY=nvapi-...
 NVIDIA_VISION_MODELS=meta/llama-4-maverick-17b-128e-instruct
@@ -278,7 +470,13 @@ NVIDIA_VISION_MODELS=meta/llama-4-maverick-17b-128e-instruct
 
 ## Usage
 
-The simplest path — the one-click launcher (runs in stealth headed mode automatically):
+Windows PowerShell (primary, starts Chrome and WSL automatically):
+
+```powershell
+.\Start-Agent.ps1 "Go to github.com/torvalds/linux and star the repository"
+```
+
+Linux/manual WSL fallback:
 
 ```bash
 ./agent.sh "search Flipkart for a water bottle under ₹300 and add it to the cart"
@@ -325,7 +523,7 @@ Agent First Browse stands on the shoulders of outstanding open-source work and r
 - **[Pydantic](https://github.com/pydantic/pydantic)** — typed global state and strict structured-output schemas.
 - **Browser-agent projects we studied and learned from** (concepts assimilated and re-implemented cleanly, never copied): **[browser-use](https://github.com/browser-use/browser-use)** (DOM pruning, viewport filtering, CDP event-listener detection), **[Stagehand](https://github.com/browserbase/stagehand)** (act/observe/extract action abstraction), **Skyvern** (multi-signal element identification), **Crawl4AI** (markdown compression), **BrowserGym** (stable element IDs), and **Agent-E** (text-DOM-first navigation).
 - **Research that shaped the cognitive layers** (cited inline across the modules): WebDreamer (model-based planning), LATS — Language Agent Tree Search, Reflexion, CISC / self-consistency, Self-Grounded Verification, PABU, Prune4Web, and the MAST / Six-Sigma-Agent reliability analyses.
-- **Model providers** for fast, accessible inference: **[Groq](https://groq.com)**, **[NVIDIA NIM](https://build.nvidia.com)**, **[Google Gemini](https://ai.google.dev)**, and **Cerebras**.
+- **Model providers** for fast, accessible inference: **[Groq](https://groq.com)**, **[NVIDIA NIM](https://build.nvidia.com)**, **[Google Gemini](https://ai.google.dev)**, and **[Cloudflare Workers AI](https://developers.cloudflare.com/workers-ai/)**.
 
 If your project or work is reflected here and you'd like different or additional attribution, please open an issue — credit is gladly given.
 

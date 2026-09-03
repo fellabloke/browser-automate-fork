@@ -129,8 +129,8 @@ def _get_supervisor_llm_clients() -> list[Any]:
     """Create shared big-model clients with multi-provider failover.
 
     Architecture:
-      - Client 0: NVIDIA GLM 5.1 (primary) via integrate.api.nvidia.com
-      - Client 1+: Groq GPT-OSS-120B (backup) via api.groq.com
+      - Client 0: NVIDIA model (primary) via integrate.api.nvidia.com
+      - Client 1+: explicitly configured OpenAI-compatible backups
     Each client carries its own base_url and model name so failover
     seamlessly switches providers.
     """
@@ -158,7 +158,7 @@ def _get_supervisor_llm_clients() -> list[Any]:
         )
         logger.info("Supervisor primary: %s via %s", primary_model, primary_base_url or "default")
 
-    # ── Fallback: Groq keys (use fallback model + fallback base_url) ──
+    # ── Explicit fallback keys (same provider by default) ──
     fallback_keys = config.SUPERVISOR_MODEL_API_KEY_FALLBACKS
     for fk in fallback_keys:
         fk = fk.strip()
@@ -177,7 +177,7 @@ def _get_supervisor_llm_clients() -> list[Any]:
         logger.info("Supervisor fallback: %s via %s (%d keys)", fallback_model, fallback_base_url or "default", len(fallback_keys))
 
     if not clients:
-        logger.warning("Supervisor model is not configured: no NVIDIA or Groq API keys found.")
+        logger.warning("Supervisor model is not configured: no supported API keys found.")
 
     _SUPERVISOR_LLM_CLIENTS = clients
     return _SUPERVISOR_LLM_CLIENTS

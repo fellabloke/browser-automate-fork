@@ -33,6 +33,7 @@ from app.browser_promoter.cdp_stealth_launcher import (
 )
 from app.browser_promoter.state import BrowserConfig
 from app.logger import get_logger
+from site_customizations import apply_current_site_customizations, install_site_customizations
 
 logger = get_logger(__name__)
 
@@ -109,6 +110,7 @@ class BrowserRuntime:
                 )
                 await cls._context.add_init_script(STEALTH_INIT_SCRIPT)
                 await cls._context.add_init_script(VISUAL_CURSOR_INIT_SCRIPT)
+                await install_site_customizations(cls._context)
                 cls._active_session_key = session_key
 
             # Get or create page
@@ -119,6 +121,7 @@ class BrowserRuntime:
 
             # Apply page-level stealth (playwright_stealth plugin if installed)
             await apply_page_stealth(cls._page)
+            await apply_current_site_customizations(cls._page)
 
             # Bring to front for human visibility
             try:
