@@ -267,10 +267,13 @@ class ReasoningAgent:
         history = action_history or []
 
         system = (
-            "You are the reasoning agent. Use ONLY the provided coordinate map to decide the next step. "
+            "You are the reasoning agent. Use the provided visual map to decide the next step. "
             "Return STRICT JSON for ReasoningDecision with a BrowserAction. "
             "Do not include extra text, markdown, or explanations outside the JSON. "
-            "When choosing click/type actions, you MUST include x and y from the map. "
+            "When choosing click/type actions, include x and y when available. If you can identify "
+            "the target semantically but coordinates are missing, include a precise CSS selector "
+            "when known; the executor will perform a live DOM fallback. Do not ask vision for the "
+            "same coordinates again. "
             "Allowed actions: goto, click, type, type_and_enter, scroll, wait, manual_intervention_required, screenshot. "
             "If the target is not present, choose a safe scroll or wait action."
         )

@@ -68,6 +68,18 @@ class ZeroTokenActionExecutor:
             })
 
         if action.action in {"click", "type", "type_and_enter"}:
+            if (action.x is None or action.y is None) and action.selector:
+                # Selector targeting is a deterministic fallback for models
+                # that identified the target but omitted pixel coordinates.
+                # Resolve to a fresh box through Playwright/shadow-DOM support,
+                # then retain the existing humanized input path.
+                from app.browser_promoter.shadow_dom_piercer import locate_target_point
+
+                point = await locate_target_point(page, selector=action.selector)
+                if point is not None:
+                    action = action.model_copy(update={"x": point.x, "y": point.y})
+                    logger.info("Selector fallback grounded %s at (%.0f, %.0f)", action.selector, point.x, point.y)
+
             if action.x is None or action.y is None:
                 raise ActionExecutionError(
                     f"Missing coordinates for action '{action.action}'."

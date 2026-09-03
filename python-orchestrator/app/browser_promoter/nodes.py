@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import base64
+import difflib
+import re
 import zlib
 from datetime import UTC, datetime
 from typing import Any, Literal
@@ -108,12 +110,58 @@ async def reasoning_agent_node(state: AgentState) -> dict[str, Any]:
 
     if decision.action and decision.action.action in {"click", "type", "type_and_enter"}:
         if decision.action.x is None or decision.action.y is None:
-            decision = decision.model_copy(
-                update={
-                    "confused": True,
-                    "confusion_reason": "Missing coordinates for targeted action.",
-                }
+            # A missing pixel pair is a spatial failure, not proof that the
+            # target is semantically unknown. Resolve the target against the
+            # live DOM once before sending the graph back through vision.
+            fallback_action = await _resolve_dom_fallback_action(
+                decision.action,
+                state=state,
+                target_hint=(
+                    decision.action.selector.strip()
+                    or decision.reasoning.strip()
+                    or decision.scene_summary.strip()
+                    or _resolve_target_hint(state)
+                ),
             )
+            if fallback_action is not None:
+                decision = decision.model_copy(update={"action": fallback_action})
+            else:
+                attempts = int(state.ephemeral.get("dom_fallback_attempts", 0) or 0)
+                ephemeral = dict(state.ephemeral)
+                ephemeral["dom_fallback_attempts"] = attempts + 1
+                # One re-plan is useful when the element is genuinely below
+                # the fold. A second identical failure is terminal and safe;
+                # it must not create another vision/supervisor cycle.
+                if attempts >= 1:
+                    updated_routing = state.routing.model_copy(
+                        update={"next_hop": "router", "stop_requested": True}
+                    )
+                    return {
+                        "worker_feedback": [
+                            *list(state.worker_feedback),
+                            WorkerFeedback(
+                                command_id=_resolve_command_id(state),
+                                status="failed",
+                                message="Target could not be grounded from DOM after one retry.",
+                                details={"confusion_reason": "Missing coordinates and DOM fallback failed."},
+                            ),
+                        ][-state.feedback_window_size :],
+                        "worker_last_confidence": decision.confidence,
+                        "worker_last_confused": False,
+                        "worker_last_confusion_reason": "DOM fallback exhausted; stopping to prevent vision loop.",
+                        "current_scene_summary": decision.scene_summary.strip() or "Target could not be grounded.",
+                        "routing": updated_routing,
+                        "ephemeral": ephemeral,
+                    }
+                decision = decision.model_copy(
+                    update={
+                        "confused": True,
+                        "confusion_reason": (
+                            "Target has no coordinates and could not be resolved from the live DOM; "
+                            "allow one re-plan after the page changes."
+                        ),
+                    }
+                )
 
     summary = decision.scene_summary.strip() or "Reasoning action selected."
     worker_feedback = list(state.worker_feedback)
@@ -175,9 +223,79 @@ async def reasoning_agent_node(state: AgentState) -> dict[str, Any]:
         "worker_last_confusion_reason": "",
         "current_scene_summary": summary,
         "shared_reasoning_log": reasoning_log,
+        "ephemeral": {**state.ephemeral, "dom_fallback_attempts": 0},
         "routing": updated_routing,
         **_garbage_collect_visual_state(state, summary),
     }
+
+
+def _resolve_target_hint(state: AgentState) -> str:
+    """Return the supervisor's semantic target description for DOM matching."""
+    command = state.high_level_command
+    if command is not None:
+        return command.target_description.strip()
+    return ""
+
+
+def _target_tokens(value: str) -> set[str]:
+    stop_words = {"the", "a", "an", "to", "and", "or", "button", "field", "element"}
+    return {token for token in re.findall(r"[a-z0-9]+", value.lower()) if token not in stop_words}
+
+
+async def _resolve_dom_fallback_action(
+    action: BrowserAction,
+    *,
+    state: AgentState,
+    target_hint: str,
+) -> BrowserAction | None:
+    """Ground a semantic action with fresh DOM geometry.
+
+    The vision map is deliberately not treated as a coordinate authority here.
+    ``dom_parser.extract`` registers live nodes and ``resolve_element`` obtains
+    a fresh bounding box immediately before execution, avoiding stale pixels.
+    """
+    try:
+        page = await BrowserRuntime.ensure_page(
+            browser_config=state.browser_config,
+            platform_name=resolve_platform_name(state),
+            thread_id=state.thread_id,
+        )
+        import dom_parser
+
+        snapshot = await dom_parser.extract(page, target_hint=target_hint or None, timeout=3.0)
+        elements = [
+            element for element in snapshot.get("elements", [])
+            if element.get("kind") in {"button", "input", "link", "other"}
+            and str(element.get("text") or "").strip()
+        ]
+        wanted = _target_tokens(target_hint)
+        if not wanted:
+            return None
+
+        def score(element: dict[str, Any]) -> tuple[float, int]:
+            text = str(element.get("text") or "")
+            tokens = _target_tokens(text)
+            overlap = len(wanted & tokens) / max(len(wanted), 1)
+            phrase = difflib.SequenceMatcher(None, target_hint.lower(), text.lower()).ratio()
+            exact = 1.0 if target_hint.lower() in text.lower() or text.lower() in target_hint.lower() else 0.0
+            return (exact * 0.55 + overlap * 0.30 + phrase * 0.15, len(text))
+
+        candidate = max(elements, key=score, default=None)
+        if candidate is None or score(candidate)[0] < 0.45:
+            return None
+
+        resolved = await dom_parser.resolve_element(page, str(candidate.get("id") or ""))
+        if not resolved.get("ok"):
+            return None
+
+        logger.info(
+            "DOM fallback grounded %s (%s) at (%.0f, %.0f)",
+            target_hint[:80], candidate.get("id"), resolved["x"], resolved["y"],
+        )
+        return action.model_copy(update={"x": resolved["x"], "y": resolved["y"]})
+    except Exception as exc:  # DOM fallback must never crash orchestration
+        logger.warning("DOM fallback failed: %s", str(exc)[:160])
+        return None
 
 def stuck_evaluator_node(state: AgentState) -> dict[str, Any]:
     """Evaluates the proposed action against recent history to break infinite loops."""
