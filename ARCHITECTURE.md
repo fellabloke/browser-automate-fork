@@ -1,0 +1,901 @@
+Architecture and Refactor Map
+
+Status
+
+This document is the architectural source of truth for the base_refac migration.
+
+It describes:
+
+what the repository actually runs today;
+
+which apparently legacy components are still dependencies;
+
+the invariants that must survive the refactor;
+
+the target package structure;
+
+the safe migration order from the current hybrid layout to that target.
+
+This is a migration architecture, not an instruction to rewrite the repository at once.
+
+When code and an older versioned plan disagree, trace the live entry point, imports, and tests. Update this document when verified ownership changes.
+
+1. Architectural goals
+
+The refactor should make the system:
+
+easier for Codex and humans to map correctly;
+
+safer to change through deterministic regression tests;
+
+installable as one coherent Python package;
+
+explicit about state ownership and side-effect boundaries;
+
+capable of evolving workers/models without duplicating orchestration logic;
+
+measurable for latency, provider calls, retries, and cost;
+
+less dependent on root-level modules, sys.path mutation, and historical package boundaries.
+
+The migration should not change browser-agent behavior simply to obtain a cleaner directory tree.
+
+1. Current canonical runtime
+
+The primary user-facing runtime is:
+
+agent.sh
+    |
+    v
+run_v16.py run <objective>
+    |
+    v
+brain_graph.run_brain(...)
+    |
+    v
+LangGraph StateGraph
+
+run_v16.py explicitly identifies itself as the replacement for the older monolithic execution loop.
+
+The current graph is approximately:
+
+START
+  |
+  v
+goal_compiler
+  |
+  v
+planner
+  |
+  v
+perceive
+  |
+  v
+router
+  |
+  +-----------------+-----------------+
+  |                 |                 |
+  v                 v                 v
+navigator        interactor        extractor
+  |                 |                 |
+  +-----------------+-----------------+
+                    |
+                    v
+                 overwatch
+                    |
+         +----------+-----------+
+         |          |           |
+         v          v           v
+      commit      retry      rollback/recovery
+         |          |           |
+         |          +-----+-----+
+         |                |
+         +------------> perceive
+         |
+         v
+      done_check
+         |
+         v
+      finalize
+         |
+         v
+        END
+
+Exact edges are defined in brain_graph.py; this diagram is conceptual and should remain high level.
+
+Current major runtime components
+
+run_v16.py                 CLI / startup
+brain_graph.py              orchestration graph
+brain_state.py              typed global graph state
+moe_router.py               worker/verdict routing
+workers/base_worker.py      specialist model decision path
+model_registry.py           providers, health, failover, routing infrastructure
+mcp_tools.py                broad browser action/perception utility surface
+overwatch.py                action verification / execution supervision
+perception_engine.py        adaptive perception routing
+cognition*.py               reasoning/guidance state
+survey_*.py                 survey domain capability
+
+1. The repository is currently a hybrid of multiple architectures
+
+3.1 Root runtime modules
+
+Most of the v16+ browser-agent implementation is currently imported directly from repository-root .py modules.
+
+Examples:
+
+brain_graph.py
+brain_state.py
+model_registry.py
+mcp_tools.py
+overwatch.py
+perception_engine.py
+survey_context.py
+...
+
+This works from the repository checkout but makes package boundaries and ownership ambiguous.
+
+3.2 workers/
+
+workers/base_worker.py is part of the current v16+ decision path. It should be treated as active runtime code.
+
+The worker currently owns more than one concern, including prompt composition, deterministic/fast paths, model invocation support, action construction, and escalation logic. These responsibilities may be separated later, but not in the same change as its initial package migration.
+
+3.3 root skills/
+
+The root skills/ package defines runtime browser-action classes such as navigation, interaction, and extraction.
+
+It is not a Codex skills directory.
+
+Because Codex repository skills conventionally live under .agents/skills/, the application package should eventually rename this concept to actions/ to avoid permanent ambiguity.
+
+3.4 advanced_agent.py
+
+advanced_agent.py is the old monolithic agent loop and is not the canonical v16 decision path.
+
+However, it is not safe to delete yet. The repository still imports behavior from it, including current manual-login/session/browser utilities and legacy tests/scripts.
+
+Migration rule:
+
+legacy implementation
+    -> identify still-active responsibilities
+    -> extract responsibility into target package
+    -> keep compatibility import if needed
+    -> migrate callers
+    -> add/verify tests
+    -> prove no active dependency remains
+    -> delete legacy implementation
+
+Do not combine “remove advanced_agent.py” with unrelated feature changes.
+
+3.5 old orchestrator/
+
+orchestrator/ contains an older CEO/Spawner/Executor/DAG architecture.
+
+The primary v16 graph does not use that architecture as its orchestration spine, but active code still references orchestrator/critic_v12.py.
+
+Therefore the directory is legacy-with-live-dependency, not simply dead code.
+
+Target approach:
+
+identify which pieces are still actively imported;
+
+move still-used behavior (for example progress/critic behavior) to the appropriate target package;
+
+migrate callers;
+
+retire the old orchestration package only after proof that no active path depends on it.
+
+3.6 python-orchestrator/
+
+python-orchestrator/app/ is currently the only package tree selected by pyproject.toml, but the main v16 runtime largely lives outside it.
+
+Root modules work around the split with code such as:
+
+sys.path.append(str(Path(__file__).parent / "python-orchestrator"))
+
+The app package supplies active infrastructure such as logging and browser-promoter/browser-runtime utilities. It also contains a separate browser-promoter graph with its own state, nodes, tests, and persistence.
+
+Do not assume the browser-promoter graph and the v16 browser-agent graph are the same architecture.
+
+The long-term goal is to absorb active app responsibilities into the single agent_first_browse package and remove the historical python-orchestrator/ packaging boundary.
+
+1. Runtime invariants
+
+The refactor must preserve the following architectural properties unless a dedicated behavior-changing task explicitly supersedes them.
+
+4.1 Typed orchestration state
+
+BrainState is the current orchestration source of truth.
+
+Rules:
+
+each state field should have one authoritative writer;
+
+readers should consume the state rather than create competing hidden state channels;
+
+bounded history/checkpoint data must remain bounded;
+
+state-schema migrations require explicit regression tests and checkpoint compatibility consideration.
+
+4.2 Proposal -> verification -> side effect/result
+
+The architecture must retain a clear boundary between model reasoning and trusted browser effects.
+
+Conceptually:
+
+fresh evidence
+    -> worker proposes ActionProposal/ProposedAction
+    -> verifier / Overwatch checks the proposal and context
+    -> executor performs the browser effect
+    -> live result is observed
+    -> state/history is committed, retried, rolled back, or recovered
+
+Workers should not gain ad-hoc direct browser side effects during cleanup.
+
+4.3 DOM/a11y first, vision on ambiguity
+
+The normal evidence path is structural page evidence first.
+
+Vision is appropriate for visual-only or genuinely ambiguous state; it should not become the default because a refactor made DOM interfaces inconvenient.
+
+4.4 Sticky verified progress
+
+Verified completion/progress should not be silently invalidated by a later weaker observation.
+
+4.5 Bounded recovery
+
+All retry, failover, perception-escalation, and recovery cycles need explicit limits and state identity. No refactor should introduce an unbounded “try again” path.
+
+4.6 Side-effect idempotency / hesitation
+
+Intent-journal and duplicate-action protection exist because a browser effect can occur even when transport/verification reports uncertainty.
+
+This protection is architectural, not optional cleanup.
+
+4.7 Cost-aware inference
+
+Model intelligence should be spent on uncertainty rather than deterministic bookkeeping.
+
+Preserve or improve this ordering:
+
+deterministic resolution
+    -> primary semantic model
+    -> same-model repair where appropriate
+    -> provider/model fallback on classified failure
+    -> vision/consensus/simulation only when their trigger is justified
+
+Do not make multiple escalation mechanisms independently fire for the same uncertainty without an explicit reason.
+
+1. Current ownership map
+
+This table describes current ownership, not final filenames.
+
+Concern
+
+Current primary location
+
+Migration destination
+
+CLI/startup
+
+run_v16.py, agent.sh, Start-Agent.ps1
+
+agent_first_browse.cli + wrappers
+
+Graph orchestration
+
+brain_graph.py
+
+agent_first_browse.agent.graph
+
+Typed graph state
+
+brain_state.py
+
+agent_first_browse.agent.state
+
+Graph routing
+
+moe_router.py
+
+agent_first_browse.agent.routing
+
+Checkpoint retention
+
+checkpoint_retention.py
+
+agent_first_browse.agent.checkpointing
+
+Model/provider layer
+
+model_registry.py
+
+agent_first_browse.models
+
+Worker decisions
+
+workers/base_worker.py
+
+agent_first_browse.workers
+
+Browser action facade
+
+mcp_tools.py + browser utilities
+
+agent_first_browse.browser / actions / perception
+
+DOM parsing
+
+dom_parser.py, a11y_parser.py, dom_diff.py
+
+agent_first_browse.perception
+
+Adaptive perception
+
+perception_engine.py, vision_consult.py
+
+agent_first_browse.perception
+
+Click/type mechanics
+
+cdp_click.py, cdp_input.py, ghost_input.py
+
+agent_first_browse.browser
+
+Verification
+
+overwatch.py, action_verifier.py, outcome_judge.py, verification_engine.py
+
+agent_first_browse.verification
+
+Progress critic
+
+orchestrator/critic_v12.py
+
+agent_first_browse.verification.progress
+
+Cognition/guidance
+
+cognition.py, cognitive_core.py, clarity.py, etc.
+
+agent_first_browse.cognition
+
+Memory
+
+campaign_memory.py, skill_memory.py, intent_journal.py, content_store.py
+
+agent_first_browse.memory
+
+Survey domain
+
+survey_*.py, survey JSON/config
+
+agent_first_browse.survey
+
+Browser promoter
+
+python-orchestrator/app/browser_promoter/
+
+agent_first_browse.promotion + shared browser modules
+
+Shared app infrastructure
+
+python-orchestrator/app/config.py, logger.py, observability.py, call_pacing.py
+
+package root/shared infrastructure
+
+Runtime action classes
+
+root skills/
+
+agent_first_browse.actions
+
+The destination column is directional. Exact splits should be justified by dependency boundaries and tests rather than by this table alone.
+
+1. Target repository structure
+
+The intended end state is approximately:
+
+Agent-first-browse/
+|
+|-- AGENTS.md
+|-- ARCHITECTURE.md
+|-- README.md
+|-- LICENSE
+|-- pyproject.toml
+|-- .env.example
+|-- .gitignore
+|
+|-- agent.sh
+|-- Start-Agent.ps1
+|
+|-- .github/
+|   `-- workflows/
+|
+|-- .agents/
+|`-- skills/                  # Codex skills only
+|
+|-- .codex/
+|   |-- config.toml
+|   `-- agents/                  # Codex subagent definitions
+|
+|-- docs/
+|   |-- architecture/
+|   |-- development/
+|   |-- decisions/
+|   |-- plans/
+|`-- audits/
+|
+|-- examples/
+|   |-- objectives/
+|   |-- prompts/
+|   `-- config/
+|
+|-- scripts/
+|   |-- check.sh
+|   |-- diagnostics/
+|`-- smoke/
+|
+|-- src/
+|   `-- agent_first_browse/
+|       |-- __init__.py
+|       |-- cli.py
+|       |-- config.py
+|       |-- logging.py
+|       |-- observability.py
+|       |-- feature_flags.py
+|       |-- call_pacing.py
+|       |
+|       |-- agent/
+|       |   |-- graph.py
+|       |   |-- state.py
+|       |   |-- routing.py
+|       |   |-- checkpointing.py
+|       |`-- lifecycle.py
+|       |
+|       |-- models/
+|       |   |-- registry.py
+|       |   |-- routing.py
+|       |   |-- health.py
+|       |   |-- failover.py
+|       |   |-- providers.py
+|       |   `-- schemas.py
+|       |
+|       |-- browser/
+|       |   |-- runtime.py
+|       |   |-- warmup.py
+|       |   |-- tabs.py
+|       |   |-- overlays.py
+|       |   |-- platform.py
+|       |   |-- proxy.py
+|       |   |-- virtual_display.py
+|       |   |-- cdp/
+|       |`-- input/
+|       |
+|       |-- perception/
+|       |-- actions/              # application runtime actions, not Codex skills
+|       |-- verification/
+|       |-- cognition/
+|       |-- workers/
+|       |-- memory/
+|       |-- survey/
+|       `-- promotion/
+|
+`-- tests/
+    |-- conftest.py
+    |-- unit/
+    |-- regression/
+    |-- integration/
+    `-- live/
+
+This structure is deliberately conventional: source code has one import root, tests have explicit cost/environment classes, and repository-agent configuration is visually distinct from application runtime code.
+
+1. Target dependency direction
+
+The target should reduce cross-package cycles and make the costly/side-effecting parts obvious.
+
+A useful dependency direction is:
+
+cli
+ |
+ v
+agent graph/state/routing
+ |
+ +------------------+------------------+------------------+
+ |                  |                  |                  |
+ v                  v                  v                  v
+workers          cognition          models           domain logic
+ |                                                     survey/promotion
+ |
+ v
+action proposal
+ |
+ v
+verification
+ |
+ v
+browser/actions
+ |
+ v
+perception / observed result
+ |
+ +---------------------------> state
+
+Boundary rules
+
+models should not know about Playwright pages.
+
+perception should return structured evidence rather than mutate orchestration policy ad hoc.
+
+workers should consume context and return proposals, not own unverified browser effects.
+
+verification is the trust boundary before/after effects.
+
+browser owns low-level browser/session/input mechanics.
+
+domain packages such as survey should compose core capabilities rather than fork a second generic agent architecture.
+
+promotion should reuse shared browser/model infrastructure where appropriate without becoming the owner of the primary v16 graph.
+
+1. Migration strategy
+
+Rule: move first, decompose second
+
+For large modules, use two separate phases.
+
+Example:
+
+model_registry.py
+    -> src/agent_first_browse/models/registry.py   # behavior-preserving move
+    -> compatibility shim if required
+    -> migrate callers/tests
+    -> validate
+
+later:
+
+models/registry.py
+    -> registry.py + health.py + failover.py + routing.py + providers.py
+
+Do the same for workers/base_worker.py, brain_graph.py, mcp_tools.py, and other large files.
+
+Compatibility shims
+
+A temporary root file may re-export the new implementation:
+
+"""Temporary compatibility shim; remove after callers migrate."""
+from agent_first_browse.agent.state import *
+
+A shim is a migration tool, not a permanent second API.
+
+Track it and remove it once:
+
+active callers are migrated;
+
+imports are package-correct;
+
+deterministic tests are green.
+
+Recommended migration phases
+
+Phase 0 — Refactor harness
+
+Before broad source movement:
+
+add/maintain AGENTS.md and this document;
+
+classify tests into deterministic vs integration/live;
+
+establish a reliable deterministic validation command;
+
+align CI with the repository's declared tooling;
+
+record pre-existing failures rather than attributing them to the refactor.
+
+Phase 1 — Establish the package root
+
+Create:
+
+src/agent_first_browse/
+
+Move low-risk shared infrastructure first where dependencies allow it, such as configuration/logging/observability helpers.
+
+Update pyproject.toml only when the package can actually be imported and tested through the new layout.
+
+Phase 2 — Low-level, relatively independent modules
+
+Move foundational modules with minimal behavior change:
+
+feature flags;
+
+typed state helpers;
+
+platform/virtual-display/proxy helpers;
+
+small cognition/perception primitives with clear callers.
+
+Phase 3 — Browser and perception boundaries
+
+Migrate browser runtime/input/perception modules while preserving their existing behavioral semantics.
+
+Avoid rewriting click/type/stealth behavior during a directory move.
+
+Phase 4 — Verification and memory
+
+Migrate verification, progress critic, intent journal, and memory modules.
+
+This phase should make the side-effect trust boundary clearer, not weaker.
+
+Phase 5 — Survey and promotion domains
+
+Move survey modules and browser-promoter modules into explicit domain packages while extracting genuinely shared browser/model infrastructure.
+
+Keep domain-specific behavior out of the generic core unless more than one domain actually uses it.
+
+Phase 6 — Model layer
+
+Move model_registry.py behavior intact first.
+
+Only after imports/tests stabilize should it be decomposed around provider clients, health, routing, failover, and schemas.
+
+Phase 7 — Workers
+
+Move workers/base_worker.py intact first.
+
+Later extract prompt composition, deterministic resolvers, planning/escalation, and shared worker contracts where tests justify the split.
+
+Phase 8 — Graph and CLI
+
+Move:
+
+brain_graph.py -> agent/graph.py
+run_v16.py     -> cli.py
+
+At this point launchers should converge on one installed CLI entry point while retaining shell/PowerShell convenience wrappers.
+
+Phase 9 — Legacy retirement
+
+Extract the final active responsibilities from:
+
+advanced_agent.py;
+
+old orchestrator/;
+
+historical python-orchestrator/ package boundaries;
+
+temporary root compatibility modules.
+
+Delete only after active import/call-site searches and regression tests demonstrate that they are no longer required.
+
+Phase 10 — Decomposition and optimization
+
+Only after the package migration is stable:
+
+split oversized modules;
+
+reduce prompt/context duplication;
+
+optimize model-call and vision escalation costs;
+
+introduce stronger worker capability contracts;
+
+add Codex subagents/skills for repeatable development workflows.
+
+Architecture cleanup and model-quality/cost experiments should normally be separate commits/evaluations.
+
+1. Testing architecture
+
+The final test hierarchy should communicate environment and cost clearly:
+
+tests/
+|-- unit/          # isolated deterministic logic
+|-- regression/    # previously broken behaviors/invariants
+|-- integration/   # multi-module/local integration
+`-- live/          # browser/network/provider credentials required
+
+Default developer/Codex loop
+
+The default repository check should eventually be credential-free and deterministic:
+
+format/lint check
+    -> unit tests
+    -> regression tests
+    -> selected local integration tests
+
+Live/provider/browser tests must be opt-in.
+
+Regression priorities
+
+The refactor harness should preserve coverage around:
+
+canonical graph startup and routing;
+
+model failover and structured-output repair;
+
+action idempotency / duplicate click prevention;
+
+navigation/recovery budgets;
+
+context lifecycle and bounded memory;
+
+perception and vision escalation;
+
+verification/Overwatch outcomes;
+
+survey handoff/provider lifecycle;
+
+session/browser handoff behavior.
+
+A file move should not require weakening these expectations.
+
+ 1. Packaging and CLI target
+
+The target pyproject.toml should discover packages from src/ and expose a console entry point, conceptually:
+
+[project.scripts]
+agent-browse = "agent_first_browse.cli:main"
+
+Then all launch forms converge on the same code path:
+
+agent.sh -----------+
+                    |
+Start-Agent.ps1 ----+--> agent_first_browse.cli
+                    |
+agent-browse -------+
+
+The shell scripts remain convenience wrappers; they should not implement an alternate orchestration architecture.
+
+ 1. Future worker architecture
+
+After the behavior-preserving refactor, worker flexibility should move toward explicit contracts rather than model-specific classes.
+
+Conceptually:
+
+TaskContext
+    -> WorkerPolicy
+    -> ActionProposal
+    -> Verification
+    -> Execution
+    -> ObservedResult
+
+A future worker manifest may describe:
+
+name
+capabilities
+supported action types
+required modalities
+cost class
+latency class
+risk class
+preferred model class
+
+The router can then choose capabilities based on task requirements instead of hard-coding model/provider identity into worker ownership.
+
+This is a post-refactor direction, not a requirement to introduce a new abstraction during package migration.
+
+ 1. Model/cost architecture direction
+
+The long-term efficiency principle is:
+
+Spend model intelligence only on genuine uncertainty. Keep routing mechanics, state bookkeeping, retries, validation, and deterministic page operations in code where possible.
+
+Measure optimizations by successful outcomes, not only by raw call count.
+
+Useful metrics include:
+
+successful task rate
+calls per successful task
+input/output tokens per successful task
+provider retries and failovers
+vision calls
+consensus/judge/planner calls
+p50/p95 inference latency
+wall-clock runtime
+estimated model cost per successful task
+unchanged-state repeated requests
+
+Do not optimize these during structural moves unless a task explicitly combines the work and supplies an evaluation plan.
+
+ 1. Documentation authority
+
+Use the following hierarchy:
+
+AGENTS.md
+    operational rules for coding agents
+
+ARCHITECTURE.md
+    current architecture + target + migration status
+
+README.md
+    user-facing project setup, configuration, and usage
+
+docs/architecture/
+    deeper subsystem designs
+
+docs/decisions/
+    durable architectural decisions / ADRs
+
+docs/plans/active/
+    current execution plans
+
+docs/plans/completed/
+    historical implementation plans
+
+Versioned files such as V29_OVERHAUL.md are valuable history but should not permanently compete with current architecture documentation.
+
+ 1. Known migration hazards
+
+These are known sources of ambiguity that Codex should check before making broad changes:
+
+The active v16 runtime is mainly in root modules while pyproject.toml currently packages python-orchestrator/.
+
+Root modules mutate sys.path to import app from python-orchestrator/.
+
+advanced_agent.py is legacy orchestration but still supplies active utilities/manual login behavior.
+
+The old orchestrator/ package is mostly superseded but still contains at least one active critic dependency.
+
+The browser-promoter graph is a separate graph and should not be mistaken for the v16 orchestration spine.
+
+Root skills/ means application actions, while future .agents/skills/ means Codex workflows.
+
+Root test_*.py currently mixes deterministic tests with script/live/integration behavior; bare pytest is not yet a trustworthy cost-free validation boundary.
+
+Historical planning documents may describe work as missing even when current code has partially or fully implemented it.
+
+Large modules have intertwined behavior; splitting them before regression boundaries are stable increases risk substantially.
+
+Packaging/import cleanup can appear successful from the repository root while failing in an installed environment; eventually test installed-package imports explicitly.
+
+ 1. Non-goals of the base refactor
+
+Unless explicitly requested in a dedicated task, this migration does not aim to:
+
+redesign model prompts;
+
+change provider ranking or model strategy;
+
+weaken or remove verification layers;
+
+make vision/consensus more aggressive;
+
+rewrite stealth/input mechanics;
+
+add large new frameworks;
+
+perform a single “clean architecture” rewrite;
+
+preserve obsolete APIs forever;
+
+optimize every large file merely because it is large.
+
+The purpose is to create a structure in which those later changes can be evaluated safely.
+
+ 1. Refactor exit criteria
+
+The base structural refactor is substantially complete when:
+
+one installable agent_first_browse package owns active application code;
+
+launchers route through one canonical CLI and graph;
+
+sys.path mutation for python-orchestrator is gone;
+
+obsolete legacy orchestration code has no active imports and is removed;
+
+application runtime skills/ has become an unambiguous action/capability package;
+
+tests are separated by deterministic/integration/live requirements;
+
+a single default validation command is reliable for Codex and humans;
+
+CI runs the same deterministic checks used locally;
+
+active architecture is described here rather than scattered across historical plans;
+
+state ownership and side-effect boundaries remain explicit;
+
+model/vision/provider call behavior has not accidentally regressed during structural migration.
+
+After those conditions are met, deeper module decomposition and worker/subagent optimization can proceed with much lower risk.
