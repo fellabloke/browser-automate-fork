@@ -16,6 +16,8 @@ from survey_context import (
     is_grounded_survey_choice,
     preferred_survey_offer_id,
     rank_survey_offers,
+    survey_offer_selection_route,
+    paidwork_selection_ready,
     sanitize_survey_plan,
     survey_gate_violation,
     survey_prompt_injection_violation,
@@ -230,6 +232,41 @@ def test_offer_parser_prefers_visible_text_over_short_conflicting_hint():
 
     assert str(ranked[0].reward) == "1.20"
     assert str(ranked[0].minutes) == "12"
+
+
+def test_navigation_label_with_ancestor_offer_hint_is_not_a_survey_offer():
+    assert rank_survey_offers({
+        "e7": {
+            "text": "Earn", "kind": "link",
+            "hint": "£0.526 mins · available surveys",
+        },
+    }) == []
+
+
+def test_paidwork_offer_selection_route_excludes_nested_provider_pages():
+    assert survey_offer_selection_route("https://www.paidwork.com/earn") is True
+    assert survey_offer_selection_route("https://www.paidwork.com/earn/filling-out") is True
+    assert survey_offer_selection_route("https://www.paidwork.com/earn/filling-out/bitlabs") is False
+
+
+def test_paidwork_selection_is_not_ready_from_shell_navigation_alone():
+    assert paidwork_selection_ready(
+        "https://www.paidwork.com/earn/filling-out",
+        "Earn Fill out Profile",
+        {"e1": {"text": "Earn", "kind": "link"}},
+    ) is False
+
+
+def test_paidwork_selection_ready_with_card_or_explicit_empty_state():
+    assert paidwork_selection_ready(
+        "https://www.paidwork.com/earn/filling-out",
+        "Available survey £1.20 10 minutes",
+        {"e1": {"text": "Available survey £1.20 10 minutes", "kind": "div"}},
+    ) is True
+    assert paidwork_selection_ready(
+        "https://www.paidwork.com/earn/filling-out",
+        "No surveys available. Come back later.", {},
+    ) is True
 
 
 def test_value_router_replaces_redundant_dashboard_nav_without_model_correction():

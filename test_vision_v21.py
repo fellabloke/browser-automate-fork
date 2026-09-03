@@ -288,5 +288,35 @@ def test_cache_can_be_bypassed_for_independent_captcha_read(monkeypatch):
     assert calls == 2
 
 
+def test_ineffective_recovery_always_bypasses_cache(monkeypatch):
+    vision_consult._VISION_CACHE.clear()
+
+    async def fake_shot(full_page=False):
+        return {"ok": True, "base64": "stuck-image", "error": ""}
+
+    monkeypatch.setattr(mcp_tools, "mcp_screenshot", fake_shot)
+    calls = 0
+
+    async def fake_invoke(*args, **kwargs):
+        nonlocal calls
+        calls += 1
+        return VisionVerdict(
+            observation="blocked", action_type="click", element_id="e1",
+            reasoning="validation blocks Next", confidence=0.9,
+        ), "vlm"
+
+    async def run():
+        for _ in range(2):
+            await consult_vision(
+                fake_invoke, ["vlm"], None, None,
+                objective="x", question="recover", a11y_markdown="[e1] Next",
+                consult_reason=vision_consult.INEFFECTIVE_RECOVERY,
+                recovery_context={"previous_action": "click e1"},
+            )
+
+    asyncio.run(run())
+    assert calls == 2
+
+
 if __name__ == "__main__":
     sys.exit(pytest.main([__file__, "-v"]))

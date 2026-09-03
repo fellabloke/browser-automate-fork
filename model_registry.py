@@ -113,6 +113,70 @@ MODEL_TIMEOUT_RETRY_COOLDOWN_MAX_SECONDS = _float_env(
 VISION_PROVIDER_TIMEOUT_BURST = _int_env(
     "VISION_PROVIDER_TIMEOUT_BURST", 1, minimum=1
 )
+ROLE_MAX_ATTEMPTS = {
+    "TEXT_WORKER": _int_env("TEXT_WORKER_MAX_ATTEMPTS", 2, minimum=1),
+    "VISION": _int_env("VISION_MAX_ATTEMPTS", 2, minimum=1),
+    "CAPTCHA": _int_env("CAPTCHA_MAX_ATTEMPTS", 2, minimum=1),
+    "AUXILIARY": _int_env("AUXILIARY_MAX_ATTEMPTS", 1, minimum=1),
+}
+PROCESS_RUN_ID = os.getenv("RUN_ID", "") or datetime.now().strftime("run_%Y%m%d_%H%M%S")
+
+PROVIDER_FAILURE_CLASSES = (
+    "SUCCESS", "TIMEOUT", "RATE_LIMIT", "QUOTA", "HTTP_ERROR",
+    "MALFORMED_STRUCTURED_OUTPUT", "EMPTY_STRUCTURED_OUTPUT",
+    "SCHEMA_INCOMPATIBILITY", "TRANSPORT_ERROR", "SAFETY_REFUSAL", "UNKNOWN",
+)
+
+
+def _extract_provider_error_metadata(exc: BaseException, response: Any = None) -> dict[str, Any]:
+    """Return bounded, secret-free diagnostics shared by every provider branch."""
+    status = getattr(exc, "status_code", None) or getattr(exc, "http_status", None)
+    response_obj = getattr(exc, "response", None)
+    status = status or getattr(response_obj, "status_code", None)
+    body = getattr(exc, "body", None) or getattr(exc, "message", None)
+    if not body and response_obj is not None:
+        body = getattr(response_obj, "text", None)
+    if not body:
+        body = str(exc) or repr(exc)
+    diagnostic = _compact_provider_error(str(body))[:500]
+    raw = str(body).encode("utf-8", errors="ignore")
+    return {
+        "exception_class": type(exc).__name__,
+        "http_status": int(status) if str(status).isdigit() else None,
+        "response_size": len(raw) if raw else (len(str(response)) if response is not None else 0),
+        "response_hash": hashlib.sha256(raw).hexdigest()[:16] if raw else "",
+        "diagnostic": diagnostic,
+    }
+
+
+def _classify_provider_error(
+    exc: BaseException, *, schema: type | None = None, response: Any = None
+) -> tuple[str, dict[str, Any]]:
+    """Normalize provider failures before routing or health accounting."""
+    metadata = _extract_provider_error_metadata(exc, response)
+    status = metadata["http_status"]
+    text = metadata["diagnostic"].lower()
+    cls = metadata["exception_class"].lower()
+    if isinstance(exc, asyncio.TimeoutError) or "timeout" in cls:
+        category = "TIMEOUT"
+    elif status == 429 or any(x in text for x in ("rate limit", "rate_limit", "resource_exhausted")):
+        category = "QUOTA" if any(x in text for x in ("daily", "per day", "quota exceeded", "allocation")) else "RATE_LIMIT"
+    elif (status is not None and status >= 400) or re.search(
+        r"(?:error\s+code|http(?:\s+status)?|status)\s*[:=]?\s*[45]\d{2}", text,
+    ):
+        category = "SCHEMA_INCOMPATIBILITY" if schema is not None and any(x in text for x in ("schema", "response_format", "additionalproperties")) else "HTTP_ERROR"
+    elif schema is not None and (isinstance(exc, json.JSONDecodeError) or any(
+        x in text for x in ("expecting value", "json_invalid", "validation error", "parsed field")
+    )):
+        category = "EMPTY_STRUCTURED_OUTPUT" if isinstance(exc, json.JSONDecodeError) and "column 1" in text else "MALFORMED_STRUCTURED_OUTPUT"
+    elif any(x in text for x in ("safety refusal", "content policy", "refused to answer")):
+        category = "SAFETY_REFUSAL"
+    elif isinstance(exc, (ConnectionError, OSError)) or any(x in cls for x in ("transport", "connection")):
+        category = "TRANSPORT_ERROR"
+    else:
+        category = "UNKNOWN"
+    metadata["classification"] = category
+    return category, metadata
 
 
 def _credential_fingerprint(secret: str) -> str:
@@ -315,6 +379,8 @@ class ProviderHealthTracker:
         # same provider/model.  Keep this separate from 429 cooldowns, which are
         # deliberately per-key because quota can differ between keys/projects.
         self._timeout_cooldowns: dict[str, dict[str, float]] = {}
+        # Process-scoped role affinity; successful primaries stay sticky for a run.
+        self._role_affinity: dict[str, str] = {}
         self._load()
 
     @staticmethod
@@ -334,6 +400,10 @@ class ProviderHealthTracker:
             "daily_exhausted_until": 0.0,
             "usage_day": "",
             "daily_requests": 0,
+            "malformed_output_count": 0,
+            "structured_repair_successes": 0,
+            "structured_repair_failures": 0,
+            "last_failure_class": "",
             # [unix_timestamp, estimated_input_tokens]. Only one minute retained.
             "request_events": [],
         }
@@ -739,6 +809,7 @@ class ProviderHealthTracker:
         self.record_failure(
             name, is_rate_limit=True, error_msg=error,
             reliability_failure=False,
+            failure_class="QUOTA",
         )
         state = self._get(name)
         lowered = error.lower()
@@ -819,6 +890,18 @@ class ProviderHealthTracker:
     def clear_timeout_failures(self, name: str) -> None:
         """A sibling succeeded, so the provider/model timeout streak is over."""
         self._timeout_cooldowns.pop(self._timeout_scope(name), None)
+
+    def preferred_for_role(self, role: str, names: set[str]) -> str | None:
+        preferred = self._role_affinity.get(str(role).upper())
+        return preferred if preferred in names else None
+
+    def set_preferred_for_role(self, role: str, name: str) -> None:
+        self._role_affinity[str(role).upper()] = name
+
+    def clear_preferred_for_role(self, role: str, name: str | None = None) -> None:
+        key = str(role).upper()
+        if name is None or self._role_affinity.get(key) == name:
+            self._role_affinity.pop(key, None)
 
     def in_timeout_cooldown(self, name: str) -> bool:
         scope = self._timeout_scope(name)
@@ -933,6 +1016,28 @@ class ProviderHealthTracker:
         self.clear_timeout_failures(name)
         self._save()
 
+    def record_malformed_output(self, name: str, failure_class: str) -> None:
+        """Record bad structured content without quarantining a responsive model."""
+        state = self._get(name)
+        state["total_calls"] += 1
+        state["last_call_time"] = time.time()
+        state["malformed_output_count"] = int(state.get("malformed_output_count", 0) or 0) + 1
+        state["last_failure_class"] = failure_class
+        threshold = _int_env("MODEL_MALFORMED_OUTPUT_PENALTY_THRESHOLD", 3, minimum=2)
+        if state["malformed_output_count"] >= threshold:
+            state["consecutive_failures"] += 1
+            state["total_failures"] += 1
+            state["last_failure_wall"] = state["last_call_time"]
+            self._update_p_fail(name, failed=True)
+        self._save()
+
+    def record_structured_repair(self, name: str, success: bool) -> None:
+        state = self._get(name)
+        key = "structured_repair_successes" if success else "structured_repair_failures"
+        state[key] = int(state.get(key, 0) or 0) + 1
+        state["last_failure_class"] = "" if success else "MALFORMED_STRUCTURED_OUTPUT"
+        self._save()
+
     def record_failure(
         self,
         name: str,
@@ -940,10 +1045,14 @@ class ProviderHealthTracker:
         error_msg: str = "",
         latency: float | None = None,
         reliability_failure: bool = True,
+        failure_class: str = "",
     ) -> None:
         s = self._get(name)
+        if failure_class:
+            s["last_failure_class"] = failure_class
         s["total_calls"] += 1
         s["last_call_time"] = time.time()
+        s["last_failure_class"] = ""
         if reliability_failure:
             s["consecutive_failures"] += 1
             s["total_failures"] += 1
@@ -2452,6 +2561,8 @@ async def invoke_with_failover(
     timeout_sibling_threshold: int = 2,
     health_tracker: "ProviderHealthTracker | None" = None,
     base64_image: str | None = None,
+    role: str | None = None,
+    max_attempts: int | None = None,
 ) -> tuple[Any, str]:
     """V17.0 — Model-first failover with adaptive timeouts.
 
@@ -2481,7 +2592,7 @@ async def invoke_with_failover(
     # calls at a bounded wall-clock budget from the environment.
     if total_timeout_seconds is None:
         total_timeout_seconds = MODEL_FAILOVER_BUDGET_SECONDS
-    max_attempts = MODEL_FAILOVER_MAX_ATTEMPTS
+    requested_max_attempts = max_attempts
 
     if breaker and breaker.tripped:
         raise RuntimeError(f"Circuit breaker tripped: {breaker.reason}")
@@ -2510,6 +2621,18 @@ async def invoke_with_failover(
     if not entries:
         raise RuntimeError("No reliable model instances are currently available")
     ordered = order_failover_chain(entries, _health)
+    attempt_role = role or ("VISION" if base64_image else "TEXT_WORKER")
+    max_attempts = max(1, int(
+        requested_max_attempts
+        or (ROLE_MAX_ATTEMPTS.get(attempt_role.upper(), MODEL_FAILOVER_MAX_ATTEMPTS)
+            if role is not None else MODEL_FAILOVER_MAX_ATTEMPTS)
+    ))
+    if _health:
+        preferred = _health.preferred_for_role(attempt_role, {mc.name for mc in ordered})
+        if preferred:
+            ordered = [next(mc for mc in ordered if mc.name == preferred)] + [
+                mc for mc in ordered if mc.name != preferred
+            ]
     deadline = (
         time.monotonic() + total_timeout_seconds
         if total_timeout_seconds is not None and total_timeout_seconds > 0
@@ -2560,6 +2683,23 @@ async def invoke_with_failover(
     timeout_strikes: dict[str, int] = {}
     provider_timeout_strikes: dict[str, int] = {}
     estimated_input_tokens = _estimate_input_tokens(messages, schema)
+    def attempt_event(mc: ModelClient, attempt: int, started: float, *, classification: str,
+                      metadata: dict[str, Any] | None = None, repair_attempted: bool = False,
+                      repair_type: str = "", ultimately_used: bool = False) -> None:
+        details = metadata or {}
+        event = {
+            "run_id": PROCESS_RUN_ID, "timestamp": datetime.now().isoformat(),
+            "provider": mc.provider, "model": mc.name, "role": attempt_role,
+            "credential": mc.credential_id or "anonymous", "attempt": attempt,
+            "timeout": round(timeout, 3), "elapsed_ms": round((time.monotonic() - started) * 1000),
+            "http_status": details.get("http_status"), "exception_class": details.get("exception_class", ""),
+            "classification": classification, "response_size": details.get("response_size", 0),
+            "response_hash": details.get("response_hash", ""),
+            "sanitized_diagnostic": details.get("diagnostic", "")[:500],
+            "repair_attempted": repair_attempted, "repair_type": repair_type,
+            "ultimately_used": ultimately_used,
+        }
+        logger.info("MODEL_ATTEMPT_EVENT %s", json.dumps(event, separators=(",", ":"), ensure_ascii=False))
 
     for pass_entries in passes:
         # This list is intentionally mutable: after several genuine timeouts on
@@ -2593,6 +2733,12 @@ async def invoke_with_failover(
                 budget_exhausted = True
                 break
             if attempt_no >= max_attempts:
+                if role is not None:
+                    logger.info(
+                        "⏭️ FAILOVER: %s role budget exhausted at %d attempts; skipping %s",
+                        attempt_role, max_attempts, name,
+                    )
+                    continue
                 # The cap controls repeated sibling-key churn, not diversity.
                 # Always preserve a bounded escape to a provider not attempted
                 # yet; otherwise five exhausted Gemini keys can prevent a
@@ -2715,8 +2861,10 @@ async def invoke_with_failover(
                 elapsed = time.monotonic() - t0
                 if _health:
                     _health.record_success(name, latency=elapsed)
+                    _health.set_preferred_for_role(attempt_role, name)
                 if breaker:
                     breaker.record_success()
+                attempt_event(mc, attempt_no, t0, classification="SUCCESS", ultimately_used=True)
                 logger.info(
                     "🤖 MODEL ATTEMPT SUCCESS: role=%s model=%s elapsed=%.1fs",
                     "vision" if base64_image else "text", name,
@@ -2726,8 +2874,11 @@ async def invoke_with_failover(
 
             except asyncio.TimeoutError:
                 last_error = f"{name} timed out (>{timeout:.0f}s)"
+                timeout_meta = {"exception_class": "TimeoutError", "diagnostic": last_error}
+                attempt_event(mc, attempt_no, t0, classification="TIMEOUT", metadata=timeout_meta)
                 if _health:
-                    _health.record_failure(name, latency=timeout)
+                    _health.record_failure(name, latency=timeout, failure_class="TIMEOUT")
+                    _health.clear_preferred_for_role(attempt_role, name)
                     _health.record_timeout(
                         name,
                         timeout_cooldown_seconds,
@@ -2761,7 +2912,8 @@ async def invoke_with_failover(
                 )
 
             except Exception as exc:
-                err = str(exc)
+                classification, metadata = _classify_provider_error(exc, schema=schema)
+                err = metadata["diagnostic"] or str(exc)
                 last_error = f"{name} — {err[:150]}"
                 err_l = err.lower()
                 hard_request_too_large = any(
@@ -2779,26 +2931,40 @@ async def invoke_with_failover(
                 # fit. Treat it as a rate limit on the affected instance so a
                 # different key/provider or a later compact request can serve.
                 request_too_large = hard_request_too_large
-                is_rl = (
-                    not request_too_large
-                    and (
-                        "429" in err or "rate_limit" in err_l or "rate limit" in err_l
-                        or "resource_exhausted" in err_l or "quota exceeded" in err_l
-                        or throughput_quota
-                    )
-                )
-                is_schema_err = ("400" in err or "bad request" in err_l) and (
-                    "additionalproperties" in err_l or "schema" in err_l or "response_format" in err_l
-                )
-                is_structured_parse_err = schema is not None and any(
-                    marker in err_l
-                    for marker in (
-                        "validation error",
-                        "json_invalid",
-                        "does not have a 'parsed' field",
-                        'does not have a "parsed" field',
-                    )
-                )
+                is_rl = not request_too_large and classification in {"RATE_LIMIT", "QUOTA"}
+                is_schema_err = classification == "SCHEMA_INCOMPATIBILITY"
+                is_structured_parse_err = classification in {
+                    "MALFORMED_STRUCTURED_OUTPUT", "EMPTY_STRUCTURED_OUTPUT"
+                }
+
+                if is_structured_parse_err and schema is not None:
+                    attempt_event(mc, attempt_no, t0, classification=classification,
+                                  metadata=metadata, repair_attempted=True,
+                                  repair_type="same_model_json")
+                    if _health:
+                        _health.record_malformed_output(name, classification)
+                        _health.force_json_mode(name, schema_name)
+                    logger.warning("⚠️ FAILOVER [%d/%d]: %s returned unusable structured content; same-model repair",
+                                   attempt_no, total, name)
+                    try:
+                        t1 = time.monotonic()
+                        response = await _invoke_json_mode(llm, current_messages, schema, timeout)
+                        if _health:
+                            _health.record_structured_repair(name, True)
+                            _health.record_success(name, latency=time.monotonic() - t1)
+                        if breaker:
+                            breaker.record_success()
+                        return response, name
+                    except Exception as repair_exc:  # noqa: BLE001
+                        if _health:
+                            _health.record_structured_repair(name, False)
+                        repair_class, repair_meta = _classify_provider_error(repair_exc, schema=schema)
+                        attempt_event(mc, attempt_no, t1, classification=repair_class,
+                                      metadata=repair_meta, repair_attempted=True,
+                                      repair_type="same_model_json")
+                        last_error = f"{name} JSON repair — {repair_meta['diagnostic'][:120]}"
+                        logger.warning("⚠️ JSON repair failed for %s: %s", name, repair_meta["diagnostic"][:180])
+                        continue
 
                 if is_rl:
                     # Per-instance cooldown — the next loop iteration is the
@@ -2810,6 +2976,7 @@ async def invoke_with_failover(
                     )
                     if _health:
                         _health.record_quota_failure(name, err, cooldown)
+                        _health.clear_preferred_for_role(attempt_role, name)
                     logger.warning(
                         "⚠️  FAILOVER [%d/%d]: %s rate-limited for %.0fs → %s",
                         attempt_no,
@@ -2831,6 +2998,7 @@ async def invoke_with_failover(
                         # evidence that the model endpoint is chronically bad.
                         _health.record_failure(
                             name, error_msg=err, reliability_failure=False,
+                            failure_class=classification,
                         )
                     logger.warning(
                         "⏭️ FAILOVER: %s rejected the request as oversized; suppressing sibling keys",
@@ -2869,11 +3037,13 @@ async def invoke_with_failover(
                         )
                     continue
 
-                if (is_schema_err or is_structured_parse_err) and schema is not None:
+                if is_schema_err and schema is not None:
                     # Register blacklist, then rescue THIS model via JSON mode
                     if _health:
-                        _health.record_failure(name, error_msg=err)
+                        _health.record_failure(name, error_msg=err, failure_class=classification)
                         _health.force_json_mode(name, schema_name)
+                    attempt_event(mc, attempt_no, t0, classification=classification,
+                                  metadata=metadata, repair_attempted=True, repair_type="json_mode")
                     logger.warning(
                         "⚠️  FAILOVER [%d/%d]: %s structured output failed → JSON-mode rescue",
                         attempt_no,
@@ -2894,7 +3064,10 @@ async def invoke_with_failover(
                         continue
 
                 if _health:
-                    _health.record_failure(name)
+                    _health.record_failure(name, failure_class=classification)
+                    if classification in {"TRANSPORT_ERROR", "HTTP_ERROR", "UNKNOWN", "TIMEOUT", "QUOTA", "RATE_LIMIT"}:
+                        _health.clear_preferred_for_role(attempt_role, name)
+                attempt_event(mc, attempt_no, t0, classification=classification, metadata=metadata)
                 logger.warning(
                     "⚠️  FAILOVER [%d/%d]: role=%s model=%s elapsed=%.1fs — %s",
                     attempt_no, total, "vision" if base64_image else "text", name,

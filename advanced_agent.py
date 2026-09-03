@@ -702,6 +702,8 @@ async def _invoke_with_failover(
     total_timeout_seconds: float | None = None,
     timeout_cooldown_seconds: float = 30.0,
     timeout_sibling_threshold: int = 2,
+    role: str | None = None,
+    max_attempts: int | None = None,
 ) -> tuple:
     """V17.0 — Model-first failover (delegates to model_registry).
 
@@ -728,6 +730,8 @@ async def _invoke_with_failover(
         total_timeout_seconds=total_timeout_seconds,
         timeout_cooldown_seconds=timeout_cooldown_seconds,
         timeout_sibling_threshold=timeout_sibling_threshold,
+        role=role,
+        max_attempts=max_attempts,
     )
 
 
@@ -741,25 +745,23 @@ async def run_agent(objective: str):
     context, page = await launch_browser()
     guard = SessionGuard.get()
 
-    # ── Human Warm-Up Routine ──
-    target_hint = extract_target_url_from_objective(objective)
-    try:
-        await run_warmup(page, target_url=target_hint)
-    except Exception as warmup_err:
-        logger.warning("Warm-up routine failed (non-fatal): %s", warmup_err)
-
-    # ── v14.0: ModelRegistry as single source of truth ──
+    # Initialize the registry before warm-up; probe and browser preparation are
+    # independent, but chain snapshots wait for both to finish.
     registry = ModelRegistry.get_instance()
     memory = CampaignMemory()  # Neutral task history recorder
-    breaker = registry.breaker  # Shared circuit breaker
-    health_tracker = registry.health  # Shared health tracker
+    breaker = registry.breaker
+    health_tracker = registry.health
 
-    # V17.0: Probe once — prune dead models (404/401), seed latency estimates.
-    # Must run BEFORE VisionAgent/ReasoningAgent snapshot the chains.
-    try:
-        await registry.probe_and_prune()
-    except Exception as probe_err:
-        logger.warning("Model probe failed (non-fatal): %s", probe_err)
+    # ── Human Warm-Up + model probing ──
+    target_hint = extract_target_url_from_objective(objective)
+    startup_results = await asyncio.gather(
+        run_warmup(page, target_url=target_hint),
+        registry.probe_and_prune(),
+        return_exceptions=True,
+    )
+    for startup_name, startup_result in zip(("warm-up", "model probe"), startup_results):
+        if isinstance(startup_result, Exception):
+            logger.warning("Startup %s failed (non-fatal): %s", startup_name, startup_result)
 
     # v14.0: Auto-allow domains mentioned in the objective
     auto_allow_from_objective(objective)

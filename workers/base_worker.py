@@ -502,6 +502,8 @@ def _survey_fast_path(
             preferred_forward_control_id,
             prepare_survey_transaction,
             rank_survey_offers,
+            survey_offer_selection_route,
+            paidwork_selection_ready,
             survey_gate_violation,
             survey_visible_form_completeness,
         )
@@ -555,10 +557,51 @@ def _survey_fast_path(
                 "queued_actions": [], "execution_mode": "single_action",
             }
 
-        offers = [
-            offer for offer in rank_survey_offers(selector_map)
-            if offer.element_id not in unavailable_offer_ids
-        ]
+        offers = []
+        current_url = str(state.get("current_url") or "")
+        if paidwork_selection_ready(current_url, page_text, selector_map) is False:
+            waits = int(state.get("paidwork_selection_waits", 0) or 0)
+            if waits >= 3:
+                # The provider shell has failed to produce either cards or a
+                # definitive empty state. Leave the nested provider route once
+                # and let the next fresh dashboard perception start cleanly.
+                recovery_url = (
+                    "https://www.paidwork.com/earn"
+                    if current_url.rstrip("/").lower().endswith("/earn/filling-out")
+                    else "https://www.paidwork.com/earn/filling-out"
+                )
+                logger.warning(
+                    "🛟 Paidwork selection unavailable after %d waits; recovering to %s",
+                    waits, recovery_url,
+                )
+                return {
+                    "verb": "goto", "element_id": None, "text": None,
+                    "url": recovery_url, "wait_ms": None,
+                    "target_name": "Paidwork survey selection recovery",
+                    "question_text": "Paidwork survey selection unavailable",
+                    "answer_basis": "page_navigation", "queued_actions": [],
+                    "execution_mode": "single_action", "risk_level": "REVERSIBLE",
+                    "reversible": True,
+                    "rationale": "Bounded provider loading recovery.",
+                    "reasoning": "The provider did not expose cards or an empty state within the bounded wait budget.",
+                    "expected_change": "A fresh Paidwork survey-selection route loads.",
+                }
+            return {
+                "verb": "wait", "element_id": None, "text": None, "url": None,
+                "wait_ms": 1200, "target_name": "Paidwork survey list loading",
+                "question_text": "Paidwork survey selection is still loading",
+                "answer_basis": "page_navigation", "queued_actions": [],
+                "execution_mode": "single_action", "risk_level": "REVERSIBLE",
+                "reversible": True,
+                "rationale": "Wait for the provider's survey cards or explicit empty state.",
+                "reasoning": "The Paidwork shell is present but no survey selection evidence is available yet.",
+                "expected_change": "Survey cards or a definitive no-surveys message appears.",
+            }
+        if survey_offer_selection_route(current_url):
+            offers = [
+                offer for offer in rank_survey_offers(selector_map)
+                if offer.element_id not in unavailable_offer_ids
+            ]
         if offers:
             best = offers[0]
             target = selector_map.get(best.element_id, {})
@@ -623,7 +666,9 @@ def _survey_fast_path(
         try:
             from survey_profile import load_active_profile
             from survey_recipe_memory import get_survey_recipe_memory
-            recipe_action = None if recovery_active else get_survey_recipe_memory().recall(
+            recipe_action = None if (
+                recovery_active or not survey_offer_selection_route(current_url)
+            ) else get_survey_recipe_memory().recall(
                 url=str(state.get("current_url") or ""),
                 page_text=page_text,
                 selector_map=selector_map,
@@ -793,6 +838,21 @@ async def invoke_worker(
                     "🚫 Temporarily skipping failed survey offer(s): %s",
                     ", ".join(sorted(survey_unavailable_offer_ids)),
                 )
+            remembered_unsupported = {
+                re.sub(r"\s+", " ", str(value or "")).strip().lower()
+                for value in (state.get("survey_unsupported_offer_signatures") or [])
+                if str(value or "").strip()
+            }
+            if remembered_unsupported:
+                from survey_context import rank_survey_offers
+                for offer in rank_survey_offers(state.get("selector_map", {}) or {}):
+                    if re.sub(r"\s+", " ", offer.text).strip().lower() in remembered_unsupported:
+                        survey_unavailable_offer_ids.add(offer.element_id)
+                if survey_unavailable_offer_ids:
+                    logger.info(
+                        "🚫 Skipping previously unsupported survey offer(s): %s",
+                        ", ".join(sorted(survey_unavailable_offer_ids)),
+                    )
         except Exception as exc:  # noqa: BLE001
             logger.debug("Survey offer quarantine skipped (non-fatal): %s", exc)
 
@@ -1130,6 +1190,7 @@ async def invoke_worker(
                     30.0, float(os.getenv("SURVEY_MODEL_TIMEOUT_COOLDOWN_SECONDS", "60"))
                 ),
                 "timeout_sibling_threshold": 1,
+                "role": "TEXT_WORKER",
             }
         except (TypeError, ValueError):
             worker_invoke_kwargs = {
@@ -1137,6 +1198,7 @@ async def invoke_worker(
                 "total_timeout_seconds": 45.0,
                 "timeout_cooldown_seconds": 60.0,
                 "timeout_sibling_threshold": 1,
+                "role": "TEXT_WORKER",
             }
 
     # ── Invoke LLM ──
@@ -1867,8 +1929,91 @@ async def invoke_worker(
     if force_consult and not dom_grounded_navigation:
         consult, why = True, "consensus abstention — disambiguate critical action"
     vision_attempted = bool(consult and vision_chain)
+    # Always perform the cheap live-DOM check before paying for vision. A failed
+    # type is usually a focus/target-resolution problem, not a visual
+    # ambiguity. Give the deterministic executor one immediate retry after the
+    # DOM resolver has re-bound the label to its live input. Vision is reserved
+    # for a second failure or a genuinely different/DOM-invisible target.
+    dom_target_check: dict[str, Any] = {}
+    if consult and not captcha_page and proposed.get("verb") in {"type", "click"}:
+        try:
+            from mcp_tools import verify_action_target
+            dom_target_check = await verify_action_target(
+                proposed.get("element_id"), str(proposed.get("verb") or "")
+            )
+            if dom_target_check.get("ok"):
+                logger.info(
+                    "🧭 DOM PRIORITY: verified %s target [%s] before vision",
+                    proposed.get("verb"), proposed.get("element_id") or "",
+                )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("DOM priority check skipped: %s", exc)
+    video_visual_task = bool(re.search(
+        r"(?:video|turnstile|hcaptcha|recaptcha).{0,30}(?:captcha|verification)|"
+        r"(?:captcha|verification).{0,30}(?:video|turnstile|hcaptcha|recaptcha)",
+        f"{state.get('page_text', '')} {objective}", re.I,
+    ))
+    explicit_visual_requirement = bool(
+        captcha_page or video_visual_task
+        or getattr(decision, "needs_vision", False)
+        or state.get("force_vision")
+        or proposed.get("verb") == "drag_and_drop"
+    )
+    if dom_target_check.get("ok") and not explicit_visual_requirement:
+        consult = False
+        preconsult_reason = "DOM target verified; visual disambiguation unnecessary"
+
+    # A failed type is usually a focus/target-resolution problem, not a visual
+    # ambiguity. Give the deterministic executor one immediate retry after the
+    # DOM resolver has re-bound the label to its live input. Vision is reserved
+    # for a second failure or a genuinely different target/action.
+    previous_intent = state.get("last_attempted_action") or {}
+    cheap_type_recovery = bool(
+        consult and vision_chain
+        and int(state.get("ineffective_streak", 0) or 0) == 1
+        and str(proposed.get("verb") or "") == "type"
+        and str(previous_intent.get("verb") or "") == "type"
+    )
+    if cheap_type_recovery:
+        logger.info(
+            "🧪 DOM TYPE RECOVERY: retrying the live input once before vision "
+            "(previous type was unverified)"
+        )
+        proposed["dom_recovery_retry"] = True
+        proposed["reasoning"] = (
+            "The previous type was unverified. Re-resolve the associated live "
+            "input and retry once before visual escalation."
+        )
+        consult = False
+
     if consult and vision_chain:
         logger.info("🧠→👁️ Escalating to vision: %s", why)
+        from vision_consult import (
+            CAPTCHA as VISION_CAPTCHA,
+            CLARITY as VISION_CLARITY,
+            FORCED_RECOVERY as VISION_FORCED_RECOVERY,
+            INEFFECTIVE_RECOVERY as VISION_INEFFECTIVE_RECOVERY,
+            NORMAL as VISION_NORMAL,
+        )
+        if captcha_page:
+            consult_reason = VISION_CAPTCHA
+        elif int(state.get("ineffective_streak", 0) or 0) >= 1:
+            consult_reason = VISION_INEFFECTIVE_RECOVERY
+        elif state.get("force_vision"):
+            consult_reason = VISION_FORCED_RECOVERY
+        elif getattr(decision, "needs_vision", False):
+            consult_reason = VISION_CLARITY
+        else:
+            consult_reason = VISION_NORMAL
+        recovery_context = None
+        if consult_reason == VISION_INEFFECTIVE_RECOVERY:
+            recovery_context = {
+                "previous_action": state.get("last_attempted_action") or state.get("last_action_signature", ""),
+                "previous_target": proposed.get("target_name", ""),
+                "expected_state_change": proposed.get("expected_change", ""),
+                "observed_state_identifier": state.get("survey_page_fingerprint", ""),
+                "ineffective_action_count": int(state.get("ineffective_streak", 0) or 0),
+            }
         verdict, _vm = await consult_vision(
             timed_invoke, vision_chain, breaker, health_tracker,
             objective=objective,
@@ -1885,14 +2030,19 @@ async def invoke_worker(
                 captcha_page
                 or bool(getattr(decision, "needs_vision", False))
                 or bool(state.get("force_vision"))
+                or consult_reason == VISION_INEFFECTIVE_RECOVERY
             ),
+            consult_reason=consult_reason,
+            recovery_context=recovery_context,
         )
         before_vision_id = proposed.get("element_id")
         before_vision_target = proposed.get("target_name", "")
         if captcha_page:
             from survey_context import reconcile_captcha_vision
             proposed, overridden, captcha_note = reconcile_captcha_vision(
-                proposed, verdict, selector_map
+                proposed, verdict, selector_map,
+                refresh_count=int(state.get("captcha_refreshes", 0) or 0),
+                max_refreshes=max(1, int(os.getenv("CAPTCHA_MAX_REFRESHES", "3"))),
             )
             logger.info("🧩 CAPTCHA state machine: %s", captcha_note)
         else:
@@ -1905,6 +2055,20 @@ async def invoke_worker(
         ):
             proposed["vision_verified"] = True
         vision_update["vision_consults"] = state.get("vision_consults", 0) + 1
+        if captcha_page:
+            transition = str(proposed.get("captcha_transition") or "")
+            counters = {
+                "captcha_read_attempts": int(state.get("captcha_read_attempts", 0) or 0),
+                "captcha_comparison_attempts": int(state.get("captcha_comparison_attempts", 0) or 0),
+                "captcha_corrections": int(state.get("captcha_corrections", 0) or 0),
+                "captcha_refreshes": int(state.get("captcha_refreshes", 0) or 0),
+            }
+            if transition == "READ": counters["captcha_read_attempts"] += 1
+            elif transition.startswith("COMPARE"): counters["captcha_comparison_attempts"] += 1
+            elif transition == "CORRECT_ONCE": counters["captcha_corrections"] += 1
+            elif transition == "REFRESH": counters["captcha_refreshes"] += 1
+            vision_update.update(counters)
+            vision_update["captcha_last_result"] = transition or "UNCERTAIN"
         if (
             verdict
             and str(verdict.action_type or "").lower() in {"", "none"}

@@ -73,6 +73,11 @@ class PerceptionResult:
     strategy: str = ""
     sufficient: bool = True
     note: str = ""
+    sparse_dom_status: str = "NOT_NEEDED"
+    sparse_dom_control_count: int = 0
+    sparse_dom_reason: str = ""
+    paidwork_selection_ready: bool | None = None
+    paidwork_selection_waits: int = 0
 
     @classmethod
     def from_snapshot(cls, snap: dict, *, tier: int, strategy: str) -> "PerceptionResult":
@@ -86,6 +91,10 @@ class PerceptionResult:
             element_count=int(snap.get("element_count", 0) or 0),
             tier=tier,
             strategy=strategy,
+            sparse_dom_status=str(snap.get("sparse_dom_status") or "NOT_NEEDED"),
+            sparse_dom_control_count=int(snap.get("sparse_dom_control_count", 0) or 0),
+            sparse_dom_reason=str(snap.get("sparse_dom_reason") or ""),
+            paidwork_selection_ready=snap.get("paidwork_selection_ready"),
         )
 
 

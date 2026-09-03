@@ -239,6 +239,24 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
     selector_map = state.get("selector_map", {})
     step_number = state.get("step_number", 0)
 
+    # A confirmed selection is a completed state transition. Clicking the same
+    # choice again can toggle custom survey controls or produce no observable
+    # change, which used to feed the retry/vision loop. Let the worker re-read
+    # the page and choose the forward control instead.
+    if verb == "click" and element_id:
+        target_meta = selector_map.get(element_id) or {}
+        if target_meta.get("selected") or target_meta.get("checked"):
+            logger.warning("🚫 Duplicate selected-control click blocked: [%s]", element_id)
+            return {
+                "overwatch_verdict": "retry",
+                "proposed_action": None,
+                "action_outcome": "DUPLICATE_SELECTED_CONTROL_BLOCKED",
+                "correction_context": (
+                    f"Control {element_id} is already selected. Do not click it again; "
+                    "re-read the live DOM and use the enabled forward control."
+                ),
+            }
+
     updates: dict[str, Any] = {}
 
     # Defense in depth: Overwatch is the last authority before Chrome. Pin

@@ -16,6 +16,7 @@ Run: .venv/bin/python -m pytest test_failover_v17.py -v
 from __future__ import annotations
 
 import asyncio
+import json
 import sys
 import time
 from datetime import datetime
@@ -37,6 +38,8 @@ from model_registry import (
     normalize_model_id,
     order_failover_chain,
     invoke_with_failover,
+    _classify_provider_error,
+    _extract_provider_error_metadata,
 )
 
 
@@ -167,6 +170,49 @@ def test_rate_limit_diagnostics_parse_retry_after_and_redact_keys():
     compact = _compact_provider_error(error)
     assert "gsk_secret-value" not in compact
     assert "<redacted-key>" in compact
+
+
+def test_provider_failure_classification_is_normalized():
+    class HttpError(Exception):
+        status_code = 429
+        body = "daily quota exhausted for gsk_secret"
+
+    category, metadata = _classify_provider_error(HttpError())
+    assert category == "QUOTA"
+    assert metadata["http_status"] == 429
+    assert "gsk_secret" not in metadata["diagnostic"]
+
+    category, _ = _classify_provider_error(
+        json.JSONDecodeError("Expecting value", "", 0), schema=object
+    )
+    assert category == "EMPTY_STRUCTURED_OUTPUT"
+    malformed = json.JSONDecodeError("Expecting ',' delimiter", "{}", 420)
+    category, _ = _classify_provider_error(malformed, schema=object)
+    assert category == "MALFORMED_STRUCTURED_OUTPUT"
+
+
+def test_role_affinity_keeps_successful_primary_first():
+    health = ProviderHealthTracker()
+    health.set_preferred_for_role("TEXT_WORKER", "groq:openai/gpt-oss-120b:1")
+    assert health.preferred_for_role(
+        "TEXT_WORKER", {"groq:openai/gpt-oss-120b:0", "groq:openai/gpt-oss-120b:1"}
+    ).endswith(":1")
+
+
+def test_explicit_role_budget_stops_provider_cascade():
+    health = ProviderHealthTracker()
+    calls = []
+    chain = [
+        mc("google:gemini-3.5-flash-lite:0", "timeout", calls, "google"),
+        mc("google:gemini-3.5-flash-lite:1", "timeout", calls, "google"),
+        mc("nvidia-text:openai/gpt-oss-120b:0", "ok", calls, "nvidia"),
+    ]
+    with pytest.raises(RuntimeError):
+        _run(invoke_with_failover(
+            chain, ["hi"], health=health, timeout_seconds=0.01,
+            total_timeout_seconds=1.0, role="VISION", max_attempts=2,
+        ))
+    assert len(calls) == 2
 
 
 # ═══════════════════════════════════════════════════════════════════════════════

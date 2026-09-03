@@ -450,7 +450,9 @@ _GOD_MODE_JS = r"""
                 || control.getAttribute('data-selected') === 'true'
                 || control.getAttribute('data-checked') === 'true'
                 || control.getAttribute('data-active') === 'true'
-                || /(^|\s)(is-)?(selected|checked|chosen)(\s|$)/i.test(cls)
+                || /(^|\s)(is-)?(selected|checked|chosen|active)(\s|$)/i.test(cls)
+                || (/font-semibold/i.test(cls)
+                    && /(?:border|bg)-\[[^\]]*(?:4a6cf7|2563eb|3b82f6|primary)/i.test(cls))
             );
             disabledState = !!(
                 control.disabled || el.getAttribute('aria-disabled') === 'true'
@@ -855,20 +857,30 @@ _RESOLVE_JS = r"""
     const el = reg[eid];
     if (!el) return { ok: false, reason: 'not_in_registry' };
     if (!el.isConnected) return { ok: false, reason: 'detached' };
-    try { el.scrollIntoView({ block: 'center', inline: 'center' }); } catch(_) {}
+    // A label may outrank its associated input in the accessibility snapshot.
+    // Resolve it to the live form control before a typing action uses its box.
+    let target = el;
+    if ((el.tagName || '').toUpperCase() === 'LABEL') {
+        try {
+            target = el.control || (el.htmlFor && document.getElementById(el.htmlFor))
+                || el.querySelector('input,textarea,[contenteditable="true"],[role="textbox"]')
+                || el;
+        } catch(_) { target = el; }
+    }
+    try { target.scrollIntoView({ block: 'center', inline: 'center' }); } catch(_) {}
     let r;
-    try { r = el.getBoundingClientRect(); } catch(_) { return { ok: false, reason: 'no_rect' }; }
+    try { r = target.getBoundingClientRect(); } catch(_) { return { ok: false, reason: 'no_rect' }; }
     if (r.width < 1 || r.height < 1) return { ok: false, reason: 'zero_size' };
     const cx = Math.round(r.left + r.width / 2);
     const cy = Math.round(r.top + r.height / 2);
     const vw = window.innerWidth || 0, vh = window.innerHeight || 0;
     const onscreen = cx >= 0 && cy >= 0 && cx <= vw && cy <= vh;
-    const tag = (el.tagName || '').toUpperCase();
+    const tag = (target.tagName || '').toUpperCase();
     let role = '';
-    try { role = el.getAttribute('role') || ''; } catch(_) {}
+    try { role = target.getAttribute('role') || ''; } catch(_) {}
     let text = '';
     try {
-        text = (el.getAttribute('aria-label') || el.textContent || '')
+        text = (target.getAttribute('aria-label') || target.textContent || '')
             .replace(/\s+/g, ' ').trim().slice(0, 40);
     } catch(_) {}
     return {
@@ -879,6 +891,8 @@ _RESOLVE_JS = r"""
         // remains the fallback for very small controls.
         rect: { x: r.left, y: r.top, width: r.width, height: r.height },
         tag,
+        requested_tag: (el.tagName || '').toUpperCase(),
+        resolved_id: Object.keys(reg).find(k => reg[k] === target) || '',
         role,
         text,
         onscreen,
@@ -971,6 +985,67 @@ async def detect_form_fields(page) -> dict[str, Any]:
     except Exception as e:
         log.warning("Form field detection failed: %s", e)
         return {"fields": []}
+
+
+# This is deliberately a separate, unranked pass.  The normal extractor is
+# optimized for prompt size and can cull a survey's controls when a React
+# render is between states.  Recovery must inspect the native controls before
+# escalating to vision, even when they are off-screen or visually subtle.
+_SPARSE_FORM_AUDIT_JS = r"""
+() => {
+    const found = [], seen = new WeakSet();
+    const actionable = 'input,textarea,select,button,label,[role="radio"],[role="checkbox"],[role="option"],[role="textbox"],[role="button"],[role="link"],[contenteditable="true"]';
+    const visibleEnough = (el) => {
+        if (!el || !el.isConnected) return false;
+        for (let n = el; n && n.nodeType === 1; n = n.parentElement || (n.parentNode && n.parentNode.host)) {
+            const s = getComputedStyle(n);
+            if (n.hidden || n.getAttribute('aria-hidden') === 'true' || s.display === 'none' || s.visibility === 'hidden') return false;
+        }
+        return true;
+    };
+    const textOf = (el) => String(el.innerText || el.textContent || el.getAttribute('aria-label') || el.getAttribute('title') || '').replace(/\s+/g, ' ').trim().slice(0, 180);
+    const center = (el) => { const r = el.getBoundingClientRect(); return {x: Math.round(r.left + r.width / 2), y: Math.round(r.top + r.height / 2), width: Math.round(r.width), height: Math.round(r.height)}; };
+    const labelFor = (el) => {
+        let label = el.getAttribute('aria-label') || '';
+        if (!label && el.id) { try { label = document.querySelector(`label[for="${CSS.escape(el.id)}"]`)?.innerText || ''; } catch (_) {} }
+        if (!label) { try { label = el.closest('label')?.innerText || ''; } catch (_) {} }
+        return String(label).replace(/\s+/g, ' ').trim().slice(0, 180);
+    };
+    const register = (el, kind) => {
+        if (!el || seen.has(el) || !visibleEnough(el)) return;
+        seen.add(el);
+        const r = center(el), tag = (el.tagName || '').toLowerCase();
+        let id = ''; for (const [key, value] of Object.entries(window.__aid || {})) if (value === el) { id = key; break; }
+        if (!id) { let i = 1; do { id = 's' + i++; } while (window.__aid && window.__aid[id]); window.__aid = window.__aid || {}; window.__aid[id] = el; }
+        const role = el.getAttribute('role') || (tag === 'input' ? (el.type || 'text') : tag);
+        const label = labelFor(el), selected = el.checked === true || el.selected === true || el.getAttribute('aria-checked') === 'true' || el.getAttribute('aria-selected') === 'true';
+        found.push({id, kind: kind || tag, tag, role, control_type: role, text: (label || textOf(el)).slice(0, 220), hint: 'sparse recovery; native control', x:r.x, y:r.y, width:r.width, height:r.height, selected, checked: !!el.checked, required: !!el.required || el.getAttribute('aria-required') === 'true', disabled: !!el.disabled || el.getAttribute('aria-disabled') === 'true', value: String(el.value || '').slice(0, 120), visible: true, sparse_recovery: true});
+    };
+    const scan = (root) => {
+        try { for (const el of root.querySelectorAll(actionable)) register(el, el.tagName.toLowerCase()); } catch (_) {}
+        try { for (const host of root.querySelectorAll('*')) if (host.shadowRoot) scan(host.shadowRoot); } catch (_) {}
+    };
+    scan(document);
+    try { for (const sr of (window.__piercer?.roots?.() || [])) scan(sr); } catch (_) {}
+    return {controls: found, count: found.length};
+}
+"""
+
+
+async def recover_sparse_controls(page, retries: tuple[float, ...] = (0.0, 0.25, 0.75)) -> dict[str, Any]:
+    """Run a bounded native-control audit for pages with a sparse DOM snapshot."""
+    last: dict[str, Any] = {"controls": [], "count": 0}
+    for delay in retries:
+        if delay:
+            await asyncio.sleep(delay)
+        try:
+            result = await asyncio.wait_for(page.evaluate(_SPARSE_FORM_AUDIT_JS), timeout=1.5)
+            last = result or last
+            if last.get("controls"):
+                return {**last, "status": "RECOVERED"}
+        except Exception as exc:
+            log.debug("Sparse DOM audit failed: %s", str(exc)[:120])
+    return {**last, "status": "UNRESOLVED"}
 
 
 def find_field(form_data: dict, field_type: str) -> dict | None:

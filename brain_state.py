@@ -166,6 +166,9 @@ class BrainState(BaseModel):
     survey_cycle_memory_render: str = ""
     survey_home_url: str = ""
     survey_failed_offers: list[str] = Field(default_factory=list)
+    survey_unsupported_routes: list[str] = Field(default_factory=list)
+    survey_unsupported_offer_signatures: list[str] = Field(default_factory=list)
+    survey_unsupported_count: int = 0
     survey_empty_page_streak: int = 0
     survey_provider_urls: list[str] = Field(default_factory=list)
     survey_provider_index: int = 0
@@ -194,6 +197,8 @@ class BrainState(BaseModel):
     survey_offer_reward: str = ""
     survey_offer_minutes: float = 0.0
     survey_offer_currency: str = ""
+    survey_offer_id: str = ""
+    survey_offer_signature: str = ""
     survey_abandoned_count: int = 0
     survey_screened_out_count: int = 0
     failures: list[dict] = Field(default_factory=list)
@@ -238,6 +243,16 @@ class BrainState(BaseModel):
     vision_consults: int = 0       # per-task budget counter
     force_vision: bool = False     # set by the ladder's vision rung; consumed next step
     ineffective_streak: int = 0    # consecutive ineffective click/type on same target
+    dom_recovery_attempts: int = 0
+    dom_recovery_status: str = ""   # NOT_NEEDED | RECOVERED | UNRESOLVED
+    dom_recovery_reason: str = ""
+    paidwork_selection_ready: bool | None = None
+    paidwork_selection_waits: int = 0
+    captcha_read_attempts: int = 0
+    captcha_comparison_attempts: int = 0
+    captcha_corrections: int = 0
+    captcha_refreshes: int = 0
+    captcha_last_result: str = ""
 
     # ── V29 Reality Monitor (Phase 1) — screen-reality reconciliation ──
     # Written ONLY by Overwatch after executing an action. `reality_status` is

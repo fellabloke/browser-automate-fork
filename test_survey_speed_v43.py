@@ -10,8 +10,13 @@ from survey_context import (
     survey_interaction_fingerprint,
     survey_page_fingerprint,
     survey_perception_wait_mode,
+    sparse_survey_dom,
+    survey_gate_violation,
+    survey_failure_fingerprint,
+    unsupported_survey_requirement,
 )
 from survey_recipe_memory import SurveyRecipeMemory, survey_page_recipe_signature
+from survey_benchmark import SurveyBenchmarkMetrics
 from workers.base_worker import _survey_fast_path
 
 
@@ -45,6 +50,57 @@ def test_wait_mode_reserves_long_wait_for_real_navigation():
     assert survey_perception_wait_mode(
         {**base, "action_outcome": "→ OK (navigated)"}, "https://survey.test/q"
     ) == "navigation"
+
+
+def test_sparse_question_is_detected_when_only_next_survives_ranking():
+    assert sparse_survey_dom(
+        "What is your age? Please select one answer.",
+        {"e1": _button("Next")},
+    ) is True
+
+
+def test_sparse_question_does_not_allow_next_as_a_probe():
+    reason = survey_gate_violation(
+        {"verb": "click", "element_id": "e1"},
+        {"e1": _button("Next")},
+        page_text="What is your age? Please select one answer.",
+    )
+    assert "native answer controls" in reason
+
+
+def test_recovered_native_control_is_not_sparse():
+    assert sparse_survey_dom(
+        "What is your age?",
+        {"s1": _radio("25-34", "age")},
+    ) is False
+
+
+def test_sparse_failure_fingerprint_ignores_query_values():
+    first = survey_failure_fingerprint("https://survey.test/q?token=one", kind="sparse_dom")
+    second = survey_failure_fingerprint("https://survey.test/q?token=two", kind="sparse_dom")
+    assert first == second
+
+
+def test_benchmark_tracks_duplicate_and_unnecessary_actions():
+    metrics = SurveyBenchmarkMetrics()
+    metrics.record({"kind": "vision_cache_bypass"})
+    metrics.record({"kind": "duplicate_action"})
+    metrics.record({"kind": "unnecessary_action"})
+    metrics.record({"kind": "valid_action", "elapsed_ms": 125.0})
+    assert metrics.summary() == {
+        "provider_attempts": 0, "model_attempts": 0, "vision_calls": 0,
+        "vision_cache_hits": 0, "vision_cache_bypasses": 1,
+        "duplicate_actions": 1, "same_state_actions": 0, "captcha_attempts": 0,
+        "unnecessary_actions": 1, "valid_actions": 1, "final_success": False,
+        "total_elapsed_ms": 0.0, "first_valid_action_ms": 125.0,
+    }
+
+
+def test_unsupported_media_gate_only_matches_produced_responses():
+    assert unsupported_survey_requirement("Please record a video response explaining your choice") == "video_response"
+    assert unsupported_survey_requirement("Record your voice answer using the microphone") == "audio_response"
+    assert unsupported_survey_requirement("Listen to this audio clip and choose what you hear") == ""
+    assert unsupported_survey_requirement("Watch this video before answering") == ""
 
 
 def test_interaction_fingerprint_notices_answer_state_not_coordinates():
@@ -133,6 +189,28 @@ def test_dashboard_fast_path_uses_best_reward_per_minute():
     action = _survey_fast_path(state, set())
     assert action and action["element_id"] == "e2"
     assert action["answer_basis"] == "reward_per_minute"
+
+
+def test_paidwork_loading_budget_recovers_instead_of_repeating_wait():
+    action = _survey_fast_path({
+        "continuous_survey_mode": True,
+        "current_url": "https://www.paidwork.com/earn/filling-out",
+        "page_text": "Earn Fill out Profile",
+        "selector_map": {"e1": _button("Earn")},
+        "paidwork_selection_waits": 3,
+    }, set())
+    assert action and action["verb"] == "goto"
+    assert action["url"] == "https://www.paidwork.com/earn"
+
+
+def test_paidwork_nested_provider_route_does_not_replay_recipe_or_offer_nav():
+    action = _survey_fast_path({
+        "continuous_survey_mode": True,
+        "current_url": "https://www.paidwork.com/earn/filling-out/bitlabs",
+        "page_text": "Earn Fill out Profile",
+        "selector_map": {"e7": _button("Earn")},
+    }, set())
+    assert action is None
 
 
 def test_recipe_requires_two_successes_and_retires_after_failure(tmp_path):

@@ -107,6 +107,29 @@ def _get_page():
     return _PAGE
 
 
+async def verify_action_target(element_id: str | None, verb: str) -> dict[str, Any]:
+    """Cheap, side-effect-free target check used before visual escalation."""
+    if not element_id:
+        return {"ok": False, "reason": "no_dom_element_id"}
+    try:
+        import dom_parser
+        result = await dom_parser.resolve_element(_get_page(), element_id)
+        if not result.get("ok"):
+            return result
+        tag = str(result.get("tag") or "").upper()
+        role = str(result.get("role") or "").lower()
+        if verb == "type":
+            valid = tag in {"INPUT", "TEXTAREA"} or role in {"textbox", "searchbox", "combobox"}
+        elif verb == "click":
+            valid = tag in {"BUTTON", "A", "INPUT", "SELECT", "LABEL", "SUMMARY"} or bool(role)
+        else:
+            valid = True
+        return {**result, "ok": bool(valid),
+                "reason": "dom_target_verified" if valid else f"not_actionable_for_{verb}"}
+    except Exception as exc:  # pragma: no cover - browser failures are non-fatal
+        return {"ok": False, "reason": str(exc)[:120]}
+
+
 def get_page():
     """Return the page currently owned by the MCP interaction layer."""
     return _get_page()
@@ -743,17 +766,22 @@ async def mcp_type(
     page = _get_page()
 
     try:
+        typing_element_id = None
         # V19: Resolve to fresh, identity-verified coords from the chosen node.
         if element_id:
             import dom_parser
             r = await dom_parser.resolve_element(page, element_id)
             if r.get("ok"):
                 x, y = float(r["x"]), float(r["y"])
+                typing_element_id = r.get("resolved_id") or (
+                    None if str(r.get("requested_tag", "")).upper() == "LABEL" else element_id
+                )
                 logger.info("🎯 Resolved %s → fresh (%d,%d) [%s '%s']",
                             element_id, int(x), int(y), r.get("tag", ""),
                             (r.get("text", "") or "")[:25])
                 await asyncio.sleep(0.2)  # let scroll settle
             else:
+                typing_element_id = element_id
                 logger.debug("resolve %s miss (%s) — using snapshot coords",
                              element_id, r.get("reason"))
 
@@ -762,7 +790,7 @@ async def mcp_type(
             resilient_type(
                 page, text, x=x, y=y,
                 clear_first=clear_first, force_retype=force_retype, max_retries=3,
-                element_id=element_id,
+                element_id=typing_element_id,
             ),
             timeout=60.0,
         )
@@ -1341,8 +1369,43 @@ async def mcp_snapshot() -> dict:
             if eid:
                 smap[eid] = el
 
+        # The ranked snapshot intentionally favors prompt compactness.  On a
+        # survey question that can hide every option, perform one bounded
+        # native audit before the worker is allowed to escalate to vision.
+        sparse_recovery = {"status": "NOT_NEEDED", "controls": [], "count": 0}
+        try:
+            from survey_context import sparse_survey_dom
+            if sparse_survey_dom(dom_data.get("page_text", ""), smap):
+                sparse_recovery = await dom_parser.recover_sparse_controls(page)
+                for recovered in sparse_recovery.get("controls", []):
+                    eid = recovered.get("id")
+                    if eid and eid not in smap:
+                        elements_list.append(recovered)
+                        smap[eid] = recovered
+                if sparse_recovery.get("controls"):
+                    recovery_lines = ["## Sparse DOM recovery"]
+                    for el in sparse_recovery["controls"][:40]:
+                        recovery_lines.append(
+                            f"- **[{el.get('id')}]** {el.get('kind')}: {el.get('text') or '(unlabeled)'} "
+                            f"→ ({el.get('x')},{el.get('y')})"
+                            + (" [selected]" if el.get("selected") else "")
+                        )
+                    dom_data["markdown"] = (dom_data.get("markdown", "") + "\n\n" + "\n".join(recovery_lines)).strip()
+                logger.info(
+                    "🔎 Sparse DOM recovery status=%s controls=%d",
+                    sparse_recovery.get("status"), sparse_recovery.get("count", 0),
+                )
+        except Exception as exc:
+            logger.debug("Sparse DOM recovery skipped: %s", str(exc)[:160])
+
         # Update global selector map
         set_selector_map(smap)
+        paidwork_ready = None
+        try:
+            from survey_context import paidwork_selection_ready
+            paidwork_ready = paidwork_selection_ready(page.url, dom_data.get("page_text", ""), smap)
+        except Exception:
+            pass
 
         return {
             "elements": elements_list,
@@ -1351,6 +1414,13 @@ async def mcp_snapshot() -> dict:
             "element_count": dom_data.get("element_count", len(elements_list)),
             "selector_map": smap,
             "image_size": dom_data.get("image_size", {}),
+            "sparse_dom_status": sparse_recovery.get("status", "NOT_NEEDED"),
+            "sparse_dom_control_count": int(sparse_recovery.get("count", 0) or 0),
+            "sparse_dom_reason": (
+                "question_present_controls_missing"
+                if sparse_recovery.get("status") != "NOT_NEEDED" else ""
+            ),
+            "paidwork_selection_ready": paidwork_ready,
         }
     except Exception as e:
         logger.warning("mcp_snapshot failed: %s", e)

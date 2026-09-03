@@ -56,6 +56,15 @@ INEFFECTIVE_STREAK_TRIGGER = 1
 # Below this vision confidence we keep the a11y decision rather than override it.
 MIN_VISION_CONFIDENCE = 0.55
 
+VisionConsultReason = Literal[
+    "NORMAL", "CLARITY", "INEFFECTIVE_RECOVERY", "CAPTCHA", "FORCED_RECOVERY"
+]
+NORMAL = "NORMAL"
+CLARITY = "CLARITY"
+INEFFECTIVE_RECOVERY = "INEFFECTIVE_RECOVERY"
+CAPTCHA = "CAPTCHA"
+FORCED_RECOVERY = "FORCED_RECOVERY"
+
 
 def _positive_seconds(env_name: str, default: float) -> float:
     try:
@@ -70,6 +79,10 @@ def _positive_seconds(env_name: str, default: float) -> float:
 VISION_MODEL_TIMEOUT_SECONDS = _positive_seconds("VISION_MODEL_TIMEOUT_SECONDS", 20.0)
 VISION_FAILOVER_BUDGET_SECONDS = _positive_seconds("VISION_FAILOVER_BUDGET_SECONDS", 45.0)
 VISION_TIMEOUT_COOLDOWN_SECONDS = _positive_seconds("VISION_TIMEOUT_COOLDOWN_SECONDS", 45.0)
+try:
+    VISION_MAX_ATTEMPTS = max(1, int(os.getenv("VISION_MAX_ATTEMPTS", "2")))
+except (TypeError, ValueError):
+    VISION_MAX_ATTEMPTS = 2
 VISION_CACHE_TTL_SECONDS = _positive_seconds("VISION_CACHE_TTL_SECONDS", 30.0)
 _VISION_CACHE: dict[str, tuple[float, dict[str, Any], str]] = {}
 
@@ -250,7 +263,7 @@ def should_consult_vision(
 
 
 def _build_vision_messages(objective, question, a11y_markdown, history_tail, base64_image,
-                           vp_w=0, vp_h=0):
+                           vp_w=0, vp_h=0, recovery_context: dict[str, Any] | None = None):
     """Build the multimodal message list (image attached via the model layer's
     base64_image path, mirroring advanced_agent's vision call)."""
     from langchain_core.messages import HumanMessage, SystemMessage
@@ -274,6 +287,15 @@ def _build_vision_messages(objective, question, a11y_markdown, history_tail, bas
         "situation, scene_summary, observation, blockage, completed_steps, next_step, "
         "target_description, then the grounded action."
     )
+    if recovery_context:
+        user += (
+            "\n\n═══ RECOVERY DIAGNOSTICS ═══\n"
+            "This is an ineffective-action recovery. Diagnose the prior action before "
+            "proposing another action. Do not re-approve it unless the current screenshot "
+            "and state prove it is now valid. Classify the blockage as validation_blocking, "
+            "missed_target, stale_ui, uncertain_execution, or another concrete cause.\n"
+            f"{json.dumps(recovery_context, ensure_ascii=False, default=str)[:2400]}"
+        )
     return [SystemMessage(content=VISION_SYSTEM_PROMPT), HumanMessage(content=user)]
 
 
@@ -288,6 +310,8 @@ async def consult_vision(
     a11y_markdown: str,
     history_tail: str = "",
     allow_cache: bool = True,
+    consult_reason: VisionConsultReason = NORMAL,
+    recovery_context: dict[str, Any] | None = None,
 ) -> tuple[VisionVerdict | None, str]:
     """Capture one screenshot and ask the vision model to resolve the step.
 
@@ -301,7 +325,7 @@ async def consult_vision(
     consult_started = time.monotonic()
     logger.info(
         "👁️ VISION REQUEST: reason=%s | question=%s | chain=%d | failover_budget=%.1fs | per_model_cap=%.1fs",
-        str(question or "not specified")[:240],
+        consult_reason,
         str(question or "not specified")[:500],
         len(vision_chain),
         VISION_FAILOVER_BUDGET_SECONDS,
@@ -323,6 +347,7 @@ async def consult_vision(
         len(str(a11y_markdown or "")), len(str(history_tail or "")),
     )
 
+    cache_allowed = allow_cache and consult_reason != INEFFECTIVE_RECOVERY
     cache_key = hashlib.sha256(
         "\n".join((
             str(question or "")[:1000],
@@ -330,7 +355,7 @@ async def consult_vision(
             str(shot.get("base64") or ""),
         )).encode("utf-8")
     ).hexdigest()
-    if allow_cache:
+    if cache_allowed:
         cached = _VISION_CACHE.get(cache_key)
         if cached and time.monotonic() - cached[0] <= VISION_CACHE_TTL_SECONDS:
             cached_verdict = VisionVerdict.model_validate(cached[1])
@@ -345,6 +370,7 @@ async def consult_vision(
     messages = _build_vision_messages(
         objective, question, a11y_markdown, history_tail, shot["base64"],
         vp_w=shot.get("width", 0), vp_h=shot.get("height", 0),
+        recovery_context=recovery_context if consult_reason == INEFFECTIVE_RECOVERY else None,
     )
     try:
         verdict, used_model = await invoke_fn(
@@ -353,10 +379,12 @@ async def consult_vision(
             timeout_seconds=VISION_MODEL_TIMEOUT_SECONDS,
             total_timeout_seconds=VISION_FAILOVER_BUDGET_SECONDS,
             timeout_cooldown_seconds=VISION_TIMEOUT_COOLDOWN_SECONDS,
+            role="CAPTCHA" if consult_reason == CAPTCHA else "VISION",
+            max_attempts=VISION_MAX_ATTEMPTS,
         )
         if verdict is None:
             return None, used_model
-        if allow_cache and float(verdict.confidence or 0.0) >= MIN_VISION_CONFIDENCE:
+        if cache_allowed and float(verdict.confidence or 0.0) >= MIN_VISION_CONFIDENCE:
             if len(_VISION_CACHE) >= 32:
                 oldest = min(_VISION_CACHE, key=lambda key: _VISION_CACHE[key][0])
                 _VISION_CACHE.pop(oldest, None)

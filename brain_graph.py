@@ -134,6 +134,11 @@ async def _wait_for_perception_readiness(page, state: BrainState) -> None:
             # load-state event; the readiness signal below remains authoritative.
             pass
         settle_budget_ms = max(1500, int(os.getenv("SURVEY_LOAD_WAIT_MS", "8000")))
+        # Paidwork uses client-side route transitions where the shell appears
+        # before the survey cards. Require a longer, stable observation window
+        # so fast-path navigation cannot click back into the shell mid-hydration.
+        if "paidwork.com" in str(getattr(page, "url", "")).lower():
+            settle_budget_ms = max(settle_budget_ms, 5000)
     else:
         settle_budget_ms = max(
             150,
@@ -151,6 +156,8 @@ async def _wait_for_perception_readiness(page, state: BrainState) -> None:
     stable_required = 0 if (
         mode == "same_page" and str(state.action_outcome or "").startswith("→ OK")
     ) else 1
+    if "paidwork.com" in str(getattr(page, "url", "")).lower() and mode == "navigation":
+        stable_required = 2
     last_signature = ""
     stable_samples = 0
     while time.monotonic() < deadline:
@@ -436,6 +443,10 @@ async def perceive_node(state: BrainState) -> dict:
                 "elements": pr.elements, "markdown": pr.markdown,
                 "page_text": pr.page_text,
                 "selector_map": pr.selector_map, "element_count": pr.element_count,
+                "sparse_dom_status": getattr(pr, "sparse_dom_status", "NOT_NEEDED"),
+                "sparse_dom_control_count": getattr(pr, "sparse_dom_control_count", 0),
+                "sparse_dom_reason": getattr(pr, "sparse_dom_reason", ""),
+                "paidwork_selection_ready": getattr(pr, "paidwork_selection_ready", None),
             }
     except Exception as e:
         logger.warning("Adaptive perception failed (%s) — using direct snapshot", e)
@@ -448,6 +459,36 @@ async def perceive_node(state: BrainState) -> dict:
     page_text = snapshot.get("page_text", "")
     selector_map = snapshot.get("selector_map", {})
     element_count = snapshot.get("element_count", 0)
+    sparse_dom_status = str(snapshot.get("sparse_dom_status") or "NOT_NEEDED")
+    sparse_dom_reason = str(snapshot.get("sparse_dom_reason") or "")
+    paidwork_selection_ready = snapshot.get("paidwork_selection_ready")
+    paidwork_selection_waits = int(state.paidwork_selection_waits or 0)
+    if paidwork_selection_ready is False:
+        paidwork_selection_waits = (
+            paidwork_selection_waits + 1
+            if current_url == state.current_url else 1
+        )
+    else:
+        paidwork_selection_waits = 0
+    dom_recovery_attempts = state.dom_recovery_attempts
+    if sparse_dom_status != "NOT_NEEDED":
+        dom_recovery_attempts += 1
+        logger.info(
+            "🧩 DOM recovery audit %s (attempt=%d controls=%s reason=%s)",
+            sparse_dom_status, dom_recovery_attempts,
+            snapshot.get("sparse_dom_control_count", 0), sparse_dom_reason or "none",
+        )
+        if sparse_dom_status == "UNRESOLVED":
+            try:
+                from survey_context import survey_failure_fingerprint
+                logger.warning(
+                    "🧾 MANUAL_REVIEW sparse_dom url_key=%s",
+                    survey_failure_fingerprint(
+                        current_url, kind="sparse_dom", reason=sparse_dom_reason
+                    ),
+                )
+            except Exception:
+                pass
 
     survey_provider_urls = list(state.survey_provider_urls or [])
     if state.continuous_survey_mode and not survey_provider_urls:
@@ -583,22 +624,45 @@ async def perceive_node(state: BrainState) -> dict:
     abandon_required = False
     boundary_reason = ""
     boundary_target_url = ""
+    unsupported_routes = list(state.survey_unsupported_routes or [])
+    unsupported_kind = ""
     stuck_watch_updates: dict[str, Any] = {}
     if state.continuous_survey_mode:
         try:
             from survey_context import (
                 should_rotate_survey_provider,
                 survey_failure_kind,
+                unsupported_survey_requirement,
+                canonical_survey_url,
                 survey_dashboard_stall_step_limit,
                 survey_dashboard_stall_timeout_seconds,
                 survey_stuck_watch_updates,
             )
 
             failure_kind = survey_failure_kind(page_text)
+            unsupported_kind = unsupported_survey_requirement(page_text)
+            if unsupported_kind:
+                route_key = canonical_survey_url(current_url)
+                if route_key and route_key not in unsupported_routes:
+                    unsupported_routes.append(route_key)
+                if state.survey_offer_signature:
+                    unsupported_offer_signatures = list(
+                        state.survey_unsupported_offer_signatures or []
+                    )
+                    if state.survey_offer_signature not in unsupported_offer_signatures:
+                        unsupported_offer_signatures.append(state.survey_offer_signature)
+                else:
+                    unsupported_offer_signatures = list(
+                        state.survey_unsupported_offer_signatures or []
+                    )
+            else:
+                unsupported_offer_signatures = list(
+                    state.survey_unsupported_offer_signatures or []
+                )
             # Some providers expose terminal screen-outs in the route while
             # rendering little or no accessible text. Handle those immediately
             # instead of spending vision budget or waiting for stagnation.
-            if not failure_kind and re.search(
+            if not failure_kind and not unsupported_kind and re.search(
                 r"/(?:error-nc|disqualified|screened[-_]?out)(?:/|$)",
                 current_url or "", re.IGNORECASE,
             ):
@@ -617,6 +681,7 @@ async def perceive_node(state: BrainState) -> dict:
                 provider_question_started = True
             if (
                 not failure_kind
+                and not unsupported_kind
                 and not page_text.strip()
                 and not selector_map
                 and empty_page_streak >= 2
@@ -632,6 +697,7 @@ async def perceive_node(state: BrainState) -> dict:
                 )
                 and not completion
                 and not failure_kind
+                and not unsupported_kind
             )
             stuck_watch_updates = survey_stuck_watch_updates(
                 {
@@ -697,6 +763,14 @@ async def perceive_node(state: BrainState) -> dict:
                         dashboard_stall_steps,
                     )
                 abandon_required = True
+            elif unsupported_kind and current_url != (survey_home_url or configured_provider_home):
+                abandon_required = True
+                boundary_reason = f"unsupported_capability:{unsupported_kind}"
+                boundary_target_url = survey_home_url or configured_provider_home
+                logger.warning(
+                    "🚫 Unsupported survey capability=%s; abandoning route=%s",
+                    unsupported_kind, canonical_survey_url(current_url)[:140],
+                )
             elif failure_kind and current_url != (survey_home_url or configured_provider_home):
                 abandon_required = True
                 boundary_reason = (
@@ -903,6 +977,11 @@ async def perceive_node(state: BrainState) -> dict:
         "selector_map": selector_map,
         "elements_list": elements_list,
         "element_count": element_count,
+        "dom_recovery_attempts": dom_recovery_attempts,
+        "dom_recovery_status": sparse_dom_status,
+        "dom_recovery_reason": sparse_dom_reason,
+        "paidwork_selection_ready": paidwork_selection_ready,
+        "paidwork_selection_waits": paidwork_selection_waits,
         "survey_profile": survey_profile,
         "survey_profile_render": survey_profile_render,
         "survey_page_fingerprint": survey_fingerprint,
@@ -926,6 +1005,12 @@ async def perceive_node(state: BrainState) -> dict:
         "survey_abandon_required": abandon_required,
         "survey_boundary_reason": boundary_reason,
         "survey_boundary_target_url": boundary_target_url,
+        "survey_unsupported_routes": unsupported_routes,
+        "survey_unsupported_offer_signatures": locals().get(
+            "unsupported_offer_signatures",
+            list(state.survey_unsupported_offer_signatures or []),
+        ),
+        "survey_unsupported_count": len(unsupported_routes),
         **stuck_watch_updates,
         "login_detected": login_detected,
         "page_fsm": "READY",
@@ -1181,6 +1266,10 @@ async def commit_node(state: BrainState) -> dict:
             reward_currency = str(committed_action.get("offer_currency") or "")
             updates["survey_offer_reward"] = reward_value
             updates["survey_offer_currency"] = reward_currency
+            updates["survey_offer_id"] = str(committed_action.get("element_id") or "")
+            updates["survey_offer_signature"] = re.sub(
+                r"\s+", " ", str(committed_action.get("target_name") or "")
+            ).strip().lower()[:180]
             try:
                 updates["survey_offer_minutes"] = float(
                     committed_action.get("offer_minutes") or 0.0
@@ -1785,27 +1874,24 @@ async def run_brain(objective: str, headless: bool = False):
     _CONTEXT, _PAGE = await launch_browser(headless=launch_headless)
     guard = SessionGuard.get()
 
-    # ── Warmup ──
-    target_hint = extract_target_url_from_objective(objective)
-    try:
-        await run_warmup(_PAGE, target_url=target_hint)
-    except Exception as e:
-        logger.warning("Warmup failed (non-fatal): %s", e)
-
-    # ── ModelRegistry ──
+    # Initialize the registry before browser warmup so independent startup
+    # work can overlap. Chains are still snapshotted only after both complete.
     registry = ModelRegistry.get_instance()
     _BREAKER = registry.breaker
     _HEALTH_TRACKER = registry.health
 
-    # V17.0: Probe once — prune dead models (404/401), seed latency estimates.
-    # Must run BEFORE ReasoningAgent() snapshots the chain.
-    try:
-        await registry.probe_and_prune(
+    # ── Warmup + model probing (independent, joined before chain construction) ──
+    target_hint = extract_target_url_from_objective(objective)
+    startup_results = await asyncio.gather(
+        run_warmup(_PAGE, target_url=target_hint),
+        registry.probe_and_prune(
             timeout=max(8.0, float(os.getenv("MODEL_PROBE_TIMEOUT_SECONDS", "15"))),
             vision_timeout=max(12.0, float(os.getenv("MODEL_VISION_PROBE_TIMEOUT_SECONDS", "25"))),
-        )
-    except Exception as e:
-        logger.warning("Model probe failed (non-fatal): %s", e)
+        ), return_exceptions=True,
+    )
+    for startup_name, startup_result in zip(("warmup", "model probe"), startup_results):
+        if isinstance(startup_result, Exception):
+            logger.warning("Startup %s failed (non-fatal): %s", startup_name, startup_result)
 
     reasoning_agent = ReasoningAgent()
     _FAILOVER_CHAIN = reasoning_agent.get_failover_chain()

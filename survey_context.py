@@ -99,6 +99,32 @@ def survey_perception_wait_mode(state: dict[str, Any], current_url: str) -> str:
     return "same_page"
 
 
+def survey_offer_selection_route(url: str) -> bool:
+    """Whether ``url`` is a reviewed survey-list route, not a provider detail page."""
+    parsed = urlsplit(str(url or ""))
+    host = (parsed.hostname or "").lower().removeprefix("www.")
+    path = re.sub(r"/+", "/", parsed.path or "/").rstrip("/").lower() or "/"
+    if host == "paidwork.com" or host.endswith(".paidwork.com"):
+        return path in {"/earn", "/earn/filling-out"}
+    return True
+
+
+def paidwork_selection_ready(url: str, page_text: str, selector_map: dict[str, dict]) -> bool | None:
+    """Return Paidwork selection readiness; ``None`` for other providers/routes."""
+    parsed = urlsplit(str(url or ""))
+    host = (parsed.hostname or "").lower().removeprefix("www.")
+    path = re.sub(r"/+", "/", parsed.path or "/").rstrip("/").lower() or "/"
+    if not (host == "paidwork.com" or host.endswith(".paidwork.com")):
+        return None
+    if path != "/earn/filling-out":
+        return True
+    text = re.sub(r"\s+", " ", str(page_text or "")).lower()
+    empty_state = re.search(
+        r"(?:no surveys?|no offers?|nothing available|come back later|try again later)", text
+    )
+    return bool(rank_survey_offers(selector_map) or empty_state)
+
+
 _ONE_SURVEY_ONLY = re.compile(
     r"\b(?:exactly one survey|one survey only|single survey|complete only one survey|"
     r"complete (?:exactly )?one survey|stop after (?:completing )?(?:a|one) survey)\b",
@@ -146,6 +172,35 @@ def survey_failure_kind(page_text: str) -> str:
     )
     for kind, needles in patterns:
         if any(needle in text for needle in needles):
+            return kind
+    return ""
+
+
+_UNSUPPORTED_MEDIA_PATTERNS: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("video_response", (
+        "record a video", "record video", "video response", "video answer",
+        "upload a video", "webcam", "turn on your camera", "camera and microphone",
+        "record yourself", "film yourself", "selfie video",
+    )),
+    ("audio_response", (
+        "record an audio", "record audio", "audio response", "audio answer",
+        "voice response", "voice recording", "record your voice", "microphone",
+        "speak your answer", "verbal response", "send a voice",
+    )),
+    ("live_human_verification", (
+        "live interview", "live video", "join a video call", "speak to a researcher",
+        "talk to a researcher", "moderated interview", "live moderator",
+    )),
+)
+
+
+def unsupported_survey_requirement(page_text: str) -> str:
+    """Detect explicit requirements to produce or join unsupported human media."""
+    text = re.sub(r"\s+", " ", str(page_text or "")).strip().lower()
+    if not text:
+        return ""
+    for kind, phrases in _UNSUPPORTED_MEDIA_PATTERNS:
+        if any(phrase in text for phrase in phrases):
             return kind
     return ""
 
@@ -230,7 +285,8 @@ def captcha_forward_id(selector_map: dict[str, dict]) -> str:
 
 
 def reconcile_captcha_vision(
-    proposed: dict[str, Any], verdict: Any, selector_map: dict[str, dict]
+    proposed: dict[str, Any], verdict: Any, selector_map: dict[str, dict],
+    *, refresh_count: int = 0, max_refreshes: int = 3,
 ) -> tuple[dict[str, Any], bool, str]:
     """Turn a visual CAPTCHA read into one safe, non-repeating next action.
 
@@ -263,6 +319,7 @@ def reconcile_captcha_vision(
                         "text": None, "vision_verified": True,
                         "captcha_verified": True, "force_retype": False,
                         "replace_existing": False,
+                        "captcha_transition": "COMPARE_MATCH",
                         "reasoning": "Independent visual read matches the filled CAPTCHA exactly; submit once.",
                     }, True, "filled code independently matched")
             elif input_id:
@@ -270,6 +327,7 @@ def reconcile_captcha_vision(
                     **out, "verb": "type", "element_id": input_id,
                     "text": read_code, "vision_verified": True,
                     "force_retype": True, "replace_existing": True,
+                    "captcha_transition": "CORRECT_ONCE",
                     "reasoning": "Independent visual comparison found a mismatch; replace the code once.",
                 }, True, "filled code corrected after mismatch")
         if confident and action_type == "click" and forward_id and (
@@ -278,19 +336,28 @@ def reconcile_captcha_vision(
             return ({
                 **out, "verb": "click", "element_id": forward_id,
                 "text": None, "vision_verified": True, "captcha_verified": True,
+                "captcha_transition": "COMPARE_MATCH",
                 "reasoning": "Vision independently confirmed the displayed and filled codes match; submit once.",
             }, True, "vision confirmed submission")
     elif confident and action_type == "type" and plausible and input_id:
         return ({
             **out, "verb": "type", "element_id": input_id,
             "text": read_code, "vision_verified": True,
+            "captcha_transition": "READ",
             "reasoning": "Vision read a plausible image code; type it once for independent verification next turn.",
         }, True, "new code read")
 
+    if refresh_id and refresh_count >= max(1, max_refreshes):
+        return ({
+            **out, "verb": "wait", "element_id": None,
+            "captcha_budget_exhausted": True,
+            "reasoning": "CAPTCHA refresh budget exhausted; stop guessing and await explicit recovery.",
+        }, False, "captcha refresh budget exhausted")
     if refresh_id:
         return ({
             **out, "verb": "click", "element_id": refresh_id,
             "text": None, "vision_verified": False,
+            "captcha_transition": "REFRESH",
             "reasoning": "CAPTCHA read was missing, implausible, or uncertain; refresh before another visual read.",
         }, True, "uncertain code refreshed")
     return out, False, "captcha unresolved and no refresh control exposed"
@@ -321,6 +388,33 @@ def survey_validation_evidence(page_text: str) -> str:
         return ""
     start = max(0, match.start() - 40)
     return text[start:match.end() + 120][:300]
+
+
+def sparse_survey_dom(page_text: str, selector_map: dict[str, dict]) -> bool:
+    """Detect a question whose controls were lost by normal DOM ranking/culling."""
+    text = re.sub(r"\s+", " ", str(page_text or "")).lower()
+    if not text or not re.search(
+        r"\?|missing answer|please select|choose|what is your age|select the",
+        text,
+    ):
+        return False
+    controls = 0
+    for element in (selector_map or {}).values():
+        kind = str(element.get("kind") or "").lower()
+        role = str(element.get("control_type") or element.get("role") or "").lower()
+        if kind in {"input", "textarea", "select"} or role in {"radio", "checkbox", "option", "textbox"}:
+            controls += 1
+    return controls == 0
+
+
+def survey_failure_fingerprint(url: str, *, kind: str, reason: str = "") -> str:
+    """Stable, privacy-safe key for manual review of problematic survey routes.
+
+    This is intentionally diagnostic only: it never mutates the blacklist or
+    changes routing. Query values are removed by ``canonical_survey_url``.
+    """
+    payload = "|".join((canonical_survey_url(url), str(kind or "unknown"), str(reason or "")[:120]))
+    return hashlib.sha256(payload.encode("utf-8", "ignore")).hexdigest()[:16]
 
 
 def normalized_survey_question_text(page_text: str) -> str:
@@ -812,6 +906,11 @@ def survey_cycle_cleanup_updates(
         "correction_failures": 0,
         "done_blocked": 0,
         "vision_consults": 0,
+        "captcha_read_attempts": 0,
+        "captcha_comparison_attempts": 0,
+        "captcha_corrections": 0,
+        "captcha_refreshes": 0,
+        "captcha_last_result": "",
         "survey_cycle_boundary_pending": False,
         "survey_provider_question_started": False,
         "survey_dashboard_stall_steps": 0,
@@ -972,6 +1071,11 @@ def rank_survey_offers(selector_map: dict[str, dict]) -> list[SurveyOffer]:
     "£5 for 10 minutes" cannot be mistaken for a dashboard survey offer.
     """
     offers: list[SurveyOffer] = []
+    navigation_labels = {
+        "earn", "home", "profile", "account", "settings", "wallet",
+        "history", "help", "menu", "back", "close", "fill out",
+        "fill out surveys", "surveys",
+    }
     for element_id, element in (selector_map or {}).items():
         if element.get("control_type") in {"radio", "checkbox"}:
             continue
@@ -981,6 +1085,14 @@ def rank_survey_offers(selector_map: dict[str, dict]) -> list[SurveyOffer]:
             value = str(element.get(field) or "").strip()
             if value and value not in candidates:
                 candidates.append(value)
+
+        own_text = re.sub(r"\s+", " ", str(element.get("text") or "")).strip()
+        own_label = re.sub(r"\s+", " ", str(
+            element.get("aria_label") or element.get("name") or ""
+        )).strip()
+        normalized_own = re.sub(r"[^a-z0-9 ]+", "", (own_text or own_label).lower()).strip()
+        if normalized_own in navigation_labels:
+            continue
 
         combined_context = " ".join(candidates).lower()
         if any(marker in combined_context for marker in (
@@ -997,7 +1109,12 @@ def rank_survey_offers(selector_map: dict[str, dict]) -> list[SurveyOffer]:
         # Prefer live visible card text. Sorting by shortest string let terse
         # aria/hint fragments override the actual reward and duration shown on
         # Qmee, producing impossible near-£1/min rankings and oscillating IDs.
-        for candidate in candidates:
+        # Prefer target-owned text.  Hints/descriptions can contain ancestor
+        # or sibling card text and previously caused Paidwork's ``Earn`` nav
+        # link to look like a survey offer.
+        preferred = [value for value in (own_text, own_label) if value]
+        candidate_values = preferred or candidates
+        for candidate in candidate_values:
             parsed = _parse_survey_offer_text(candidate)
             if parsed:
                 card_text = candidate
@@ -1860,6 +1977,12 @@ def survey_gate_violation(
             )
     target_text = str(target.get("text") or target.get("name") or "").lower()
     is_forward = any(token in target_text for token in ("next", "continue", "submit", "finish"))
+    if is_forward and sparse_survey_dom(page_text, selector_map):
+        return (
+            "The page contains a survey question but its native answer controls are currently "
+            "missing from the live DOM. Do not use Next as a probe or blind click; allow the "
+            "bounded DOM recovery/re-render pass to expose the controls first."
+        )
 
     unavailable = set(unavailable_offer_ids or ())
     offers = rank_survey_offers(selector_map)
