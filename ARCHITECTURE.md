@@ -840,7 +840,7 @@ The browser-promoter graph is a separate graph and should not be mistaken for th
 
 Root skills/ means application actions, while future .agents/skills/ means Codex workflows.
 
-Root test_*.py currently mixes deterministic tests with script/live/integration behavior; bare pytest is not yet a trustworthy cost-free validation boundary.
+The test tree now follows the target `tests/unit/`, `tests/regression/`, `tests/integration/`, and `tests/live/` boundaries. `./scripts/check.sh` is the canonical local and CI validation entrypoint: it runs Ruff and the deterministic unit/regression suite only. Browser integration checks and executable provider/browser/manual scripts remain opt-in under `tests/integration/` and `scripts/smoke/`, keeping the default check credential-free and side-effect bounded.
 
 Historical planning documents may describe work as missing even when current code has partially or fully implemented it.
 

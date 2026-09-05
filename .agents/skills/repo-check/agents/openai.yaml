@@ -1,0 +1,4 @@
+interface:
+  display_name: "Repo Check"
+  short_description: "Choose the cheapest sufficient repo validation"
+  default_prompt: "Validate my current Agent-first-browse changes with the cheapest sufficient deterministic checks and report the evidence. Avoid live provider or browser tests unless required."

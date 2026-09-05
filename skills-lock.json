@@ -1,0 +1,35 @@
+{
+  "version": 1,
+  "skills": {
+    "code-review-and-quality": {
+      "source": "addyosmani/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/code-review-and-quality/SKILL.md",
+      "computedHash": "6231479cc74c7ed70a5618b81b3f94034d9806c0319a1a23d15f9b94a368c581"
+    },
+    "safe-refactor": {
+      "source": "juliusbrussee/caveman",
+      "sourceType": "github",
+      "skillPath": "skills/safe-refactor/SKILL.md",
+      "computedHash": "9df34a21a7a2c18ce13dbbe4a3f66b4e91df9e4bc33c1c9da8a80261583367ec"
+    },
+    "skill-creator": {
+      "source": "openai/skills",
+      "sourceType": "github",
+      "skillPath": "skills/.system/skill-creator/SKILL.md",
+      "computedHash": "c1f04920b03c2a412e1d0b90680dc10b6de64793db7daae7e4bf64535b9fdf75"
+    },
+    "systematic-debugging": {
+      "source": "obra/superpowers",
+      "sourceType": "github",
+      "skillPath": "skills/systematic-debugging/SKILL.md",
+      "computedHash": "a2750dfbaed1690da73b120254892c4f926b4576cb82eb16fc877783941fe39b"
+    },
+    "verification-before-completion": {
+      "source": "openai/plugins",
+      "sourceType": "github",
+      "skillPath": "plugins/superpowers/skills/verification-before-completion/SKILL.md",
+      "computedHash": "4b9f40085ef94cfeac0106f242deaf4d0d21d961961e39bbe5a9dda9c63f305f"
+    }
+  }
+}

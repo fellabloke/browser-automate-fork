@@ -1,0 +1,4 @@
+interface:
+  display_name: "Runtime Trace"
+  short_description: "Prove which code paths are active before refactoring"
+  default_prompt: "Trace this Agent-first-browse module or symbol from the active runtime, classify its status, identify callers/tests/state/side effects, and tell me what evidence is needed before moving or deleting it. Do not edit files."

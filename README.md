@@ -214,6 +214,17 @@ chmod +x agent.sh
 
 > 💡 If `xvfb` is not installed, the agent automatically falls back to headless mode (more bot-detectable, but fully functional).
 
+### Deterministic validation
+
+Run the same credential-free validation entrypoint used by CI:
+
+```bash
+./scripts/check.sh
+```
+
+This runs the repository's non-mutating Ruff checks and unit/regression tests.
+Browser, provider, and credentialed smoke checks remain opt-in.
+
 ---
 
 ## Configuration & API Keys

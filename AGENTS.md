@@ -159,11 +159,11 @@ If the working tree is unexpectedly dirty in files you need to edit, preserve th
 
 Testing and validation
 
-The repository is currently in a transitional test state. Root-level test_*.py files include a mixture of deterministic regressions, integration tests, live-provider/browser scripts, and script-style checks. Some may require credentials or external services.
+Tests are separated under `tests/unit/`, `tests/regression/`, `tests/integration/`, and `tests/live/`. Executable provider/browser/manual checks live under `scripts/smoke/` and are opt-in.
 
 Therefore:
 
-Do not assume bare pytest is a clean baseline yet.
+Ordinary `pytest` is the credential-free deterministic validation boundary; integration, live-provider, browser, and smoke checks must be invoked explicitly.
 
 Before modifying behavior, run the smallest deterministic tests that cover the affected subsystem and record any pre-existing failure.
 
@@ -289,3 +289,18 @@ Codex configuration references
 Current Codex supports repository instructions in root AGENTS.md, with narrower AGENTS.md/AGENTS.override.md files close to specialized subtrees when needed. Repository skills can live under .agents/skills/<skill>/SKILL.md, and custom project subagents under .codex/agents/*.toml.
 
 Keep this root file compact. Add nested instructions only when a subtree genuinely requires different rules; do not duplicate repository-wide guidance.
+
+## Repository-specific skills
+
+Use the project skills when applicable:
+
+- `runtime-trace` — before moving, rewriting, or deleting code whose active runtime status or ownership is unclear.
+- `migration-slice` — for one behavior-preserving package/module/responsibility migration at a time.
+- `repo-check` — to choose and run the cheapest sufficient deterministic validation for a change.
+
+For structural migrations, prefer:
+
+`runtime-trace -> migration-slice -> repo-check`
+
+Use `systematic-debugging` if a new regression appears and
+`verification-before-completion` before claiming the task is complete.
