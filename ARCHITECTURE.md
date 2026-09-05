@@ -117,8 +117,9 @@ agent_first_browse.survey.* survey context, profile, recipes, audio, outcomes, q
 agent_first_browse.memory.* campaign, skill, intent, and content memory
 agent_first_browse.promotion.* browser-promoter graph, state, nodes, supervisor, integrations, database, and observability
 workers/base_worker.py      specialist model decision path
-agent_first_browse.models.registry public model façade, providers, routing, and failover infrastructure (root shim: model_registry.py)
+agent_first_browse.models.registry public model façade, routing, probe orchestration, and failover infrastructure (root shim: model_registry.py)
 agent_first_browse.models.health health/cooldown/probe state and persistence used by the registry façade
+agent_first_browse.models.providers provider adapters and model/pipeline construction
 agent_first_browse.workers.base specialist worker decision path (root shim: workers/base_worker.py)
 mcp_tools.py                broad browser action/perception utility surface
 overwatch.py                action verification / execution supervision
@@ -578,6 +579,16 @@ JSON persistence. `models/registry.py` remains the public façade and retains
 provider construction, routing, probing orchestration, and failover/recovery.
 The façade continues to re-export `ProviderHealthTracker` for compatibility.
 
+The provider construction extraction is complete: `models/providers.py` owns
+provider SDK adapters, credential discovery/fingerprints, and free/premium
+text, vision, and audio pipeline builders. `models/registry.py` continues to
+re-export those construction symbols for compatibility, while retaining
+routing, probe orchestration, and failover/recovery.
+The Cloudflare adapter temporarily resolves the existing registry response
+parsing helpers lazily so structured-output repair behavior remains unchanged;
+that coupling should be removed only as part of a later response/recovery
+extraction.
+
 The worker implementation is now owned by `src/agent_first_browse/workers/base.py`
 with the root `workers/base_worker.py` retained as a compatibility alias. Further
 worker decomposition is deferred until its prompt, deterministic fast paths, and
@@ -666,7 +677,8 @@ temporary compatibility alias while legacy callers and tests migrate.
 
 The first decomposition boundary is complete: health/cooldown/probe state now
 lives in `src/agent_first_browse/models/health.py`, while the registry façade
-continues to own construction, routing, probe orchestration, and failover.
+continues to own routing, probe orchestration, and failover. Provider/model
+construction now lives in `src/agent_first_browse/models/providers.py`.
 Further extraction should remain incremental and test-backed.
 
 Phase 7 — Workers
