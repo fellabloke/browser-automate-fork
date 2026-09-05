@@ -301,7 +301,7 @@ class Executor:
     async def _refresh_dom_state(self) -> None:
         """Refresh DOM state in the orchestrator state for CEO context."""
         try:
-            import dom_parser
+            from agent_first_browse.perception import dom as dom_parser
             dom_data = await dom_parser.extract(self._page, timeout=5.0)
             self._state.dom_tree = dom_data.get("markdown", "")
             self._state.dom_elements = dom_data.get("elements", [])

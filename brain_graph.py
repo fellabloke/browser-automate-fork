@@ -39,8 +39,8 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 # Ensure app imports work
 sys.path.append(str(Path(__file__).parent / "python-orchestrator"))
 
-from brain_state import BrainState
-from moe_router import route_to_worker, verdict_router
+from agent_first_browse.agent.state import BrainState
+from agent_first_browse.agent.routing import route_to_worker, verdict_router
 import mcp_tools
 
 try:
@@ -431,9 +431,9 @@ async def perceive_node(state: BrainState) -> dict:
 
     snapshot = None
     try:
-        from feature_flags import adaptive_perception_enabled
+        from agent_first_browse.config.feature_flags import adaptive_perception_enabled
         if adaptive_perception_enabled():
-            from perception_engine import perceive as _perceive
+            from agent_first_browse.perception.engine import perceive as _perceive
             pr = await _perceive(page, ctx={
                 "objective": state.objective,
                 "bound_target": state.bound_target,
@@ -946,7 +946,7 @@ async def perceive_node(state: BrainState) -> dict:
     stagnation_level = 0
     stagnation_note = ""
     try:
-        from feature_flags import stagnation_enabled
+        from agent_first_browse.config.feature_flags import stagnation_enabled
         if stagnation_enabled():
             from stagnation import detect_stagnation
             from survey_context import has_recent_survey_progress
@@ -1589,7 +1589,7 @@ async def rollback_node(state: BrainState) -> dict:
             updates["restrategize_count"] = state.restrategize_count + 1
             if lesson:
                 updates["beliefs"] = merge_beliefs(state.beliefs, [lesson])
-                from brain_state import REFLECTION_MAX, append_bounded
+                from agent_first_browse.agent.state import REFLECTION_MAX, append_bounded
                 updates["reflections"] = append_bounded(
                     state.reflections,
                     [f"Re-strategized: {lesson[:120]}"],
@@ -1605,7 +1605,7 @@ async def rollback_node(state: BrainState) -> dict:
         # Ladder still has untried rungs — keep Overwatch's directive, continue.
         logger.warning("🔄 ROLLBACK at step %d — continuing with next escalation tactic",
                        state.step_number)
-        from brain_state import REFLECTION_MAX, append_bounded
+        from agent_first_browse.agent.state import REFLECTION_MAX, append_bounded
         updates["reflections"] = append_bounded(state.reflections, [
             f"Step {state.step_number} stuck (verdict={state.overwatch_verdict}); "
             "escalating tactic."
@@ -1859,7 +1859,7 @@ async def run_brain(objective: str, headless: bool = False):
         logger.info("🌐 Browser mode: LOCAL_CDP (%s)", cdp_endpoint)
         logger.info("🖥️ Xvfb/display setup skipped: Chrome is already running on Windows.")
     else:
-        from virtual_display import start_virtual_display
+        from agent_first_browse.browser.display import start_virtual_display
 
         _DISPLAY_SETUP_ACTIVE = True
         launch_headless = headless
@@ -1936,7 +1936,7 @@ async def run_brain(objective: str, headless: bool = False):
 
     # ── V29 Cognitive Overhaul — log the active feature switches (auditability) ──
     try:
-        from feature_flags import active_flags, v29_enabled
+        from agent_first_browse.config.feature_flags import active_flags, v29_enabled
         flags = active_flags()
         if v29_enabled():
             on = [k for k, v in flags.items() if v and k != "V29_ENABLED"]
@@ -2100,7 +2100,7 @@ async def run_brain(objective: str, headless: bool = False):
             "recursion_limit": recursion_limit,
         }
         try:
-            from checkpoint_retention import prune_checkpoint_database
+            from agent_first_browse.persistence.checkpoint_retention import prune_checkpoint_database
             retention = prune_checkpoint_database(db_path, thread_id)
             if retention["checkpoints_deleted"]:
                 logger.info(
@@ -2162,7 +2162,7 @@ async def run_brain(objective: str, headless: bool = False):
 
                 if cycle_boundary_cleaned or graph_node_events % checkpoint_prune_every == 0:
                     try:
-                        from checkpoint_retention import prune_checkpoint_database
+                        from agent_first_browse.persistence.checkpoint_retention import prune_checkpoint_database
                         retention = prune_checkpoint_database(db_path, thread_id)
                         if retention["checkpoints_deleted"]:
                             logger.debug(
@@ -2202,7 +2202,7 @@ async def run_brain(objective: str, headless: bool = False):
             guard.detach()
             if _DISPLAY_SETUP_ACTIVE:
                 try:
-                    from virtual_display import stop_virtual_display
+                    from agent_first_browse.browser.display import stop_virtual_display
 
                     stop_virtual_display()
                 except Exception:

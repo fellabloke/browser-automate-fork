@@ -20,7 +20,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(REPO_ROOT / "python-orchestrator"))
 
-import feature_flags as ff
+from agent_first_browse.config import feature_flags as ff
 from cognition import build_guidance, clear_transient
 from reality import CONFIRMED, CONTRADICTED, NULL, UNCLEAR, classify_reality
 
@@ -222,7 +222,9 @@ def test_overwatch_wires_reality_monitor():
 
 
 def test_brain_state_has_reality_fields():
-    src = (REPO_ROOT / "brain_state.py").read_text()
+    src = (
+        REPO_ROOT / "src" / "agent_first_browse" / "agent" / "state.py"
+    ).read_text()
     assert "reality_status" in src
     assert "reality_note" in src
 

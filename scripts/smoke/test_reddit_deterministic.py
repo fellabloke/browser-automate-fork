@@ -17,7 +17,7 @@ from app.browser_promoter.cdp_stealth_launcher import (
     get_random_viewport,
 )
 from app.logger import get_logger
-from ghost_input import ghost_click, ghost_type
+from agent_first_browse.browser.ghost_input import ghost_click, ghost_type
 
 logger = get_logger("deterministic_reddit")
 

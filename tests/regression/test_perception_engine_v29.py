@@ -21,9 +21,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(REPO_ROOT / "python-orchestrator"))
 
-import feature_flags as ff
+from agent_first_browse.config import feature_flags as ff
 import mcp_tools
-from perception_engine import (
+from agent_first_browse.perception.engine import (
     PerceptionResult,
     Tier1A11yStrategy,
     default_strategies,
@@ -192,7 +192,9 @@ def test_strict_viewport_flag(monkeypatch):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_engine_source_has_no_site_or_commerce_literals():
-    src = (REPO_ROOT / "perception_engine.py").read_text().lower()
+    src = (
+        REPO_ROOT / "src" / "agent_first_browse" / "perception" / "engine.py"
+    ).read_text().lower()
     forbidden = [
         # brands / specific sites
         "flipkart", "amazon", "imdb", "reddit", "youtube", "hashnode",
@@ -221,7 +223,8 @@ def test_adaptive_perception_flag(monkeypatch):
 
 def test_perceive_node_wires_engine_with_direct_fallback():
     bg = (REPO_ROOT / "brain_graph.py").read_text()
-    assert "perception_engine" in bg and "adaptive_perception_enabled" in bg
+    assert "agent_first_browse.perception.engine" in bg
+    assert "adaptive_perception_enabled" in bg
     assert "_direct_snapshot" in bg          # hard fallback preserved
     assert "mcp_snapshot" in bg              # the proven Tier-1 call still present
 

@@ -21,7 +21,7 @@ Important distinctions:
 
 brain_graph.py is the current LangGraph orchestration spine.
 
-BrainState in brain_state.py is the primary typed runtime state.
+BrainState in `agent_first_browse.agent.state` is the primary typed runtime state; root `brain_state.py` is a compatibility shim during migration.
 
 workers/base_worker.py contains the current specialist worker decision path.
 

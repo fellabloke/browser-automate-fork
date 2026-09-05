@@ -107,8 +107,15 @@ Current major runtime components
 
 run_v16.py                 CLI / startup
 brain_graph.py              orchestration graph
-brain_state.py              typed global graph state
-moe_router.py               worker/verdict routing
+agent_first_browse.agent.state typed global graph state (root shim: brain_state.py)
+agent_first_browse.agent.routing worker/verdict routing (root shim: moe_router.py)
+agent_first_browse.config.feature_flags runtime feature switches (root shim: feature_flags.py)
+agent_first_browse.persistence.checkpoint_retention checkpoint pruning (root shim: checkpoint_retention.py)
+agent_first_browse.perception.* DOM, accessibility, diff, engine, and vision evidence (root shims retained)
+agent_first_browse.browser.* CDP, humanized input, overlays, display, and platform helpers (root shims retained)
+agent_first_browse.survey.* survey context, profile, recipes, audio, outcomes, quirks, and benchmarks
+agent_first_browse.memory.* campaign, skill, intent, and content memory
+agent_first_browse.promotion.* browser-promoter graph, state, nodes, supervisor, integrations, database, and observability
 workers/base_worker.py      specialist model decision path
 model_registry.py           providers, health, failover, routing infrastructure
 mcp_tools.py                broad browser action/perception utility surface
@@ -121,16 +128,16 @@ survey_*.py                 survey domain capability
 
 3.1 Root runtime modules
 
-Most of the v16+ browser-agent implementation is currently imported directly from repository-root .py modules.
+Most of the v16+ browser-agent implementation is now imported from `agent_first_browse`; root modules and `python-orchestrator/app` remain only as compatibility shims during migration.
 
 Examples:
 
 brain_graph.py
-brain_state.py
+src/agent_first_browse/agent/state.py (root shim: brain_state.py)
 model_registry.py
 mcp_tools.py
 overwatch.py
-perception_engine.py
+src/agent_first_browse/perception/engine.py (root shim: perception_engine.py)
 survey_context.py
 ...
 
@@ -298,15 +305,15 @@ agent_first_browse.agent.state
 
 Graph routing
 
-moe_router.py
+src/agent_first_browse/agent/routing.py (root shim: moe_router.py)
 
 agent_first_browse.agent.routing
 
 Checkpoint retention
 
-checkpoint_retention.py
+src/agent_first_browse/persistence/checkpoint_retention.py (root shim: checkpoint_retention.py)
 
-agent_first_browse.agent.checkpointing
+agent_first_browse.persistence.checkpoint_retention
 
 Model/provider layer
 
@@ -376,13 +383,13 @@ agent_first_browse.survey
 
 Browser promoter
 
-python-orchestrator/app/browser_promoter/
+src/agent_first_browse/promotion/browser_promoter/ (compatibility shims remain under app/)
 
 agent_first_browse.promotion + shared browser modules
 
 Shared app infrastructure
 
-python-orchestrator/app/config.py, logger.py, observability.py, call_pacing.py
+src/agent_first_browse/promotion/config.py, logger.py, observability.py, call_pacing.py
 
 package root/shared infrastructure
 
@@ -442,18 +449,22 @@ Agent-first-browse/
 |   `-- agent_first_browse/
 |       |-- __init__.py
 |       |-- cli.py
-|       |-- config.py
+|       |-- config/
+|       |   |-- __init__.py
+|       |   `-- feature_flags.py
 |       |-- logging.py
 |       |-- observability.py
-|       |-- feature_flags.py
 |       |-- call_pacing.py
 |       |
 |       |-- agent/
 |       |   |-- graph.py
 |       |   |-- state.py
 |       |   |-- routing.py
-|       |   |-- checkpointing.py
 |       |`-- lifecycle.py
+|       |
+|       |-- persistence/
+|       |   |-- __init__.py
+|       |   `-- checkpoint_retention.py
 |       |
 |       |-- models/
 |       |   |-- registry.py

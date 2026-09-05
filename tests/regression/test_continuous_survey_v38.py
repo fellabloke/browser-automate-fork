@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 
 import brain_graph
-from brain_state import BrainState
-from moe_router import route_to_worker
+from agent_first_browse.agent.state import BrainState
+from agent_first_browse.agent.routing import route_to_worker
 from overwatch import _action_loop_signature, _layer_4_cove_check
 from stagnation import detect_stagnation
 from survey_context import (
@@ -23,7 +23,7 @@ from survey_context import (
     survey_gate_violation,
     survey_page_fingerprint,
 )
-from vision_consult import VisionVerdict
+from agent_first_browse.perception.vision import VisionVerdict
 
 
 def test_survey_failure_kind_detects_provider_exit_states():

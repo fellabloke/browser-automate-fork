@@ -26,8 +26,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(REPO_ROOT / "python-orchestrator"))
 
 import mcp_tools
-import vision_consult
-from vision_consult import (
+from agent_first_browse.perception import vision as vision_consult
+from agent_first_browse.perception.vision import (
     MAX_VISION_CONSULTS,
     VISION_FAILOVER_BUDGET_SECONDS,
     VISION_MODEL_TIMEOUT_SECONDS,

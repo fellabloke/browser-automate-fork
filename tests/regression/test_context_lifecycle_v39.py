@@ -8,14 +8,14 @@ import pytest
 
 import brain_graph
 import mcp_tools
-from brain_state import (
+from agent_first_browse.agent.state import (
     HISTORY_MAX_ENTRIES,
     HISTORY_PROMPT_MAX_CHARS,
     SURVEY_CYCLE_ARCHIVE_MAX,
     BrainState,
     append_bounded,
 )
-from checkpoint_retention import prune_checkpoint_database
+from agent_first_browse.persistence.checkpoint_retention import prune_checkpoint_database
 from survey_context import render_cycle_answer_memory, survey_cycle_cleanup_updates
 from survey_profile import (
     PROFILE_PROMPT_MAX_CHARS,

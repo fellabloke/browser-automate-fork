@@ -5,8 +5,8 @@ sys.path.insert(0, '.')
 import brain_graph
 import prm_critic
 import cognition
-import brain_state
-import moe_router
+import agent_first_browse.agent.state as brain_state
+from agent_first_browse.agent import routing as moe_router
 from workers.base_worker import WorkerAction
 
 print("=== V17 Verification ===")

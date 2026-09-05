@@ -6,8 +6,8 @@ import asyncio
 import time
 
 import brain_graph
-from brain_state import BrainState
-from moe_router import route_to_worker
+from agent_first_browse.agent.state import BrainState
+from agent_first_browse.agent.routing import route_to_worker
 from survey_context import (
     should_rotate_survey_provider,
     survey_provider_urls,

@@ -439,7 +439,7 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
     # ═══════════════════════════════════════════════════════════════════
     intent_entry = None
     try:
-        from feature_flags import intent_journal_enabled
+        from agent_first_browse.config.feature_flags import intent_journal_enabled
         if intent_journal_enabled():
             from intent_journal import make_intent, should_journal, persist_intent
             if should_journal(verb):
@@ -528,7 +528,7 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
     # ═══════════════════════════════════════════════════════════════════
     if verb == "scroll":
         try:
-            from feature_flags import smart_scroll_enabled
+            from agent_first_browse.config.feature_flags import smart_scroll_enabled
             if smart_scroll_enabled():
                 ol = action_outcome.lower()
                 unproductive = ("no-op" in ol or "reached page bottom" in ol
@@ -557,7 +557,7 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
     post_selector_map: dict[str, dict] = {}
     post_url = state.get("current_url", "")
     try:
-        import dom_parser
+        from agent_first_browse.perception import dom as dom_parser
         from cognitive_core import dom_data_to_a11y_format
         post_dom = await dom_parser.extract(page, timeout=3.0)
         post_a11y = dom_data_to_a11y_format(post_dom)
@@ -608,7 +608,7 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
     #  Fully additive + flag-gated (V29_REALITY) — off ⇒ identical to V28.
     # ═══════════════════════════════════════════════════════════════════
     try:
-        from feature_flags import reality_enabled, reality_llm_enabled
+        from agent_first_browse.config.feature_flags import reality_enabled, reality_llm_enabled
         if reality_enabled() and verb in ("click", "type", "press_enter"):
             from reality import (classify_reality, reconcile_with_llm,
                                  CONTRADICTED, CONFIRMED, UNCLEAR)
@@ -746,7 +746,7 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
     # ── All layers passed ──
     updates["overwatch_verdict"] = "pass"
     updates["page_fsm"] = "VALIDATED"
-    from brain_state import LOOP_SIGNATURE_MAX, append_bounded
+    from agent_first_browse.agent.state import LOOP_SIGNATURE_MAX, append_bounded
     updates["loop_signatures"] = append_bounded(
         loop_sigs, [sig], LOOP_SIGNATURE_MAX
     )
@@ -869,12 +869,12 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
         "survey_completion_verified": survey_completion_verified,
         "url": page.url if page else "",
     }
-    from brain_state import HISTORY_MAX_ENTRIES, append_bounded
+    from agent_first_browse.agent.state import HISTORY_MAX_ENTRIES, append_bounded
     updates["history"] = append_bounded(
         state.get("history", []), [history_entry], HISTORY_MAX_ENTRIES
     )
     if history_entry["question_text"] and history_entry["answer_value"]:
-        from brain_state import SURVEY_CYCLE_ARCHIVE_MAX
+        from agent_first_browse.agent.state import SURVEY_CYCLE_ARCHIVE_MAX
         updates["survey_cycle_answers"] = append_bounded(
             state.get("survey_cycle_answers", []),
             [{
@@ -943,7 +943,7 @@ def _block_done(state: dict, updates: dict, reason: str,
     from outcome_judge import MAX_DONE_BLOCKS
     blocked = state.get("done_blocked", 0) + 1
     updates["done_blocked"] = blocked
-    from brain_state import HISTORY_MAX_ENTRIES, append_bounded
+    from agent_first_browse.agent.state import HISTORY_MAX_ENTRIES, append_bounded
     updates["history"] = append_bounded(state.get("history", []), [{
         "step": state.get("step_number", 0) + 1,
         "action": "done",
@@ -1017,7 +1017,7 @@ async def final_outcome_audit(state: dict, page) -> tuple[bool, str]:
     url = state.get("current_url", "")
     try:
         url = page.url or url
-        import dom_parser
+        from agent_first_browse.perception import dom as dom_parser
         fresh = await dom_parser.extract(page, timeout=4.0)
         if fresh.get("elements"):
             dom_markdown = fresh.get("markdown", dom_markdown)
@@ -1062,7 +1062,7 @@ async def _layer_4_cove_check(state: dict, page, updates: dict) -> dict:
         updates["overwatch_verdict"] = "retry"
         updates["mission_success"] = False
         updates["correction_context"] = correction
-        from brain_state import HISTORY_MAX_ENTRIES, append_bounded
+        from agent_first_browse.agent.state import HISTORY_MAX_ENTRIES, append_bounded
         updates["history"] = append_bounded(state.get("history", []), [{
             "step": state.get("step_number", 0) + 1,
             "action": "done",
@@ -1087,7 +1087,7 @@ async def _layer_4_cove_check(state: dict, page, updates: dict) -> dict:
     #    cart badge may have appeared after the last snapshot) ──
     dom_markdown = state.get("dom_markdown", "")
     try:
-        import dom_parser
+        from agent_first_browse.perception import dom as dom_parser
         fresh = await dom_parser.extract(page, timeout=4.0)
         if fresh.get("elements"):
             dom_markdown = fresh.get("markdown", dom_markdown)
@@ -1147,7 +1147,7 @@ async def _layer_4_cove_check(state: dict, page, updates: dict) -> dict:
         # the agent re-do an already-finished sub-goal (the amnesia loop).
         correction = rejection_feedback(verdict)
         try:
-            from feature_flags import subgoal_lock_enabled
+            from agent_first_browse.config.feature_flags import subgoal_lock_enabled
             if subgoal_lock_enabled() and state.get("prm_checklist"):
                 from subgoal_lock import compose_rejection, reconcile_plan_with_ledger
                 correction = compose_rejection(verdict.missing, verdict.next_hint,
@@ -1343,7 +1343,7 @@ async def _execute_action(proposed: dict, page) -> str:
     """
     verb = proposed.get("verb", "wait")
     try:
-        from feature_flags import hybrid_primitives_enabled
+        from agent_first_browse.config.feature_flags import hybrid_primitives_enabled
         clean = hybrid_primitives_enabled()
     except Exception:
         clean = False

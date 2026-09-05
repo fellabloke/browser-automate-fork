@@ -205,10 +205,10 @@ class CriticV12:
         """One cheap page.evaluate → the ~8-number universal page-signal vector.
         Returns None when diffing is disabled or the eval fails (never raises)."""
         try:
-            from feature_flags import diffing_enabled
+            from agent_first_browse.config.feature_flags import diffing_enabled
             if not diffing_enabled():
                 return None
-            from dom_diff import PAGE_SIGNAL_JS
+            from agent_first_browse.perception.diff import PAGE_SIGNAL_JS
             return await asyncio.wait_for(self._page.evaluate(PAGE_SIGNAL_JS), timeout=2.0)
         except Exception as e:  # noqa: BLE001 — diffing never breaks the verdict
             logger.debug("page-signal capture skipped: %s", e)
@@ -406,7 +406,7 @@ class CriticV12:
         #    the LLM. Computes the unified state_change_score either way.
         sc_score = 0.0
         try:
-            from dom_diff import signal_vector_diff, state_change_score, progress_phrase
+            from agent_first_browse.perception.diff import signal_vector_diff, state_change_score, progress_phrase
             post_signals = await self._capture_signals()
             vector = signal_vector_diff(self._prev_signals, post_signals)
             if vector.get("meaningful") and not progress_signals:

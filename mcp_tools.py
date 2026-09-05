@@ -112,7 +112,7 @@ async def verify_action_target(element_id: str | None, verb: str) -> dict[str, A
     if not element_id:
         return {"ok": False, "reason": "no_dom_element_id"}
     try:
-        import dom_parser
+        from agent_first_browse.perception import dom as dom_parser
         result = await dom_parser.resolve_element(_get_page(), element_id)
         if not result.get("ok"):
             return result
@@ -424,7 +424,7 @@ async def mcp_navigate(url: str) -> dict:
         # hidden — re-place the arrow at the tracked position so it never flashes
         # at the top-left corner (which would mislead a vision screenshot).
         try:
-            from ghost_input import resync_visual_cursor
+            from agent_first_browse.browser.ghost_input import resync_visual_cursor
             await resync_visual_cursor(page)
         except Exception:
             pass
@@ -516,7 +516,7 @@ async def mcp_abandon_survey(url: str, *, fresh_dashboard: bool = False) -> dict
         except Exception:
             pass
         try:
-            from ghost_input import resync_visual_cursor
+            from agent_first_browse.browser.ghost_input import resync_visual_cursor
             await resync_visual_cursor(destination)
         except Exception:
             pass
@@ -633,7 +633,7 @@ async def mcp_click(
         # the exact node the LLM picked (drift-proof). Falls back to snapshot
         # coords if the registry has no live node for this id.
         if element_id:
-            import dom_parser
+            from agent_first_browse.perception import dom as dom_parser
             r = await dom_parser.resolve_element(page, element_id)
             if r.get("ok"):
                 center_x, center_y = float(r["x"]), float(r["y"])
@@ -653,18 +653,18 @@ async def mcp_click(
                 x, y = sampled_x, sampled_y
 
         # Step 1: Overlay penetration
-        from overlay_detector import smart_click_with_penetration
+        from agent_first_browse.browser.overlays import smart_click_with_penetration
         penetration = await smart_click_with_penetration(page, x, y)
         if penetration.get("overlay_bypassed"):
             logger.info("🎯 Overlay penetrated at (%d, %d) via %s", x, y, penetration.get("method", "?"))
             await asyncio.sleep(0.04)
 
         # Step 2: Humanized mouse movement
-        from ghost_input import ghost_move_to
+        from agent_first_browse.browser.ghost_input import ghost_move_to
         await ghost_move_to(page, x, y)
 
         # Step 3: CDP resilient click
-        from cdp_click import resilient_click
+        from agent_first_browse.browser.cdp_click import resilient_click
         click_result = await asyncio.wait_for(
             resilient_click(
                 page, x, y, max_retries=3,
@@ -769,7 +769,7 @@ async def mcp_type(
         typing_element_id = None
         # V19: Resolve to fresh, identity-verified coords from the chosen node.
         if element_id:
-            import dom_parser
+            from agent_first_browse.perception import dom as dom_parser
             r = await dom_parser.resolve_element(page, element_id)
             if r.get("ok"):
                 x, y = float(r["x"]), float(r["y"])
@@ -785,7 +785,7 @@ async def mcp_type(
                 logger.debug("resolve %s miss (%s) — using snapshot coords",
                              element_id, r.get("reason"))
 
-        from cdp_input import resilient_type
+        from agent_first_browse.browser.cdp_input import resilient_type
         type_result = await asyncio.wait_for(
             resilient_type(
                 page, text, x=x, y=y,
@@ -850,7 +850,7 @@ async def mcp_scroll(pixels: int = 600) -> dict:
             before = await page.evaluate(_SCROLL_METRICS_JS)
         except Exception:
             before = {}
-        from ghost_input import ghost_scroll
+        from agent_first_browse.browser.ghost_input import ghost_scroll
         await asyncio.wait_for(ghost_scroll(page, pixels), timeout=10.0)
         try:
             after = await page.evaluate(_SCROLL_METRICS_JS)
@@ -917,11 +917,11 @@ async def mcp_hover(element_id: str | None = None, x: float = 0, y: float = 0) -
     page = _get_page()
     try:
         if element_id:
-            import dom_parser
+            from agent_first_browse.perception import dom as dom_parser
             r = await dom_parser.resolve_element(page, element_id)
             if r.get("ok"):
                 x, y = float(r["x"]), float(r["y"])
-        from ghost_input import ghost_move_to
+        from agent_first_browse.browser.ghost_input import ghost_move_to
         await ghost_move_to(page, x, y)
         await asyncio.sleep(0.15)  # let hover-triggered UI settle
         return {"success": True, "error": ""}
@@ -1169,13 +1169,13 @@ async def mcp_drag_and_drop(
     try:
         # Resolve source from element registry if available
         if element_id:
-            import dom_parser
+            from agent_first_browse.perception import dom as dom_parser
             r = await dom_parser.resolve_element(page, element_id)
             if r.get("ok"):
                 x, y = float(r["x"]), float(r["y"])
 
         if target_element_id:
-            import dom_parser
+            from agent_first_browse.perception import dom as dom_parser
             destination = await dom_parser.resolve_element(page, target_element_id)
             if not destination.get("ok"):
                 return {"success": False, "error": "drag destination is no longer grounded"}
@@ -1187,7 +1187,7 @@ async def mcp_drag_and_drop(
             return {"success": False, "error": "drag_and_drop requires target_x, target_y coordinates"}
 
         # Humanized move to source
-        from ghost_input import ghost_move_to
+        from agent_first_browse.browser.ghost_input import ghost_move_to
         await ghost_move_to(page, x, y)
         await asyncio.sleep(0.1)
 
@@ -1358,7 +1358,7 @@ async def mcp_snapshot() -> dict:
         qmee_popup = await mcp_close_qmee_svg_popup()
         if qmee_popup.get("closed"):
             logger.info("🪟 Closed Qmee SVG popup before DOM snapshot")
-        import dom_parser
+        from agent_first_browse.perception import dom as dom_parser
         dom_data = await dom_parser.extract(page, target_hint=None, timeout=5.0)
         elements_list = dom_data.get("elements", [])
 
@@ -1558,7 +1558,7 @@ async def mcp_ground_action(
     # fresh coordinates. Supersedes the "snap to nearest within 60px" heuristic
     # that could land on the wrong neighbour on dense pages.
     if element_id is not None:
-        import dom_parser
+        from agent_first_browse.perception import dom as dom_parser
         r = await dom_parser.resolve_element(page, element_id)
         if r.get("ok"):
             return {"grounded": True, "x": float(r["x"]), "y": float(r["y"]),

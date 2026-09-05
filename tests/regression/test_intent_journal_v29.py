@@ -22,7 +22,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(REPO_ROOT / "python-orchestrator"))
 
-import feature_flags as ff
+from agent_first_browse.config import feature_flags as ff
 import intent_journal as ij
 from cognition import clear_transient
 
@@ -173,7 +173,9 @@ def test_wiring_guards():
     assert "resolve_intent" in ow                       # cleared on verified success
     bw = (REPO_ROOT / "workers" / "base_worker.py").read_text()
     assert "render_hesitation" in bw and "repeating_uncertain" in bw
-    bs = (REPO_ROOT / "brain_state.py").read_text()
+    bs = (
+        REPO_ROOT / "src" / "agent_first_browse" / "agent" / "state.py"
+    ).read_text()
     assert "last_attempted_action" in bs
 
 

@@ -482,7 +482,7 @@ class WebDreamer:
         situ = None
         situ_note = ""
         try:
-            from feature_flags import webdreamer_situational_enabled
+            from agent_first_browse.config.feature_flags import webdreamer_situational_enabled
             if webdreamer_situational_enabled() and situation is not None:
                 situ = extract_situation(situation)
                 situ_note = situational_candidate_note(situ)

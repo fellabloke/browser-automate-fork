@@ -5,8 +5,8 @@ from __future__ import annotations
 import asyncio
 import base64
 
-from brain_state import BrainState
-from survey_audio import (
+from agent_first_browse.agent.state import BrainState
+from agent_first_browse.survey.audio import (
     _CAPTURE_MEDIA_JS,
     AudioIdentification,
     analyze_audio_challenge,
@@ -15,7 +15,7 @@ from survey_audio import (
     extract_audio_answer_options,
     is_audio_animal_challenge,
 )
-from survey_context import build_survey_handoff, survey_gate_violation
+from agent_first_browse.survey.context import build_survey_handoff, survey_gate_violation
 
 PAGE_TEXT = "Click Play, listen to the sound, then select which animal you hear."
 SELECTOR_MAP = {

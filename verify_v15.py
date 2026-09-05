@@ -2,7 +2,7 @@
 import sys
 
 # ── F1 + F5: dom_parser.py ──
-import dom_parser
+from agent_first_browse.perception import dom as dom_parser
 js = dom_parser._GOD_MODE_JS
 assert "V15.0 F1" in js, "FAIL: F1 sticky fix not found in _GOD_MODE_JS"
 assert "score -= 20000" in js, "FAIL: F1 priority boost not found"

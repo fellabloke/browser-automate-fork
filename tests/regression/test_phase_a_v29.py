@@ -12,10 +12,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(REPO_ROOT / "python-orchestrator"))
 
-import feature_flags as ff
+from agent_first_browse.config import feature_flags as ff
 import mcp_tools
 from action_feedback import FailureClass, classify_failure, render_failure, render_success
-from dom_diff import progress_phrase, signal_vector_diff, state_change_score
+from agent_first_browse.perception.diff import progress_phrase, signal_vector_diff, state_change_score
 
 
 def _sig(**kw):
@@ -191,7 +191,9 @@ def test_new_primitives_wired_end_to_end():
     ow = (REPO_ROOT / "overwatch.py").read_text()
     assert "select_option" in ow and "mcp_hover" in ow and "mcp_press_key" in ow
     assert "_fmt_fail" in ow                       # clean semantic failure path
-    mr = (REPO_ROOT / "moe_router.py").read_text()
+    mr = (
+        REPO_ROOT / "src" / "agent_first_browse" / "agent" / "routing.py"
+    ).read_text()
     assert "select_option" in mr and "hover" in mr
     bw = (REPO_ROOT / "workers" / "base_worker.py").read_text()
     assert "select_option" in bw and "press_key" in bw

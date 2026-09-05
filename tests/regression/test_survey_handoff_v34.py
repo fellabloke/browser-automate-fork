@@ -7,9 +7,9 @@ import json
 
 from langchain_core.messages import HumanMessage, SystemMessage
 
-import dom_parser
+from agent_first_browse.perception import dom as dom_parser
 from model_registry import ModelClient, ProviderHealthTracker, invoke_with_failover
-from moe_router import route_to_worker
+from agent_first_browse.agent.routing import route_to_worker
 from reality import CONFIRMED, classify_reality
 from survey_context import (
     build_survey_handoff,

@@ -26,7 +26,7 @@ class InteractSkill(Skill):
     def __init__(self, page: Page) -> None:
         super().__init__(page)
         # Lazy import to avoid circular deps at module level
-        from ghost_input import ghost_click, ghost_type, ghost_scroll
+        from agent_first_browse.browser.ghost_input import ghost_click, ghost_type, ghost_scroll
         self._ghost_click = ghost_click
         self._ghost_type = ghost_type
         self._ghost_scroll = ghost_scroll

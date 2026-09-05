@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from types import SimpleNamespace
-
 import pytest
 
 from app.browser_promoter import nodes
@@ -37,10 +35,10 @@ async def test_dom_fallback_resolves_fresh_element_center(monkeypatch, agent_sta
         return {"ok": True, "x": 321.5, "y": 204.0}
 
     monkeypatch.setattr(nodes.BrowserRuntime, "ensure_page", fake_page)
-    monkeypatch.setitem(__import__("sys").modules, "dom_parser", SimpleNamespace(
-        extract=fake_extract,
-        resolve_element=fake_resolve,
-    ))
+    from agent_first_browse.perception import dom as dom_parser
+
+    monkeypatch.setattr(dom_parser, "extract", fake_extract)
+    monkeypatch.setattr(dom_parser, "resolve_element", fake_resolve)
 
     action = BrowserAction(action="click")
     grounded = await nodes._resolve_dom_fallback_action(

@@ -51,18 +51,18 @@ from app.logger import get_logger
 from playwright.async_api import async_playwright, BrowserContext, Page
 
 # Enterprise modules
-from ghost_input import ghost_click, ghost_type, ghost_scroll, ghost_move_to
+from agent_first_browse.browser.ghost_input import ghost_click, ghost_type, ghost_scroll, ghost_move_to
 from campaign_memory import CampaignMemory
 from model_registry import ModelRegistry
-from cdp_input import resilient_type
-from overlay_detector import smart_click_with_penetration, check_click_target
-from cdp_click import resilient_click, ClickResult
+from agent_first_browse.browser.cdp_input import resilient_type
+from agent_first_browse.browser.overlays import smart_click_with_penetration, check_click_target
+from agent_first_browse.browser.cdp_click import resilient_click, ClickResult
 from action_verifier import ActionVerifier, VerificationResult
 from action_classifier import classify_action, ActionRisk, requires_simulation
 from web_dreamer import WebDreamer, should_invoke_dreamer, DreamerResult, CandidateAction
 from prm_critic import PRMCritic, ChecklistItem, StepScore
 from skill_memory import SkillMemory
-import dom_parser
+from agent_first_browse.perception import dom as dom_parser
 from site_customizations import apply_current_site_customizations, install_site_customizations
 
 # Cognitive Architecture V2.1

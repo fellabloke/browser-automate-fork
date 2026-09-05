@@ -4,7 +4,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 import brain_graph
-import cdp_input
+from agent_first_browse.browser import cdp_input
 import mcp_tools
 import survey_profile
 from survey_context import prepare_survey_transaction

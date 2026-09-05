@@ -140,7 +140,7 @@ async def _validate_coord_click(
     ]
 
     try:
-        from vision_consult import (
+        from agent_first_browse.perception.vision import (
             VISION_FAILOVER_BUDGET_SECONDS,
             VISION_MODEL_TIMEOUT_SECONDS,
             VISION_TIMEOUT_COOLDOWN_SECONDS,
@@ -1047,7 +1047,7 @@ async def invoke_worker(
     bound_target = None
     target_lock_block = ""
     try:
-        from feature_flags import target_lock_enabled
+        from agent_first_browse.config.feature_flags import target_lock_enabled
         if target_lock_enabled():
             from target_lock import extract_target, render_target_lock_block
             active_sub = ""
@@ -1067,7 +1067,7 @@ async def invoke_worker(
     pending_intent = state.get("last_attempted_action")
     hesitation_block = ""
     try:
-        from feature_flags import intent_journal_enabled
+        from agent_first_browse.config.feature_flags import intent_journal_enabled
         if intent_journal_enabled() and pending_intent:
             from intent_journal import render_hesitation
             hesitation_block = render_hesitation(pending_intent)
@@ -1085,7 +1085,7 @@ async def invoke_worker(
     #    complementary to plan_steps (no competing-checklist regression). ──
     lock_list_block = ""
     try:
-        from feature_flags import subgoal_lock_enabled
+        from agent_first_browse.config.feature_flags import subgoal_lock_enabled
         if subgoal_lock_enabled() and state.get("prm_checklist"):
             from subgoal_lock import render_lock_list
             lock_list_block = render_lock_list(state.get("prm_checklist"))
@@ -1222,7 +1222,7 @@ async def invoke_worker(
             )
         )
         if recovery_needed:
-            from vision_consult import consult_vision, apply_vision_verdict
+            from agent_first_browse.perception.vision import consult_vision, apply_vision_verdict
             logger.warning("👁️ Text worker unavailable while stalled; asking the observer why progress stopped")
             observer_verdict, observer_model = await consult_vision(
                 timed_invoke, vision_chain, breaker, health_tracker,
@@ -1714,7 +1714,7 @@ async def invoke_worker(
     # If vision is already inevitable (explicit worker request, escalation rung,
     # or repeated ineffective actions), text consensus cannot remove that need;
     # paying for both stages only delays the same screenshot consult.
-    from vision_consult import should_consult_vision
+    from agent_first_browse.perception.vision import should_consult_vision
     vision_trigger_state = state
     if observer_recovery_used:
         # The fallback action was just derived from a fresh screenshot. Do not
@@ -1760,7 +1760,7 @@ async def invoke_worker(
                 )
     if not preconsult and clarity_sig is not None:
         try:
-            from vision_consult import MAX_VISION_CONSULTS
+            from agent_first_browse.perception.vision import MAX_VISION_CONSULTS
             from clarity import needs_vision_for_clarity
 
             cl_v, cl_why = needs_vision_for_clarity(clarity_sig)
@@ -1799,7 +1799,7 @@ async def invoke_worker(
         from consensus import (consensus_enabled, count_distinct_base_models,
                                cascade_consensus)
         from clarity import needs_consensus
-        from feature_flags import clarity_consensus_enabled
+        from agent_first_browse.config.feature_flags import clarity_consensus_enabled
 
         is_irrev = (risk == ActionRisk.IRREVERSIBLE)
         if clarity_sig is not None:
@@ -1924,7 +1924,7 @@ async def invoke_worker(
     #    is text-only again. ──
     vision_update: dict[str, Any] = {}
     vision_resolved = False
-    from vision_consult import consult_vision, apply_vision_verdict
+    from agent_first_browse.perception.vision import consult_vision, apply_vision_verdict
     consult, why = preconsult, preconsult_reason
     if force_consult and not dom_grounded_navigation:
         consult, why = True, "consensus abstention — disambiguate critical action"
@@ -1988,7 +1988,7 @@ async def invoke_worker(
 
     if consult and vision_chain:
         logger.info("🧠→👁️ Escalating to vision: %s", why)
-        from vision_consult import (
+        from agent_first_browse.perception.vision import (
             CAPTCHA as VISION_CAPTCHA,
             CLARITY as VISION_CLARITY,
             FORCED_RECOVERY as VISION_FORCED_RECOVERY,
@@ -2218,7 +2218,7 @@ async def invoke_worker(
     # ══════════════════════════════════════════════════════════════════════
     webdreamer_update: dict[str, Any] = {}
     try:
-        from feature_flags import webdreamer_enabled
+        from agent_first_browse.config.feature_flags import webdreamer_enabled
         if (webdreamer_enabled() and not grounded_survey_choice
                 and not vision_resolved and not vision_attempted
                 and dreamer is not None and clarity_sig is not None
@@ -2301,7 +2301,7 @@ async def invoke_worker(
     # redirect to the remaining work via the guidance bus.
     subgoal_lock_update: dict[str, Any] = {}
     try:
-        from feature_flags import subgoal_lock_enabled
+        from agent_first_browse.config.feature_flags import subgoal_lock_enabled
         if (subgoal_lock_enabled() and state.get("done_blocked", 0) > 0
                 and state.get("prm_checklist")):
             from subgoal_lock import targets_locked_subgoal, remaining_subgoals
@@ -2782,7 +2782,7 @@ def build_system_prompt(
         "ALWAYS fill proof_of_completion with the exact state-changes you observed.\n"
     )
     try:
-        from feature_flags import hybrid_primitives_enabled
+        from agent_first_browse.config.feature_flags import hybrid_primitives_enabled
         if hybrid_primitives_enabled():
             guidance += (
                 "\n═══ EXTRA ACTIONS (use only when a plain click won't do) ═══\n"

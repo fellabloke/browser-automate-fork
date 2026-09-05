@@ -15,7 +15,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(REPO_ROOT / "python-orchestrator"))
 
-import feature_flags as ff
+from agent_first_browse.config import feature_flags as ff
 from web_dreamer import (
     CandidateAction,
     CandidateEvaluation,
@@ -98,7 +98,9 @@ def test_webdreamer_wired():
     assert "dreamer=None" in bw                    # plumbed param
     bg = (REPO_ROOT / "brain_graph.py").read_text()
     assert bg.count("dreamer=_DREAMER,") == 3      # all three worker nodes
-    bs = (REPO_ROOT / "brain_state.py").read_text()
+    bs = (
+        REPO_ROOT / "src" / "agent_first_browse" / "agent" / "state.py"
+    ).read_text()
     assert "webdreamer_runs" in bs
 
 

@@ -66,7 +66,7 @@ class ExtractSkill(Skill):
 
     async def _extract_dom_map(self, params: dict) -> SkillResult:
         """Use dom_parser.extract() to get the full interactive element map + semantic tree."""
-        import dom_parser
+        from agent_first_browse.perception import dom as dom_parser
 
         target_hint = params.get("target_hint")
         timeout = params.get("timeout", 5.0)
@@ -254,7 +254,7 @@ class ExtractSkill(Skill):
 
     async def _extract_form_fields(self, params: dict) -> SkillResult:
         """Detect all editable form fields on the page."""
-        import dom_parser
+        from agent_first_browse.perception import dom as dom_parser
 
         try:
             form_data = await dom_parser.detect_form_fields(self.page)

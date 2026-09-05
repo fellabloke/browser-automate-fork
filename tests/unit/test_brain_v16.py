@@ -9,7 +9,7 @@ sys.path.insert(0, str(REPO_ROOT))
 print("=== True Brain v16.0 Import Test ===\n")
 
 # 1. BrainState
-from brain_state import BrainState
+from agent_first_browse.agent.state import BrainState
 
 s = BrainState(objective="Test import chain")
 print(f"✓ brain_state.py — {len(type(s).model_fields)} fields")
@@ -17,7 +17,7 @@ print(f"  Plan render: {s.get_plan_render()[:60]}")
 print(f"  History: {s.compress_history()}")
 
 # 2. MoE Router
-from moe_router import route_to_worker, verdict_router
+from agent_first_browse.agent.routing import route_to_worker, verdict_router
 
 state_dict = s.model_dump()
 route = route_to_worker(state_dict)

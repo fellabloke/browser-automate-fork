@@ -21,8 +21,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(REPO_ROOT / "python-orchestrator"))
 
-import dom_parser
-import virtual_display
+from agent_first_browse.perception import dom as dom_parser
+from agent_first_browse.browser import display as virtual_display
 from app.browser_promoter.cdp_stealth_launcher import (
     STEALTH_INIT_SCRIPT,
     STEALTH_LAUNCH_ARGS,

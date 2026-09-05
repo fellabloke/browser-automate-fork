@@ -20,7 +20,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(REPO_ROOT / "python-orchestrator"))
 
-import feature_flags as ff
+from agent_first_browse.config import feature_flags as ff
 import target_lock as tl
 from clarity import ClaritySignal, compute_clarity, needs_consensus, needs_vision_for_clarity
 from cognition import build_guidance, clear_transient

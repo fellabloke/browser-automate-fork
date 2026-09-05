@@ -6,8 +6,8 @@ click-strategy waterfall because its CSS-only selected state was not detected.
 
 from __future__ import annotations
 
-import cdp_click
-import cdp_input
+from agent_first_browse.browser import cdp_click
+from agent_first_browse.browser import cdp_input
 import intent_journal
 import mcp_tools
 import overwatch

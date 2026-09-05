@@ -24,7 +24,7 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 sys.path.append(str(REPO_ROOT / "python-orchestrator"))
 
-import dom_parser
+from agent_first_browse.perception import dom as dom_parser
 import overwatch
 from outcome_judge import (
     MAX_DONE_BLOCKS,

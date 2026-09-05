@@ -113,7 +113,7 @@ def test_judge_prompt_omits_ledger_when_none():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_plan_render_is_single_cognitive_state():
-    from brain_state import BrainState
+    from agent_first_browse.agent.state import BrainState
     s = BrainState(
         objective="Add a laptop to the cart and check out",
         plan_steps=[
