@@ -95,7 +95,7 @@ def test_subgoal_lock_flag(monkeypatch):
 def test_wiring():
     ow = (REPO_ROOT / "overwatch.py").read_text()
     assert "compose_rejection" in ow and "reconcile_plan_with_ledger" in ow
-    bw = (REPO_ROOT / "workers" / "base_worker.py").read_text()
+    bw = (REPO_ROOT / "src" / "agent_first_browse" / "workers" / "base.py").read_text()
     assert "render_lock_list" in bw and "targets_locked_subgoal" in bw
     assert 'state.get("done_blocked", 0) > 0' in bw   # backstop only in danger zone
 

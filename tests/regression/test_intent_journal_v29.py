@@ -171,7 +171,7 @@ def test_wiring_guards():
     ow = (REPO_ROOT / "overwatch.py").read_text()
     assert "persist_intent" in ow and "Intent journaled" in ow
     assert "resolve_intent" in ow                       # cleared on verified success
-    bw = (REPO_ROOT / "workers" / "base_worker.py").read_text()
+    bw = (REPO_ROOT / "src" / "agent_first_browse" / "workers" / "base.py").read_text()
     assert "render_hesitation" in bw and "repeating_uncertain" in bw
     bs = (
         REPO_ROOT / "src" / "agent_first_browse" / "agent" / "state.py"

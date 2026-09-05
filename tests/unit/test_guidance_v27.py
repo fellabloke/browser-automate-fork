@@ -96,7 +96,7 @@ def test_strategy_block_no_longer_embeds_done_hint():
 
 def test_worker_prompt_has_no_critical_action_hint():
     # The PRM-checklist re-injection string must be gone from the source.
-    src = (REPO_ROOT / "workers" / "base_worker.py").read_text()
+    src = (REPO_ROOT / "src" / "agent_first_browse" / "workers" / "base.py").read_text()
     assert "CRITICAL REMAINING ACTION" not in src
     assert "build_guidance" in src
 

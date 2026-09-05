@@ -7,7 +7,7 @@ import prm_critic
 import cognition
 import agent_first_browse.agent.state as brain_state
 from agent_first_browse.agent import routing as moe_router
-from workers.base_worker import WorkerAction
+from agent_first_browse.workers.base import WorkerAction
 
 print("=== V17 Verification ===")
 print("All modules imported successfully!")

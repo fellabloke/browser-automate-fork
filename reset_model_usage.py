@@ -12,7 +12,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from model_registry import ProviderHealthTracker
+from agent_first_browse.models.registry import ProviderHealthTracker
 
 
 project_root = Path(__file__).resolve().parent

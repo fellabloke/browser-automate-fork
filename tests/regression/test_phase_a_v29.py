@@ -195,7 +195,7 @@ def test_new_primitives_wired_end_to_end():
         REPO_ROOT / "src" / "agent_first_browse" / "agent" / "routing.py"
     ).read_text()
     assert "select_option" in mr and "hover" in mr
-    bw = (REPO_ROOT / "workers" / "base_worker.py").read_text()
+    bw = (REPO_ROOT / "src" / "agent_first_browse" / "workers" / "base.py").read_text()
     assert "select_option" in bw and "press_key" in bw
 
 

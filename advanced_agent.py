@@ -53,7 +53,7 @@ from playwright.async_api import async_playwright, BrowserContext, Page
 # Enterprise modules
 from agent_first_browse.browser.ghost_input import ghost_click, ghost_type, ghost_scroll, ghost_move_to
 from campaign_memory import CampaignMemory
-from model_registry import ModelRegistry
+from agent_first_browse.models.registry import ModelRegistry
 from agent_first_browse.browser.cdp_input import resilient_type
 from agent_first_browse.browser.overlays import smart_click_with_penetration, check_click_target
 from agent_first_browse.browser.cdp_click import resilient_click, ClickResult
@@ -717,7 +717,7 @@ async def _invoke_with_failover(
     Signature preserved for all callers (prm_critic, web_dreamer, workers,
     brain_graph, content_critic, github_engagement).
     """
-    from model_registry import invoke_with_failover
+    from agent_first_browse.models.registry import invoke_with_failover
 
     return await invoke_with_failover(
         failover_chain,

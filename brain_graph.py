@@ -1052,7 +1052,7 @@ def router_node(state: BrainState) -> dict:
 
 async def navigator_worker(state: BrainState) -> dict:
     """Navigation specialist — goto, scroll, wait."""
-    from workers.base_worker import invoke_worker, build_system_prompt
+    from agent_first_browse.workers.base import invoke_worker, build_system_prompt
     prompt = build_system_prompt(
         "navigator",
         plan_context=state.get_plan_render(),
@@ -1069,7 +1069,7 @@ async def navigator_worker(state: BrainState) -> dict:
 
 async def interactor_worker(state: BrainState) -> dict:
     """Interaction specialist — click, type, form fill."""
-    from workers.base_worker import invoke_worker, build_system_prompt
+    from agent_first_browse.workers.base import invoke_worker, build_system_prompt
     prompt = build_system_prompt(
         "interactor",
         plan_context=state.get_plan_render(),
@@ -1086,7 +1086,7 @@ async def interactor_worker(state: BrainState) -> dict:
 
 async def extractor_worker(state: BrainState) -> dict:
     """Data extraction specialist — read, find, capture."""
-    from workers.base_worker import invoke_worker, build_system_prompt
+    from agent_first_browse.workers.base import invoke_worker, build_system_prompt
     prompt = build_system_prompt(
         "extractor",
         plan_context=state.get_plan_render(),
@@ -1841,7 +1841,7 @@ async def run_brain(objective: str, headless: bool = False):
     from advanced_agent import (
         launch_browser, SessionGuard, shutdown_browser, _invoke_with_failover,
     )
-    from model_registry import ModelRegistry
+    from agent_first_browse.models.registry import ModelRegistry
     from app.browser_promoter.browser_warmup import run_warmup, extract_target_url_from_objective
     from app.browser_promoter.worker_planner import ReasoningAgent
     from orchestrator.critic_v12 import CriticV12

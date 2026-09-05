@@ -117,7 +117,9 @@ agent_first_browse.survey.* survey context, profile, recipes, audio, outcomes, q
 agent_first_browse.memory.* campaign, skill, intent, and content memory
 agent_first_browse.promotion.* browser-promoter graph, state, nodes, supervisor, integrations, database, and observability
 workers/base_worker.py      specialist model decision path
-model_registry.py           providers, health, failover, routing infrastructure
+agent_first_browse.models.registry public model façade, providers, routing, and failover infrastructure (root shim: model_registry.py)
+agent_first_browse.models.health health/cooldown/probe state and persistence used by the registry façade
+agent_first_browse.workers.base specialist worker decision path (root shim: workers/base_worker.py)
 mcp_tools.py                broad browser action/perception utility surface
 overwatch.py                action verification / execution supervision
 perception_engine.py        adaptive perception routing
@@ -134,7 +136,7 @@ Examples:
 
 brain_graph.py
 src/agent_first_browse/agent/state.py (root shim: brain_state.py)
-model_registry.py
+src/agent_first_browse/models/registry.py (root shim: model_registry.py)
 mcp_tools.py
 overwatch.py
 src/agent_first_browse/perception/engine.py (root shim: perception_engine.py)
@@ -317,13 +319,13 @@ agent_first_browse.persistence.checkpoint_retention
 
 Model/provider layer
 
-model_registry.py
+src/agent_first_browse/models/registry.py
 
 agent_first_browse.models
 
 Worker decisions
 
-workers/base_worker.py
+src/agent_first_browse/workers/base.py (root shim: workers/base_worker.py)
 
 agent_first_browse.workers
 
@@ -569,7 +571,19 @@ later:
 models/registry.py
     -> registry.py + health.py + failover.py + routing.py + providers.py
 
-Do the same for workers/base_worker.py, brain_graph.py, mcp_tools.py, and other large files.
+The first responsibility extraction is complete: `models/health.py` owns the
+existing `ProviderHealthTracker` implementation, including identity aliases,
+cooldowns, probe freshness, quota/accounting state, schema blacklist state, and
+JSON persistence. `models/registry.py` remains the public façade and retains
+provider construction, routing, probing orchestration, and failover/recovery.
+The façade continues to re-export `ProviderHealthTracker` for compatibility.
+
+The worker implementation is now owned by `src/agent_first_browse/workers/base.py`
+with the root `workers/base_worker.py` retained as a compatibility alias. Further
+worker decomposition is deferred until its prompt, deterministic fast paths, and
+escalation contracts have dedicated boundaries.
+
+Do the same for brain_graph.py, mcp_tools.py, and other large files.
 
 Compatibility shims
 
@@ -646,9 +660,14 @@ Keep domain-specific behavior out of the generic core unless more than one domai
 
 Phase 6 — Model layer
 
-Move model_registry.py behavior intact first.
+The behavior-preserving move is complete: the authoritative implementation is
+`src/agent_first_browse/models/registry.py`; root `model_registry.py` remains a
+temporary compatibility alias while legacy callers and tests migrate.
 
-Only after imports/tests stabilize should it be decomposed around provider clients, health, routing, failover, and schemas.
+The first decomposition boundary is complete: health/cooldown/probe state now
+lives in `src/agent_first_browse/models/health.py`, while the registry façade
+continues to own construction, routing, probe orchestration, and failover.
+Further extraction should remain incremental and test-backed.
 
 Phase 7 — Workers
 

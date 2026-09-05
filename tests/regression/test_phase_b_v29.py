@@ -91,7 +91,7 @@ def test_webdreamer_flag(monkeypatch):
 
 
 def test_webdreamer_wired():
-    bw = (REPO_ROOT / "workers" / "base_worker.py").read_text()
+    bw = (REPO_ROOT / "src" / "agent_first_browse" / "workers" / "base.py").read_text()
     assert "plan_and_select" in bw and "should_invoke_dreamer" in bw
     assert "should_override_with_dreamer" in bw
     assert "clarity_sig.uncertain" in bw          # Clarity-gated
@@ -180,7 +180,7 @@ def test_situational_wiring():
     wd = (REPO_ROOT / "web_dreamer.py").read_text()
     assert "def situational_adjustment" in wd and "def select_best_evaluation" in wd
     assert "situation: dict | None = None" in wd                 # plan_and_select param
-    bw = (REPO_ROOT / "workers" / "base_worker.py").read_text()
+    bw = (REPO_ROOT / "src" / "agent_first_browse" / "workers" / "base.py").read_text()
     assert "situation=state" in bw                                # state signals passed through
 
 

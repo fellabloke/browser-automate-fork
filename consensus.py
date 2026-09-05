@@ -140,7 +140,7 @@ def _logical_model(name: str) -> str:
     'gpt-oss-120b' → 'gpt-oss-120b'; 'google/gemma-4-31b-it' and the Gemini
     'gemma-4-31b-it' → 'gemma-4-31b-it'). This keeps the cascade voters genuinely
     independent rather than the same model polled twice."""
-    from model_registry import ProviderHealthTracker, normalize_model_id
+    from agent_first_browse.models.registry import ProviderHealthTracker, normalize_model_id
     return normalize_model_id(ProviderHealthTracker._base_model_name(name))
 
 

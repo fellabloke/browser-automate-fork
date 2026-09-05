@@ -187,7 +187,7 @@ def test_target_lock_flag(monkeypatch):
 
 
 def test_wiring_guards():
-    bw = (REPO_ROOT / "workers" / "base_worker.py").read_text()
+    bw = (REPO_ROOT / "src" / "agent_first_browse" / "workers" / "base.py").read_text()
     assert "render_target_lock_block" in bw and "needs_consensus" in bw
     assert "PRE-ACTION CONSENSUS" in bw
     ow = (REPO_ROOT / "overwatch.py").read_text()

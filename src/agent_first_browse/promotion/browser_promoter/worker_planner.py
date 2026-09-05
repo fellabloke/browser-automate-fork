@@ -113,7 +113,7 @@ class VisionAgent:
     """
 
     def __init__(self) -> None:
-        from model_registry import ModelRegistry
+        from agent_first_browse.models.registry import ModelRegistry
         registry = ModelRegistry.get_instance()
         self._model_clients = registry.get_vision_chain()
         self._llm_clients = [mc.client for mc in self._model_clients]
@@ -208,7 +208,7 @@ class ReasoningAgent:
     """
 
     def __init__(self) -> None:
-        from model_registry import ModelRegistry
+        from agent_first_browse.models.registry import ModelRegistry
         registry = ModelRegistry.get_instance()
         self._model_clients = registry.get_text_chain()
         self._clients = self._model_clients  # Keep full ModelClient objects
