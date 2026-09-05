@@ -99,6 +99,11 @@ class ProviderHealthTracker:
         self._role_affinity: dict[str, str] = {}
         self._load()
 
+    @property
+    def has_persistence(self) -> bool:
+        """Whether this tracker is attached to persisted health state."""
+        return self._persistence_path is not None
+
     @staticmethod
     def _default_state() -> dict[str, Any]:
         return {
@@ -834,9 +839,12 @@ class ProviderHealthTracker:
         return min(waits) if waits else 0.0
 
 
+def base_model_name(instance_name: str) -> str:
+    """Return the provider-independent model portion of an instance name."""
+    return ProviderHealthTracker._base_model_name(instance_name)
+
+
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Circuit Breaker — 3-State Machine (Resilience4j-inspired)
 #  CLOSED → OPEN → HALF_OPEN → CLOSED
 # ═══════════════════════════════════════════════════════════════════════════════
-
-

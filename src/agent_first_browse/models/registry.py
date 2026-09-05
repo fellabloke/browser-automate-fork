@@ -55,6 +55,20 @@ from .providers import (
     _credential_fingerprint,
     _premium_config,
 )
+from . import routing as _routing
+
+# Stable façade exports retained for root and package-internal callers.
+DEFAULT_MODEL_TIERS = _routing.DEFAULT_MODEL_TIERS
+DEFAULT_WORKER_MODEL_ORDER = _routing.DEFAULT_WORKER_MODEL_ORDER
+MODEL_TIERS = _routing.MODEL_TIERS
+UNKNOWN_MODEL_TIER = _routing.UNKNOWN_MODEL_TIER
+WORKER_MAX_TIER = _routing.WORKER_MAX_TIER
+get_model_tier = _routing.get_model_tier
+order_failover_chain = _routing.order_failover_chain
+route_auxiliary_chain = _routing.route_auxiliary_chain
+route_auxiliary_chain_names = _routing.route_auxiliary_chain_names
+route_worker_chain = _routing.route_worker_chain
+_worker_priority = _routing.worker_priority
 
 # Load .env from project root
 _PROJECT_ROOT = Path(__file__).resolve().parents[3]
@@ -172,56 +186,6 @@ def _classify_provider_error(
 #  roomier providers. Lower tier = higher quality/capability eligibility.
 # ═══════════════════════════════════════════════════════════════════════════════
 
-DEFAULT_MODEL_TIERS: dict[str, int] = {
-    # Tier 0 — proven structured-output models. Exact provider/model worker
-    # ordering is handled separately so NVIDIA's GPT endpoint can be demoted
-    # without changing GPT OSS consensus semantics globally.
-    "gemini-3.5-flash-lite": 0,
-    "gpt-oss-120b": 0,
-    # Tier 1 — capable worker fallbacks. Provider/model role priority determines
-    # their exact order; the tier gate merely admits them to the worker pool.
-    "nemotron-3.5-lightning-30b-a3b": 1,
-    "llama-3.3-70b-instruct-fp8-fast": 1,
-    "gemma-4-31b-it": 1,
-    "gemma-4-32b-it": 1,
-    "gemma-4-26b-a4b-it": 1,
-    # ── Vision-only models (NEVER used by the text chain — tiering them here is
-    #    safe and does not touch text ordering). Without this, the proven-fast
-    #    fast vision models must stay ahead of slower fallbacks. ──
-    "llama-4-scout-17b-16e-instruct": 0,
-    "gemini-3.5-flash": 0,  # configured Google vision primary; keep ahead of NVIDIA fallbacks
-    "llama-3.2-11b-vision-instruct": 1,  # NVIDIA — fast, lightweight (~0.6s)
-    "llama-3.1-nemotron-nano-vl-8b-v1": 1,  # NVIDIA — fast nano VL (~0.7s)
-    "llama-4-maverick-17b-128e-instruct": 1,  # NVIDIA — strong, 1M ctx native vision
-    "llama-3.2-90b-vision-instruct": 2,  # NVIDIA — strong 90B fallback
-}
-UNKNOWN_MODEL_TIER = 3
-
-
-def _load_tier_overrides() -> dict[str, int]:
-    """Parse MODEL_TIER_OVERRIDE='gpt-oss-120b=0,some-model=2' from .env."""
-    overrides: dict[str, int] = {}
-    raw = os.getenv("MODEL_TIER_OVERRIDE", "").strip()
-    for part in raw.split(","):
-        if "=" in part:
-            mid, _, rank = part.partition("=")
-            try:
-                overrides[normalize_model_id(mid)] = int(rank)
-            except ValueError:
-                pass
-    return overrides
-
-
-MODEL_TIERS: dict[str, int] = {**DEFAULT_MODEL_TIERS, **_load_tier_overrides()}
-
-
-def get_model_tier(instance_name: str) -> int:
-    """Quality tier for an instance name like 'nvidia-text:openai/gpt-oss-120b:0'."""
-    base = ProviderHealthTracker._base_model_name(instance_name)
-    return MODEL_TIERS.get(normalize_model_id(base), UNKNOWN_MODEL_TIER)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
 #  V24 — Agentic Capability Gate + dual-mode (free / premium). See STRATEGY.md.
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -242,34 +206,6 @@ AGENTIC_TEXT_ALLOWLIST: set[str] = {
 
 # Role separation: the worker (action decisions) only uses models at or below
 # this tier. Auxiliary calls (planner, PRM, judge) use the full chain.
-WORKER_MAX_TIER = 1
-
-DEFAULT_WORKER_MODEL_ORDER = (
-    "google:gemini-3.5-flash-lite,"
-    "nvidia:nemotron-3.5-lightning-30b-a3b,"
-    "cloudflare:llama-3.3-70b-instruct-fp8-fast,"
-    "nvidia:gpt-oss-120b,"
-)
-
-
-def _worker_priority(mc: "ModelClient") -> int:
-    """Resolve explicit provider+model priority for critical worker calls."""
-    requested = [
-        entry.strip().lower()
-        for entry in os.getenv("WORKER_MODEL_ORDER", DEFAULT_WORKER_MODEL_ORDER).split(",")
-        if entry.strip()
-    ]
-    base_model = normalize_model_id(ProviderHealthTracker._base_model_name(mc.name))
-    provider = mc.provider.lower()
-    for priority, selector in enumerate(requested):
-        selected_provider, separator, selected_model = selector.partition(":")
-        if not separator:
-            continue
-        if selected_provider == provider and normalize_model_id(selected_model) == base_model:
-            return priority
-    return len(requested)
-
-
 def get_agent_mode() -> str:
     """'premium' | 'free'. AGENT_MODE=auto (default) → premium iff a PREMIUM_API_KEY
     is set; 'premium'/'free' force the respective path."""
@@ -533,38 +469,7 @@ class ModelRegistry:
         model. Free → tier ≤ WORKER_MAX_TIER, ordered by WORKER_MODEL_ORDER.
         Chronically unreliable instances are omitted so the worker fails fast
         instead of paying their timeout tax on every survey question."""
-        if self.mode == "premium":
-            return list(self._text_pipeline)
-        top = [mc for mc in self._text_pipeline if get_model_tier(mc.name) <= WORKER_MAX_TIER]
-        selected = top or list(self._text_pipeline)
-        reliable = [
-            mc for mc in selected
-            if not (
-                (mc.credential_id or getattr(self.health, "_persistence_path", None) is None)
-                and self.health.is_chronically_unreliable(mc.name)
-            )
-        ]
-        if reliable:
-            selected = reliable
-        elif selected:
-            logger.error(
-                "All configured worker models are chronically unreliable; "
-                "worker calls will fail fast until a startup probe succeeds."
-            )
-            selected = []
-        prioritized = [
-            ModelClient(
-                name=mc.name,
-                client=mc.client,
-                provider=mc.provider,
-                pipeline=mc.pipeline,
-                sort_priority=_worker_priority(mc),
-                credential_id=mc.credential_id,
-                critical=True,
-            )
-            for mc in selected
-        ]
-        return order_failover_chain(prioritized, self.health)
+        return route_worker_chain(self._text_pipeline, self.health, self.mode)
 
     def get_worker_chain_names(self) -> list[str]:
         return [mc.name for mc in self.get_worker_chain()]
@@ -577,33 +482,10 @@ class ModelRegistry:
         intended for high-volume free inference, keeping the critical browser
         decision path isolated.
         """
-        if self.mode == "premium":
-            return list(self._text_pipeline)
-        requested = [
-            p.strip().lower()
-            for p in os.getenv(
-                "AUXILIARY_PROVIDER_ORDER",
-                "google,cloudflare,nvidia",
-            ).split(",")
-            if p.strip()
-        ]
-        rank = {provider: idx for idx, provider in enumerate(requested)}
-        fallback_rank = len(rank)
-        return [
-            ModelClient(
-                name=mc.name,
-                client=mc.client,
-                provider=mc.provider,
-                pipeline=mc.pipeline,
-                sort_priority=rank.get(mc.provider.lower(), fallback_rank),
-                credential_id=mc.credential_id,
-            )
-            for mc in self._text_pipeline
-        ]
+        return route_auxiliary_chain(self._text_pipeline, self.mode)
 
     def get_auxiliary_chain_names(self) -> list[str]:
-        chain = self.get_auxiliary_chain()
-        return [mc.name for mc in order_failover_chain(chain, self.health)]
+        return route_auxiliary_chain_names(self._text_pipeline, self.health, self.mode)
 
     def _apply_capability_gate(
         self,
@@ -884,44 +766,6 @@ def _as_model_clients(chain: list) -> list[ModelClient]:
             name = getattr(item, "model_name", getattr(item, "model", str(item)))
             entries.append(ModelClient(name=str(name), client=item, provider="unknown", pipeline="text"))
     return entries
-
-
-def order_failover_chain(
-    entries: list[ModelClient],
-    health: ProviderHealthTracker | None,
-) -> list[ModelClient]:
-    """Sort by a role-biased expected time-to-answer score.
-
-    All instances of the best model group at the front — every key, every
-    provider hosting it — so failover rotates keys/providers for the SAME
-    model before ever falling to a weaker one. Role-specific chains can assign
-    a provider priority (for example, Cloudflare first for auxiliary traffic).
-    Role order remains the cold-start preference, but it is deliberately a
-    finite penalty rather than a hard wall. A proven fast fallback can lead the
-    next run after the nominal primary repeatedly times out.
-    """
-
-    def sort_key(mc: ModelClient):
-        tier = get_model_tier(mc.name)
-        # Hand-built/test clients have no credential identity.  Never attach a
-        # persisted real key's stale health to such a client merely because its
-        # display name happens to match; ephemeral trackers remain fully usable.
-        use_health = bool(
-            health
-            and (mc.credential_id or getattr(health, "_persistence_path", None) is None)
-        )
-        cost = health.expected_cost(mc.name) if use_health else 0.0
-        quota = health.quota_penalty(mc.name) if use_health else 0.0
-        role_penalty = _float_env(
-            "MODEL_ROLE_PRIORITY_PENALTY_SECONDS", 6.0, minimum=0.0
-        )
-        tier_penalty = _float_env(
-            "MODEL_TIER_PENALTY_SECONDS", 5.0, minimum=0.0
-        )
-        score = cost + quota + mc.sort_priority * role_penalty + tier * tier_penalty
-        return (score, tier, mc.sort_priority)
-
-    return sorted(entries, key=sort_key)
 
 
 def _extract_text(raw_response: Any) -> str:

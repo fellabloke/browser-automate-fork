@@ -117,9 +117,10 @@ agent_first_browse.survey.* survey context, profile, recipes, audio, outcomes, q
 agent_first_browse.memory.* campaign, skill, intent, and content memory
 agent_first_browse.promotion.* browser-promoter graph, state, nodes, supervisor, integrations, database, and observability
 workers/base_worker.py      specialist model decision path
-agent_first_browse.models.registry public model façade, routing, probe orchestration, and failover infrastructure (root shim: model_registry.py)
+agent_first_browse.models.registry public model façade, probe orchestration, and failover infrastructure (root shim: model_registry.py)
 agent_first_browse.models.health health/cooldown/probe state and persistence used by the registry façade
 agent_first_browse.models.providers provider adapters and model/pipeline construction
+agent_first_browse.models.routing deterministic model/role selection and ordering
 agent_first_browse.workers.base specialist worker decision path (root shim: workers/base_worker.py)
 mcp_tools.py                broad browser action/perception utility surface
 overwatch.py                action verification / execution supervision
@@ -576,7 +577,7 @@ The first responsibility extraction is complete: `models/health.py` owns the
 existing `ProviderHealthTracker` implementation, including identity aliases,
 cooldowns, probe freshness, quota/accounting state, schema blacklist state, and
 JSON persistence. `models/registry.py` remains the public façade and retains
-provider construction, routing, probing orchestration, and failover/recovery.
+provider construction, probing orchestration, and failover/recovery.
 The façade continues to re-export `ProviderHealthTracker` for compatibility.
 
 The provider construction extraction is complete: `models/providers.py` owns
@@ -588,6 +589,12 @@ The Cloudflare adapter temporarily resolves the existing registry response
 parsing helpers lazily so structured-output repair behavior remains unchanged;
 that coupling should be removed only as part of a later response/recovery
 extraction.
+
+The deterministic routing extraction is complete: `models/routing.py` owns
+model-tier resolution, worker and auxiliary chain shaping, worker priority, and
+health-aware candidate ordering. `models/registry.py` re-exports the routing
+symbols for compatibility while retaining capability gating, probe orchestration,
+and inference failover/recovery.
 
 The worker implementation is now owned by `src/agent_first_browse/workers/base.py`
 with the root `workers/base_worker.py` retained as a compatibility alias. Further
@@ -677,8 +684,9 @@ temporary compatibility alias while legacy callers and tests migrate.
 
 The first decomposition boundary is complete: health/cooldown/probe state now
 lives in `src/agent_first_browse/models/health.py`, while the registry façade
-continues to own routing, probe orchestration, and failover. Provider/model
-construction now lives in `src/agent_first_browse/models/providers.py`.
+continues to own probe orchestration and failover. Provider/model construction
+lives in `src/agent_first_browse/models/providers.py`, and deterministic model
+and role routing lives in `src/agent_first_browse/models/routing.py`.
 Further extraction should remain incremental and test-backed.
 
 Phase 7 — Workers
