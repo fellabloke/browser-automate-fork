@@ -189,7 +189,7 @@ retire the old orchestration package only after proof that no active path depend
 
 3.6 python-orchestrator/
 
-python-orchestrator/app/ is currently the only package tree selected by pyproject.toml, but the main v16 runtime largely lives outside it.
+pyproject.toml currently discovers both the new `src/agent_first_browse/` scaffold and the transitional `python-orchestrator/app/` package tree; the main v16 runtime still largely lives outside both package roots.
 
 Root modules work around the split with code such as:
 
@@ -828,7 +828,7 @@ Versioned files such as V29_OVERHAUL.md are valuable history but should not perm
 
 These are known sources of ambiguity that Codex should check before making broad changes:
 
-The active v16 runtime is mainly in root modules while pyproject.toml currently packages python-orchestrator/.
+The active v16 runtime is mainly in root modules while pyproject.toml now packages the initial `src/agent_first_browse/` scaffold alongside the transitional `python-orchestrator/` tree.
 
 Root modules mutate sys.path to import app from python-orchestrator/.
 

@@ -196,8 +196,8 @@ cd Agent-first-ide
 python3.11 -m venv .venv
 source .venv/bin/activate
 
-# 3. Install Python dependencies
-pip install -e .
+# 3. Install Python and development dependencies
+pip install -e ".[dev]"
 
 # 4. Install the Chromium browser engine (Linux/local fallback only)
 python -m playwright install chromium

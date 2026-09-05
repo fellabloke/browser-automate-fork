@@ -27,9 +27,7 @@ jobs:
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
-        python -m pip install pytest pytest-asyncio ruff
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
-        if [ -f python-orchestrator/requirements.txt ]; then pip install -r python-orchestrator/requirements.txt; fi
+        python -m pip install -e ".[dev]"
     - name: Canonical validation
       env:
         PYTHONPATH: ${{ github.workspace }}/python-orchestrator:${{ github.workspace }}

@@ -7,7 +7,7 @@ name = "agent-first-ide"
 version = "0.1.0"
 description = "Dual-model LangGraph browser automation orchestrator with Supervisor + Worker VLM architecture."
 readme = "README.md"
-license = "MIT"
+license = "GPL-3.0-only"
 requires-python = ">=3.11"
 authors = [
     { name = "SandeepAi369" },
@@ -37,7 +37,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["python-orchestrator"]
+where = ["src", "python-orchestrator"]
 
 [tool.ruff]
 target-version = "py311"
@@ -50,7 +50,7 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
 ignore = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["app"]
+known-first-party = ["agent_first_browse", "app"]
 
 [tool.mypy]
 python_version = "3.11"

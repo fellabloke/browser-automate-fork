@@ -29,7 +29,7 @@ VENV_PY="$SCRIPT_DIR/.venv/bin/python"
 # ── 1. Make sure the Python environment exists ──
 if [[ ! -x "$VENV_PY" ]]; then
   echo "❌ Python environment not found at: .venv/"
-  echo "   One-time setup is needed (create .venv and install requirements.txt)."
+  echo "   One-time setup is needed (create .venv and install the project from pyproject.toml)."
   exit 1
 fi
 
