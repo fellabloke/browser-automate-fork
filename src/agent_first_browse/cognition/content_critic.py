@@ -88,7 +88,7 @@ class ContentCritic:
             failover_chain: List of LLM clients for failover
             invoke_fn: The _invoke_with_failover function from advanced_agent
         """
-        # Phase 1: Static analysis (instant, no LLM needed)
+        # Static analysis (instant, no LLM needed)
         jargon_hits = _scan_jargon(content)
         static_issues = []
         
@@ -111,7 +111,7 @@ class ContentCritic:
                 f"Excessive emojis ({emoji_count}). Keep it professional."
             )
 
-        # Phase 2: LLM-based deep review (uses failover chain)
+        # LLM-based deep review (uses the failover chain)
         if invoke_fn and failover_chain:
             try:
                 verdict = await self._llm_review(

@@ -1,4 +1,4 @@
-"""Stagnation Detector — progress-aware loop breaking (V29 / Phase 3, Mandate 3).
+"""Stagnation Detector — progress-aware loop breaking.
 
 THE LOOP CURE
 ═════════════

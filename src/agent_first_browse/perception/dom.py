@@ -1,5 +1,5 @@
 """
-dom_parser.py — V11.0 God-Mode DOM Extraction Engine
+God-Mode DOM Extraction Engine
 ═════════════════════════════════════════════════════
 Clean rewrite.  Assimilated patterns from:
   • browser-use   — Accessibility tree as primary signal
@@ -26,7 +26,7 @@ from typing import Any
 log = logging.getLogger("dom_parser")
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  V11 GOD-MODE EXTRACTION SCRIPT
+#  current GOD-MODE EXTRACTION SCRIPT
 #  Runs inside page.evaluate() in one shot.  Zero DOM mutation.
 #  Returns { elements, markdown, image_size, source }
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -41,7 +41,7 @@ _GOD_MODE_JS = r"""
     const vw = window.innerWidth  || document.documentElement.clientWidth  || 1920;
     const vh = window.innerHeight || document.documentElement.clientHeight || 1080;
 
-    /* ── V19.1 Primary-action recall ──────────────────────────────────────
+    /* ── current Primary-action recall ──────────────────────────────────────
        Commerce / checkout "goal" buttons (Add to Cart, Buy Now, Place Order,
        Notify Me, …) are routinely scrolled OUT of the viewport on dense product
        pages (Flipkart / Amazon). The off-screen cull below would discard them
@@ -50,7 +50,7 @@ _GOD_MODE_JS = r"""
        We detect these by their short label, EXEMPT them from the off-screen
        cull, and give them a strong score bonus so they survive the element
        budget. They still resolve to fresh, scrolled-into-view coordinates at
-       action time via the V19 window.__aid registry. */
+       action time via the current window.__aid registry. */
     const ACTION_RE = /add to (cart|bag|basket)|buy\s?it\s?now|buy\s?now|buy\s?at\b|place order|order now|go to (cart|checkout)|view cart|proceed( to (checkout|pay(ment)?|buy))?|checkout|pay now|make payment|notify me|sold out|out of stock|coming soon|add to wishlist|subscribe/i;
     const SURVEY_REWARD_RE = /(?:[£$€]\s*\d+(?:[.,]\d{1,2})?|\d+(?:[.,]\d+)?\s*(?:[£$€]|points?|pts?|coins?|tokens?|credits?))/i;
     const SURVEY_DURATION_RE = /\b\d+(?:[.,]\d+)?\s*min(?:ute)?s?\b/i;
@@ -216,7 +216,7 @@ _GOD_MODE_JS = r"""
         }
     } catch(_) {}
 
-    /* ── V19.1 Guaranteed primary-action sweep ──
+    /* ── current Guaranteed primary-action sweep ──
        Flipkart / Amazon render "Add to cart" / "Buy now" / "Buy at ₹…" as styled
        <DIV> elements (NOT <button>) in a fixed action bar — and the behavioral
        cursor:pointer pass above can miss them (600-candidate cap, or no pointer
@@ -250,7 +250,7 @@ _GOD_MODE_JS = r"""
     /* ━━━ 2. FILTER + SCORE ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
     const vcx = vw / 2, vcy = vh / 2;
     const scored = [];
-    const actionCenters = [];  /* V19.1: collapse nested duplicates of one action button */
+    const actionCenters = [];  /* collapse nested duplicates of one action button */
     const SEMANTIC_CONTAINERS = new Set([
         'MAIN','HEADER','FOOTER','NAV','FORM','DIALOG',
         'ARTICLE','SECTION','ASIDE','FIELDSET',
@@ -330,7 +330,7 @@ _GOD_MODE_JS = r"""
            ranking slots or masquerading as separate offers. */
         if (SURVEY_OFFER_RE.test(text) && !surveyOfferNodes.has(el)) continue;
 
-        /* V19.1: a SHORT element whose text is exactly a commerce action is a
+        /* a SHORT element whose text is exactly a commerce action is a
            primary "goal" button even when rendered as a <div> (Flipkart/Amazon).
            This drives both kind classification and the score bonus below. */
         const isActionText = (text.length <= 28 && ACTION_RE.test(text));
@@ -357,12 +357,12 @@ _GOD_MODE_JS = r"""
         const inViewport = rect.top >= 0 && rect.bottom <= vh && rect.left >= 0 && rect.right <= vw;
         if (!inViewport) score += 10000;
 
-        /* V19.1: guarantee primary-action buttons survive the budget cut —
+        /* guarantee primary-action buttons survive the budget cut —
            whether off-screen (isAction rescue) or a div-rendered action bar
            (isActionText). This bonus beats the +10000 off-viewport penalty. */
         if (isAction || isActionText || surveyOfferNodes.has(el)) score -= 16000;
 
-        /* ── V15.0 F1: Fixed/sticky elements are ALWAYS visible (W3C getComputedStyle) ── */
+        /* ── current F1: Fixed/sticky elements are ALWAYS visible (W3C getComputedStyle) ── */
         const cssPos = cs.position;
         if (cssPos === 'fixed' || cssPos === 'sticky') {
             score -= 20000;  /* Guarantee inclusion — always-visible to user */
@@ -561,7 +561,7 @@ _GOD_MODE_JS = r"""
         }
         if (!container) container = 'page';
 
-        /* ── V19 Disambiguation hint: href + nearest row/item context ──
+        /* ── current Disambiguation hint: href + nearest row/item context ──
            Repeated controls ("comments", "Add to cart") share a label; this
            gives the LLM a cheap way to tell them apart and pick the RIGHT one. */
         let hint = '';
@@ -594,7 +594,7 @@ _GOD_MODE_JS = r"""
             if (ctx) hint = hint ? (hint + ' · ' + ctx) : ('in: ' + ctx);
         }
 
-        /* V19.1: collapse nested duplicates of the SAME action button — Flipkart
+        /* collapse nested duplicates of the SAME action button — Flipkart
            wraps "Add to cart" in several nested <div>s that all match the sweep.
            Keep one entry per physical location so the budget isn't eaten by
            clones (distinct product cards sit at distinct centers → still kept). */
@@ -618,7 +618,7 @@ _GOD_MODE_JS = r"""
     scored.sort((a, b) => a.score - b.score);
     const top = scored.slice(0, MAX_ELEMENTS);
 
-    /* ── V15.0 F1: Reserved slots for fixed/sticky elements cut by budget ── */
+    /* ── current F1: Reserved slots for fixed/sticky elements cut by budget ── */
     const RESERVED_FIXED = 10;
     const fixedCut = scored.slice(MAX_ELEMENTS).filter(s => {
         try { return ['fixed','sticky'].includes(window.getComputedStyle(s.el).position); }
@@ -631,7 +631,7 @@ _GOD_MODE_JS = r"""
     /* ━━━ 3. BUILD OUTPUTS ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ */
 
     /* 3a. Structured elements array (for coordinates) + stable handle registry.
-       V19: window.__aid maps each eN to its LIVE DOM node so actions resolve to
+       window.__aid maps each eN to its LIVE DOM node so actions resolve to
        the EXACT element (fresh coords, no coordinate drift). Rebuilt fresh each
        extraction; auto-cleared on navigation. This is a window var, NOT a
        DOM-tree mutation — the "zero DOM mutation" principle is preserved. */
@@ -699,7 +699,7 @@ _GOD_MODE_JS = r"""
         page_text: pageText,
         image_size: { width: vw, height: vh },
         element_count: candidates.length,
-        source: 'god_mode_v11',
+        source: 'god_mode',
     };
 }
 """
@@ -801,7 +801,7 @@ async def extract(
             "markdown":      "...",           # Semantic Markdown for LLM context
             "image_size":    {w, h},          # Viewport dimensions
             "element_count": N,               # Total candidates found (pre-filter)
-            "source":        "god_mode_v11",
+            "source":        "god_mode",
         }
     """
     try:
@@ -836,12 +836,12 @@ def _empty_result() -> dict[str, Any]:
         "page_text": "",
         "image_size": {"width": 1920, "height": 1080},
         "element_count": 0,
-        "source": "god_mode_v11_fallback",
+        "source": "god_mode_fallback",
     }
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  V19 — Stable element resolution (drift-proof, identity-verified targeting)
+#  Stable element resolution (drift-proof, identity-verified targeting)
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Resolves an element id (e.g. 'e5') to its LIVE DOM node via the window.__aid
 #  registry built during extract(), scrolls it into view, and returns its CURRENT

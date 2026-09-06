@@ -252,7 +252,7 @@ def extract_target_url_from_objective(objective: str) -> str:
     Scans the objective text for http/https URLs and returns the first one found.
     Used by the integration layer to determine the target domain for priming.
 
-    V17: strip trailing punctuation that natural-language sentences append to
+    strip trailing punctuation that natural-language sentences append to
     URLs (e.g., parentheses, periods, commas, semicolons). Previously every
     task hit ERR_NAME_NOT_RESOLVED because "https://www.amazon.in)." was
     passed as-is to Page.goto().

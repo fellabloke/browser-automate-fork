@@ -255,7 +255,7 @@ class CloudflareNativeVisionClient:
 def _build_text_pipeline() -> list[ModelClient]:
     """TEXT-ONLY pipeline for Manager & Helper. NEVER receives images.
 
-    V16.1 — Multi-model-per-key architecture:
+    Multi-model-per-key architecture:
       On NVIDIA NIM, ONE API key gives access to ALL models. So we register
       multiple models under the same key. The failover loop tries every model
       on each key before moving to the next provider.
@@ -271,7 +271,7 @@ def _build_text_pipeline() -> list[ModelClient]:
     }
 
     # ── NVIDIA NIM — SECONDARY (multiple models, same key) ──
-    # V17.0: Register the SAME top-tier model (gpt-oss-120b) here too, so the
+    # Register the same top-tier model (gpt-oss-120b) here too, so the
     # model-first failover can continue with the identical model on NVIDIA when
     # all Groq keys are rate-limited. If the catalog ID is invalid on NVIDIA,
     # the startup probe prunes it automatically — zero per-step cost.
@@ -448,7 +448,7 @@ def _build_vision_pipeline() -> list[ModelClient]:
             logger.error("VISION ── Gemini bootstrap failed: %s", e)
 
     # ── NVIDIA NIM Vision — SECONDARY (multi-model × ALL NVIDIA keys) ──
-    # V16.1: Collect ALL NVIDIA keys so every vision model gets tried on every key
+    # Collect all NVIDIA keys so every vision model gets tried on every key.
     nvidia_vision_keys = _collect_keys(
         "NVIDIA_VISION_API_KEY",
         "NVIDIA_NIM_API_KEY",
@@ -591,7 +591,7 @@ def _build_audio_pipeline() -> list[ModelClient]:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  PREMIUM Pipeline — one paid key/model serves BOTH text and vision (V24)
+#  PREMIUM Pipeline — one paid key/model serves BOTH text and vision (current)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 
@@ -664,4 +664,3 @@ def _build_premium_audio_pipeline() -> list["ModelClient"]:
         )
         for idx, key in enumerate(cfg["keys"])
     ]
-

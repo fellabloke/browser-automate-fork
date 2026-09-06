@@ -18,7 +18,7 @@ the safe migration order from the current hybrid layout to that target.
 
 This is a migration architecture, not an instruction to rewrite the repository at once.
 
-When code and an older versioned plan disagree, trace the live entry point, imports, and tests. Update this document when verified ownership changes.
+When code and an older planning document disagree, trace the live entry point, imports, and tests. Update this document when verified ownership changes.
 
 1. Architectural goals
 
@@ -56,7 +56,7 @@ agent_first_browse.agent.graph.run_brain(...)
 LangGraph StateGraph
 
 The installed `agent-browse` command and root launchers use the canonical CLI;
-the historical `run_v16.py` launcher is retired.
+the historical `agent_first_browse.py` launcher is retired.
 
 The current graph is approximately:
 
@@ -482,7 +482,7 @@ browser owns low-level browser/session/input mechanics.
 
 domain packages such as survey should compose core capabilities rather than fork a second generic agent architecture.
 
-promotion should reuse shared browser/model infrastructure where appropriate without becoming the owner of the primary v16 graph.
+promotion should reuse shared browser/model infrastructure where appropriate without becoming the owner of the primary orchestration graph.
 
 1. Migration strategy
 
@@ -582,9 +582,9 @@ imports are package-correct;
 
 deterministic tests are green.
 
-Recommended migration phases
+Migration record
 
-Phase 0 — Refactor harness
+Validation harness
 
 Before broad source movement:
 
@@ -598,7 +598,7 @@ align CI with the repository's declared tooling;
 
 record pre-existing failures rather than attributing them to the refactor.
 
-Phase 1 — Establish the package root
+Package root
 
 Create:
 
@@ -608,7 +608,7 @@ Move low-risk shared infrastructure first where dependencies allow it, such as c
 
 Update pyproject.toml only when the package can actually be imported and tested through the new layout.
 
-Phase 2 — Low-level, relatively independent modules
+Foundational modules
 
 Move foundational modules with minimal behavior change:
 
@@ -620,25 +620,25 @@ platform/virtual-display/proxy helpers;
 
 small cognition/perception primitives with clear callers.
 
-Phase 3 — Browser and perception boundaries
+Browser and perception boundaries
 
 Migrate browser runtime/input/perception modules while preserving their existing behavioral semantics.
 
 Avoid rewriting click/type/stealth behavior during a directory move.
 
-Phase 4 — Verification and memory
+Verification and memory
 
 Migrate verification, progress critic, intent journal, and memory modules.
 
 This phase should make the side-effect trust boundary clearer, not weaker.
 
-Phase 5 — Survey and promotion domains
+Survey and promotion domains
 
 Move survey modules and browser-promoter modules into explicit domain packages while extracting genuinely shared browser/model infrastructure.
 
 Keep domain-specific behavior out of the generic core unless more than one domain actually uses it.
 
-Phase 6 — Model layer
+Model layer
 
 The behavior-preserving move is complete: the authoritative implementation is
 `src/agent_first_browse/models/registry.py`; the historical root alias was
@@ -657,7 +657,7 @@ Further extraction should remain incremental and test-backed.
 Integration Wave 2 is complete: verification is canonically owned by
 `agent_first_browse.verification`, including action safety, feedback, engine and
 outcome checks, the progress critic, and intact Overwatch coordination. The
-historical root verification aliases and `orchestrator/critic_v12.py` were
+historical root verification aliases and `orchestrator/progress_critic.py` were
 removed after callers migrated.
 
 Cognition is canonically owned by `agent_first_browse.cognition`. Deterministic
@@ -673,13 +673,13 @@ Overwatch imports canonical actions, cognition, verification, memory, survey,
 browser, perception, and model dependencies. Workers still propose actions and
 Overwatch remains the sole commit/execution authority.
 
-Phase 7 — Workers
+Workers
 
 Move workers/base_worker.py intact first.
 
 Later extract prompt composition, deterministic resolvers, planning/escalation, and shared worker contracts where tests justify the split.
 
-Phase 8 — Graph and CLI
+Graph and CLI
 
 Move:
 
@@ -688,7 +688,7 @@ agent-browse  -> cli.py
 
 At this point launchers should converge on one installed CLI entry point while retaining shell/PowerShell convenience wrappers.
 
-Phase 9 — Legacy retirement (complete)
+Legacy retirement (complete)
 
 The final active responsibilities were drained from:
 
@@ -703,7 +703,7 @@ temporary root compatibility modules.
 The old orchestrator and `python-orchestrator` trees are removed. The only
 root launchers are the documented shell and PowerShell convenience wrappers.
 
-Phase 10 — Decomposition and optimization
+Post-migration engineering
 
 Only after the package migration is stable:
 
@@ -857,19 +857,20 @@ docs/plans/active/
 docs/plans/completed/
     historical implementation plans
 
-Versioned files such as V29_OVERHAUL.md are valuable history but should not permanently compete with current architecture documentation.
+Completed implementation notes belong under categorized documentation and
+should not compete with the current architecture documentation.
 
  1. Known migration hazards
 
 These are known sources of ambiguity that Codex should check before making broad changes:
 
-The active v16 runtime is packaged under `src/agent_first_browse/`; root
+The active runtime is packaged under `src/agent_first_browse/`; root
 launchers are convenience entrypoints and no root compatibility modules remain.
 
 `advanced_agent.py` and the old orchestrator and `python-orchestrator` package
 trees have been removed.
 
-The browser-promoter graph is a separate graph and should not be mistaken for the v16 orchestration spine.
+The browser-promoter graph is a separate graph and should not be mistaken for the primary orchestration spine.
 
 Root skills/ means application actions, while future .agents/skills/ means Codex workflows.
 
@@ -916,7 +917,7 @@ The purpose is to create a structure in which those later changes can be evaluat
  deterministic/model-free paths (`deterministic.py`), and model-backed decision
  orchestration (`decision.py`). `workers.base` is the stable worker façade.
 
- `agent_first_browse.browser.runtime` owns v16 browser launch, LOCAL_CDP versus
+ `agent_first_browse.browser.runtime` owns browser launch, LOCAL_CDP versus
  local Playwright selection, persistent profile handling, `SessionGuard`, manual
  login, and shutdown. The historical `advanced_agent.py` façade has been
  removed and owns no runtime implementation.
@@ -926,7 +927,7 @@ The purpose is to create a structure in which those later changes can be evaluat
  second graph implementation. Repository-level checkpoint persistence remains at the same
  historical `persistence/` location.
 
- `agent_first_browse.cli` is the canonical v16 CLI and is exposed as the
+ `agent_first_browse.cli` is the canonical CLI and is exposed as the
  `agent-browse` project entry point. `agent.sh` and `Start-Agent.ps1` invoke
  that module; no root Python launcher remains.
 

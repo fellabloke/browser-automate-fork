@@ -1,7 +1,7 @@
 """
-a11y_parser.py — V12.0 Accessibility-First Extraction Engine
+Accessibility-First Extraction Engine
 ═════════════════════════════════════════════════════════════
-Replaces the heavy V11 God-Mode JS DOM parser as the primary
+Replaces the heavy DOM extraction script as the primary
 extraction layer. Assimilated patterns from:
   • browser-use   — CDP Accessibility.getFullAXTree + element indexing
   • Playwright     — Internal snapshotForAI with ref tags
@@ -11,12 +11,12 @@ Architecture:
   Tier-1: Playwright snapshotForAI (internal, ~20ms, ref-tagged)
   Tier-2: CDP Accessibility.getFullAXTree (robust, backend node IDs)
   Tier-3: page.accessibility.snapshot() (stable public API)
-  Tier-4: V11 dom_parser.extract() (legacy fallback)
+  Tier-4: DOM extraction fallback
 
 Output: Ultra-compact RefID list — ~200 tokens for a full page
   Example: [e1: textbox "Search"] [e2: button "Go"] [e3: link "Home"]
 
-Token savings vs V11: 85-90% reduction
+Token savings: 85-90% versus full DOM extraction.
 """
 
 from __future__ import annotations
@@ -128,7 +128,7 @@ class A11ySnapshot:
 
     @property
     def semantic_hash(self) -> int:
-        """Deterministic hash for change detection (used by Critic V12)."""
+        """Deterministic hash for change detection used by ProgressCritic."""
         content = "|".join(
             f"{e.role}:{e.name}:{sorted(e.properties.items())}"
             for e in self.elements
@@ -588,7 +588,7 @@ async def extract(page, timeout: float = 5.0) -> dict[str, Any]:
     Returns a dict with:
       - elements:       list[dict] — each has ref, role, name, bbox
       - refid_text:     str — ultra-compact LLM context (~15 chars/element)
-      - markdown:       str — alias for refid_text (V11 backward compat)
+      - markdown:       str — alias for refid_text (backward compatibility)
       - semantic_hash:  int — deterministic hash for change detection
       - element_count:  int — number of interactive elements
       - page_title:     str
@@ -631,11 +631,11 @@ async def extract(page, timeout: float = 5.0) -> dict[str, Any]:
 
         result = snapshot.to_dict()
         result["source"] = source
-        result["markdown"] = snapshot.refid_text  # V11 backward compat key
+        result["markdown"] = snapshot.refid_text  # backward-compatible key
         return result
 
-    # ── Tier 4: V11 dom_parser (legacy fallback, called by consumer) ──
-    log.warning("A11y: All 3 tiers found 0 elements — consumer should try V11 dom_parser")
+    # ── Tier 4: current dom_parser (legacy fallback, called by consumer) ──
+    log.warning("A11y: all extraction tiers found 0 elements; consumer should try the DOM fallback")
     url = ""
     try:
         url = page.url

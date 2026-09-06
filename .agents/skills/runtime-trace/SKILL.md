@@ -15,8 +15,8 @@ Unless current repository evidence proves otherwise, begin from the canonical br
 
 ```text
 agent.sh
-  -> run_v16.py run
-  -> brain_graph.run_brain(...)
+  -> agent_first_browse.cli run
+  -> agent_first_browse.agent.graph.run_brain(...)
   -> graph nodes/workers
   -> Overwatch / verification
   -> browser side effects
@@ -25,7 +25,7 @@ agent.sh
 Remember the known transitional boundaries:
 
 - `advanced_agent.py` is legacy but still has live consumers.
-- `orchestrator/` is an older architecture but `orchestrator/critic_v12.py` has active references.
+- `orchestrator/` is a retired architecture; progress criticism is owned by `agent_first_browse.verification`.
 - `python-orchestrator/app/` still supplies active infrastructure and a separate browser-promoter graph.
 - root `skills/` means runtime browser actions, not Codex skills.
 
@@ -73,7 +73,7 @@ When the target is claimed to be active, identify the shortest credible call/imp
 Example form:
 
 ```text
-run_v16.py
+agent_first_browse/cli.py
   -> brain_graph.py
   -> workers/base_worker.py
   -> target_symbol()

@@ -1,4 +1,4 @@
-"""Brain Graph — LangGraph StateGraph Orchestration Spine for True Brain v16.0.
+"""Brain Graph — LangGraph StateGraph Orchestration Spine for Agent First Browse.
 
 This is the replacement for the monolithic for-loop in advanced_agent.py.
 It wires together: goal compiler, planner, perceiver, router, worker nodes,
@@ -53,7 +53,7 @@ except ImportError:
 _PAGE = None
 _CONTEXT = None
 _FAILOVER_CHAIN = []   # full text chain — auxiliary calls (planner, PRM, judge)
-_WORKER_CHAIN = []     # V24 role separation — worker action decisions (top tier only)
+_WORKER_CHAIN = []     # current role separation — worker action decisions (top tier only)
 _AUXILIARY_CHAIN = []  # high-volume support calls — provider-prioritized
 _VISION_CHAIN = []
 _AUDIO_CHAIN = []
@@ -243,7 +243,7 @@ async def goal_compiler_node(state: BrainState) -> dict:
 async def planner_node(state: BrainState) -> dict:
     """Strategic planner — forms an APPROACH + finish-line + steps in one call.
 
-    V18: instead of just a list of checkpoints, the planner now produces a
+    instead of just a list of checkpoints, the planner now produces a
     StrategicPlan{strategy, success_criteria, assumptions, steps}. The strategy
     and assumptions seed the agent's persistent cognition (so it reasons WITH a
     theory rather than re-deriving one every step), and success_criteria gives
@@ -937,7 +937,7 @@ async def perceive_node(state: BrainState) -> dict:
         logger.debug("Survey-cycle memory retrieval skipped (non-fatal): %s", exc)
         survey_cycle_memory_render = context_state.survey_cycle_memory_render
 
-    # ── V29 Phase 3: progress-aware stagnation (revives the previously-DEAD
+    # ── 3: progress-aware stagnation (revives the previously-DEAD
     #    same_url_streak signal). "Busy but not progressing" → break the loop. ──
     stagnation_level = 0
     stagnation_note = ""
@@ -1014,7 +1014,7 @@ async def perceive_node(state: BrainState) -> dict:
         "last_url_for_streak": streak_url,
         "navigation_cycle_note": navigation_cycle_note,
         "navigation_cycle_blocked_action": navigation_cycle_blocked_action,
-        # V29 stagnation signals (read by the guidance bus next worker step)
+        # current stagnation signals (read by the guidance bus next worker step)
         "stagnation_level": stagnation_level,
         "stagnation_note": stagnation_note,
         # Pre-computed renders (avoids re-computing in workers)
@@ -1137,7 +1137,7 @@ async def _run_prm_audit(state: BrainState) -> tuple[float, list[dict], list[str
             status=d.get("status", "pending"),
             confidence=float(d.get("confidence", 0.0)),
             step_completed=int(d.get("step_completed", -1)),
-            verified=bool(d.get("verified", False)),   # V26: persist stickiness
+            verified=bool(d.get("verified", False)),   # persist stickiness
             evidence=d.get("evidence", ""),
         )
         for i, d in enumerate(state.prm_checklist)
@@ -1160,7 +1160,7 @@ async def _run_prm_audit(state: BrainState) -> tuple[float, list[dict], list[str
 async def commit_node(state: BrainState) -> dict:
     """Commit after Overwatch passes. Advance plan, extend budget if needed.
 
-    V18: a committed step is a VERIFIED-PROGRESS step, so it reinforces strategy
+    a committed step is a VERIFIED-PROGRESS step, so it reinforces strategy
     confidence and clears the transient 'stuck' state (the obstacle is resolved —
     no stale escalation directive may bleed forward). A throttled PRM goal-audit
     gives a goal-aware progress signal, detects stalls, and nudges the agent to
@@ -1363,7 +1363,7 @@ async def commit_node(state: BrainState) -> dict:
 
     for i, step in enumerate(plan_steps):
         if step.get("status") in ("active", "in_progress"):
-            # V17: semantic plan advancement — the action outcome must indicate
+            # semantic plan advancement — the action outcome must indicate
             # success AND the action should relate to the current plan step.
             # Old heuristic (`"OK" in outcome`) advanced on ANY success, causing
             # critical steps to be skipped prematurely.
@@ -1438,7 +1438,7 @@ async def commit_node(state: BrainState) -> dict:
             window = push_goal_score(state.goal_score_window, goal_score)
             updates["goal_score_window"] = window
 
-            # V26: make the SUCCESS verification first-class in the logs (was only
+            # make the SUCCESS verification first-class in the logs (was only
             # the struggle that showed up). Each newly-verified sub-goal is logged
             # with its captured on-page proof and marked sticky.
             prev_verified = {d.get("desc") for d in state.prm_checklist if d.get("verified")}
@@ -1476,7 +1476,7 @@ async def commit_node(state: BrainState) -> dict:
         except Exception as e:
             logger.debug("PRM audit error (non-fatal): %s", e)
 
-    # ── V17 Win-State Recognizer (generalized — zero hardcoded platforms) ──
+    # ── current Win-State Recognizer (generalized — zero hardcoded platforms) ──
     # If the agent just executed an IRREVERSIBLE action (as classified by
     # action_classifier: add-to-cart, submit, fork, star, post, etc.) AND the
     # page responded with a significant state change (URL changed or large DOM
@@ -1537,7 +1537,7 @@ async def rollback_node(state: BrainState) -> dict:
     """Hard-stuck handler. The escalation ladder (in Overwatch) has already tried
     the cheap tactics; rollback decides whether to RE-STRATEGIZE.
 
-    V18: instead of a full replan (which wiped progress), rollback either
+    instead of a full replan (which wiped progress), rollback either
       (a) RE-STRATEGIZES — one LLM call for a genuinely different approach,
           updating `strategy` + adding the lesson as a belief, resetting the
           ladder, then continuing (→ perceive); or
@@ -1647,7 +1647,7 @@ async def finalize_node(state: BrainState) -> dict:
     mission_success = state.mission_success and not state.continuous_survey_mode
     done_evidence = state.done_evidence
 
-    # ── V20 last-chance outcome audit: shutting down WITHOUT a verified done
+    # ── current last-chance outcome audit: shutting down WITHOUT a verified done
     #    (budget exhausted etc.) — check the final page once before reporting
     #    failure. The goal may be achieved even though 'done' was never accepted.
     if (not state.continuous_survey_mode
@@ -1687,7 +1687,7 @@ async def finalize_node(state: BrainState) -> dict:
             title=state.objective[:120],
             content=state.objective,
             url=state.current_url,
-            agent_model="brain_v16",
+            agent_model="brain",
             steps_taken=state.step_number,
         )
     except Exception as e:
@@ -1807,7 +1807,7 @@ def build_brain_graph() -> StateGraph:
     # ── Retry → perceive (re-perceive and re-route) ──
     g.add_edge("retry", "perceive")
 
-    # ── Rollback → perceive (V18: continue with the re-strategy / next tactic;
+    # ── Rollback → perceive (continue with the re-strategy / next tactic;
     #    no destructive full replan that wipes plan progress) ──
     g.add_conditional_edges("rollback", lambda s: s.next_node or "perceive", {
         "perceive": "perceive",
@@ -1841,7 +1841,7 @@ async def run_brain(objective: str, headless: bool = False):
     from agent_first_browse.models import ModelRegistry
     from agent_first_browse.promotion.browser_promoter.browser_warmup import run_warmup, extract_target_url_from_objective
     from agent_first_browse.promotion.browser_promoter.worker_planner import ReasoningAgent
-    from agent_first_browse.verification.progress import CriticV12
+    from agent_first_browse.verification.progress import ProgressCritic
     from agent_first_browse.cognition.prm import PRMCritic
     from agent_first_browse.cognition.dreamer import WebDreamer
     from agent_first_browse.memory.skills import SkillMemory
@@ -1919,7 +1919,7 @@ async def run_brain(objective: str, headless: bool = False):
         os.getenv("MODEL_TIMEOUT_RETRY_COOLDOWN_MAX_SECONDS", "60"),
     )
 
-    # ── V24 role separation: the worker (action decisions, the critical path)
+    # ── current role separation: the worker (action decisions, the critical path)
     #    uses only the top-tier capable models; auxiliary calls use the full chain.
     _WORKER_CHAIN = registry.get_worker_chain()
     logger.info("🎯 [%s mode] Worker chain (%d top models): %s",
@@ -1937,17 +1937,17 @@ async def run_brain(objective: str, headless: bool = False):
         " → ".join(registry.get_auxiliary_chain_names()),
     )
 
-    # ── V29 Cognitive Overhaul — log the active feature switches (auditability) ──
+    # ── Log active optional feature switches for auditability. ──
     try:
-        from agent_first_browse.config.feature_flags import active_flags, v29_enabled
+        from agent_first_browse.config.feature_flags import active_flags, cognitive_features_enabled
         flags = active_flags()
-        if v29_enabled():
-            on = [k for k, v in flags.items() if v and k != "V29_ENABLED"]
-            logger.info("🧬 V29 Cognitive Overhaul ACTIVE — %s", ", ".join(on) or "(master only)")
+        if cognitive_features_enabled():
+            on = [k for k, v in flags.items() if v and k != "COGNITIVE_FEATURES_ENABLED"]
+            logger.info("🧬 Optional cognitive features active — %s", ", ".join(on) or "(master only)")
         else:
-            logger.info("🧬 V29 disabled (V29_ENABLED=0) — running pure V28 behavior")
+            logger.info("🧬 Optional cognitive features disabled (COGNITIVE_FEATURES_ENABLED=0)")
     except Exception as e:
-        logger.debug("V29 flag log skipped (non-fatal): %s", e)
+        logger.debug("Optional feature flag log skipped (non-fatal): %s", e)
 
     # Clear any durable intent ledger left behind by a previously-crashed run, so a
     # stale write-ahead record can never contaminate this fresh task's audit trail.
@@ -1957,7 +1957,7 @@ async def run_brain(objective: str, headless: bool = False):
     except Exception:
         pass
 
-    # ── V21 Vision chain (for on-demand consults; a11y DOM stays the default) ──
+    # ── Vision chain (for on-demand consults; a11y DOM stays the default) ──
     try:
         _VISION_CHAIN = registry.get_vision_chain()
         if _VISION_CHAIN:
@@ -2023,9 +2023,9 @@ async def run_brain(objective: str, headless: bool = False):
         except Exception as exc:  # noqa: BLE001
             logger.warning("Default survey provider setup skipped: %s", exc)
 
-    # ── CriticV12 ──
-    _CRITIC = CriticV12(_PAGE)
-    logger.info("🧠 CriticV12 initialized")
+    # ── ProgressCritic ──
+    _CRITIC = ProgressCritic(_PAGE)
+    logger.info("🧠 ProgressCritic initialized")
 
     # ── WebDreamer ──
     try:
@@ -2053,7 +2053,7 @@ async def run_brain(objective: str, headless: bool = False):
     except Exception as e:
         logger.warning("PRMCritic init failed: %s", e)
 
-    # ── V20 Outcome Judge (evidence-grounded done-gate) ──
+    # ── current Outcome Judge (evidence-grounded done-gate) ──
     try:
         from agent_first_browse.verification.overwatch import configure_outcome_judge
         configure_outcome_judge(

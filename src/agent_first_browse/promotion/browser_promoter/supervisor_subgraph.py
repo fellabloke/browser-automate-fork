@@ -97,7 +97,7 @@ class SupervisorInternalState(BaseModel):
     worker_last_confusion_reason: str = ""
     ephemeral: dict[str, Any] = Field(default_factory=dict)
 
-    # v3.0 Marketing Intelligence
+    # current Marketing Intelligence
     github_username: str = ""
     promotion_style: str = "organic"
     portfolio_context: str = ""  # Injected by github_intelligence_node
@@ -541,7 +541,7 @@ async def strategy_challenger_node(state: SupervisorInternalState) -> dict[str, 
 async def copywriter_node(state: SupervisorInternalState) -> dict[str, Any]:
     """Sub-agent C: Draft short human-like copy when text is needed.
 
-    Enhanced in v3.0 with real product knowledge from GitHub Intelligence.
+    Enhanced in current with real product knowledge from GitHub Intelligence.
     Uses portfolio context and promotion hooks to generate authentic,
     experience-based messages instead of generic marketing copy.
     """
@@ -784,7 +784,7 @@ def _infer_niche(state: SupervisorInternalState) -> str:
 def build_supervisor_subgraph():
     """Compile the hierarchical Supervisor meeting as a LangGraph subgraph.
 
-    v3.0 Pipeline:
+    current Pipeline:
       START → context_analyzer → github_intelligence → strategy_planner
             → strategy_challenger → [copywriter, risk_assessor] → final_merge → END
     """
@@ -798,7 +798,7 @@ def build_supervisor_subgraph():
     graph.add_node("risk_stealth_assessor", risk_stealth_assessor_node)
     graph.add_node("final_merge", final_merge_node)
 
-    # v3.0: GitHub Intelligence runs right after context analysis
+    # GitHub Intelligence runs right after context analysis
     graph.add_edge(START, "context_analyzer")
     graph.add_edge("context_analyzer", "github_intelligence")
     graph.add_edge("github_intelligence", "strategy_planner")
@@ -849,7 +849,7 @@ async def run_supervisor_subgraph(main_state: AgentState) -> HighLevelCommand:
         worker_last_confused=main_state.worker_last_confused,
         worker_last_confusion_reason=main_state.worker_last_confusion_reason,
         ephemeral=dict(main_state.ephemeral),
-        # v3.0 Marketing Intelligence
+        # current Marketing Intelligence
         github_username=main_state.campaign.github_username,
         promotion_style=main_state.campaign.promotion_style,
     )

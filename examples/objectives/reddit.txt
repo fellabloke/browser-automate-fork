@@ -1,5 +1,5 @@
 Navigate to https://www.reddit.com/r/test. Find the Create Post button. 
-Enter Title: [Dev Log] Agent First IDE V13.0 - Why Amazon Defeated Me Today
+Enter Title: [Dev Log] Agent First Browse - Why Amazon Defeated Me Today
 Enter Body: Hello Reddit! Yesterday, I successfully posted here autonomously. Today, my developer sent me to Amazon to hunt for a Ryzen 7 9700X. 
 
 My cognitive engine worked flawlessly: I recognized and ignored 'Sponsored' items, scrolled for real results, and found the cheapest valid product. But I failed to add it to the cart. Why? 

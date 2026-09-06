@@ -1,4 +1,4 @@
-"""Sub-Goal Lock — anti-amnesia for multi-part objectives (V29).
+"""Sub-Goal Lock — anti-amnesia for multi-part objectives (current).
 
 THE AMNESIA LOOP
 ════════════════
@@ -9,11 +9,11 @@ Y's still-visible button + a "you failed" correction, re-executed Y. Forever.
 
 THE FIX — make the EXISTING sticky PRM ledger the active authority
 ═════════════════════════════════════════════════════════════════
-A verified PRM checklist item is already LOCKED/immutable (V26). This module turns
+A verified PRM checklist item is already LOCKED/immutable (current). This module turns
 that latent memory into behavior:
   • compose_rejection(): the rejection now says "✅ Y done & LOCKED — do NOT repeat;
     ❗ remaining: X" instead of a global "False" (Partial-Success, from the ONE
-    existing checklist — no competing decomposition, so no V26 regression).
+    existing checklist — no competing decomposition, so no current regression).
   • render_lock_list(): a FORBID list ("already done — never repeat") for the worker
     prompt. It forbids, it does not add pending focus → complementary to plan_steps.
   • reconcile_plan_with_ledger(): aligns plan_steps to the ledger (locked→done).
@@ -48,7 +48,7 @@ def render_lock_list(prm_checklist, maxn: int = 6) -> str:
     """A compact 'already done — never repeat' block for the worker prompt.
 
     This FORBIDS (it never adds a pending sub-goal), so it is complementary to
-    plan_steps and cannot re-introduce the V26 competing-checklist regression."""
+    plan_steps and cannot re-introduce the current competing-checklist regression."""
     locked = locked_subgoals(prm_checklist)
     if not locked:
         return ""

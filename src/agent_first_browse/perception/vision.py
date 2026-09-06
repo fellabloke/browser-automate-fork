@@ -1,4 +1,4 @@
-"""Vision-on-demand — the a11y-DOM ⇄ vision "thinker" toggle (V21 + V30 coord fallback).
+"""Vision-on-demand — the a11y-DOM ⇄ vision "thinker" toggle (current + current coord fallback).
 
 PRINCIPLE (the user's instruction, made literal)
 ═════════════════════════════════════════════════
@@ -14,9 +14,9 @@ enough (`needs_vision`), and the system adds objective safety-net triggers
 gets eyes when it's stuck but hasn't realised it.
 
 The vision model is given the a11y element MAP alongside the screenshot, so its
-answer comes back as a stable `element_id` (resolved via the V19 registry).
+answer comes back as a stable `element_id` (resolved via the element registry).
 
-V30 COORDINATE FALLBACK: when the target element is genuinely absent from the
+current COORDINATE FALLBACK: when the target element is genuinely absent from the
 a11y tree (shadow DOM, custom web components), Vision may return pixel coordinates
 instead. These coordinates are validated by a second vision check ("Look-Before-
 You-Leap") before being sent to Overwatch, ensuring grounded, safe clicks.
@@ -91,7 +91,7 @@ class VisionVerdict(BaseModel):
     """The vision model's grounded read of the screenshot, mapped back to an
     action on the labelled a11y elements (stable id, not pixels).
 
-    V30: When the target is genuinely absent from the element map (shadow DOM,
+    When the target is genuinely absent from the element map (shadow DOM,
     custom web component), coord_x/coord_y provide pixel-coordinate fallback."""
 
     situation: str = Field(
@@ -427,7 +427,7 @@ def apply_vision_verdict(proposed: dict, verdict: VisionVerdict) -> tuple[dict, 
     confident AND proposes a concrete action — otherwise the a11y decision stands
     (vision confirmed it, or had nothing to add).
 
-    V30: Handles coordinate fallback — when Vision returns coord_x/coord_y
+    Handles coordinate fallback — when Vision returns coord_x/coord_y
     instead of element_id (target absent from a11y tree), the coordinates are
     set on the proposed action with a 'vision_coords' flag for downstream
     validation before Overwatch grounding.
@@ -445,14 +445,14 @@ def apply_vision_verdict(proposed: dict, verdict: VisionVerdict) -> tuple[dict, 
     is_drag = verdict.action_type == "drag_and_drop"
     if verdict.element_id:
         proposed["element_id"] = verdict.element_id
-        # Coordinates are re-resolved from the id by the V19 registry at action
+        # Coordinates are re-resolved from the id by the element registry at action
         # time; drop stale a11y coords so they can't fight the vision choice.
         proposed["x"] = None
         proposed["y"] = None
         proposed["vision_coords"] = False
     elif (getattr(verdict, "coord_x", None) is not None
           and getattr(verdict, "coord_y", None) is not None):
-        # V30 COORDINATE FALLBACK: target not in a11y tree — Vision returned
+        # current COORDINATE FALLBACK: target not in a11y tree — Vision returned
         # pixel coordinates. Clear element_id and set coords for downstream
         # validation ("Look-Before-You-Leap" in the worker pipeline).
         proposed["element_id"] = None

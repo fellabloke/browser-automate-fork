@@ -1,4 +1,4 @@
-"""Worker Planner — Vision + Reasoning agents for Agent First IDE v9.0.
+"""Worker Planner — Vision + Reasoning agents for Agent First Browse.
 
 Both agents now pull their LLM clients from ModelRegistry (single source of truth).
 No more duplicated key-loading logic or missed API keys.

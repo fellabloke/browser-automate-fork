@@ -629,7 +629,7 @@ async def mcp_click(
                 "navigated": False, "dom_changed": True, "verified": True,
                 "state_verified": True, "no_op": False, "error": "",
             }
-        # V19: Resolve the chosen element to FRESH, identity-verified coords from
+        # Resolve the chosen element to FRESH, identity-verified coords from
         # the exact node the LLM picked (drift-proof). Falls back to snapshot
         # coords if the registry has no live node for this id.
         if element_id:
@@ -688,7 +688,7 @@ async def mcp_click(
                 "error": "",
             }
         else:
-            # ── V32 SAFETY NET: element-id state verification ──────────────
+            # ── current SAFETY NET: element-id state verification ──────────────
             # If the coordinate-based Visual Truth Override in cdp_click.py
             # missed the state change (e.g. elementFromPoint returned the
             # label instead of the input), use the element_id registry to
@@ -714,7 +714,7 @@ async def mcp_click(
                         state_check.get("ariaChecked") == "true"
                     ):
                         logger.info(
-                            "✅ V32 SAFETY NET: click engine reported failure but "
+                            "✅ current SAFETY NET: click engine reported failure but "
                             "element %s state is checked=%s. Overriding to success.",
                             element_id, state_check.get("checked"),
                         )
@@ -726,7 +726,7 @@ async def mcp_click(
                             "error": "",
                         }
                 except Exception as e:
-                    logger.debug("V32 safety net check failed: %s", e)
+                    logger.debug("current safety net check failed: %s", e)
 
             return {
                 "success": False,
@@ -767,7 +767,7 @@ async def mcp_type(
 
     try:
         typing_element_id = None
-        # V19: Resolve to fresh, identity-verified coords from the chosen node.
+        # Resolve to fresh, identity-verified coords from the chosen node.
         if element_id:
             from agent_first_browse.perception import dom as dom_parser
             r = await dom_parser.resolve_element(page, element_id)
@@ -835,7 +835,7 @@ _SCROLL_METRICS_JS = """
 
 
 async def mcp_scroll(pixels: int = 600) -> dict:
-    """Scroll the page down WITH feedback (V29 smart scroll).
+    """Scroll the page down WITH feedback (current smart scroll).
 
     Delegates the humanized scroll to ghost_input.ghost_scroll (FROZEN — unchanged)
     and only MEASURES the viewport before/after, so the brain knows whether the page
@@ -892,7 +892,7 @@ async def mcp_press_enter() -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  V29 Phase A — Expanded primitives (hover / select_option / press_key)
+#  A — Expanded primitives (hover / select_option / press_key)
 #  Universal handlers reusing existing backends (ghost_move_to, keyboard, __aid).
 # ═══════════════════════════════════════════════════════════════════════════════
 
@@ -913,7 +913,7 @@ async def mcp_press_key(key: str) -> dict:
 
 async def mcp_hover(element_id: str | None = None, x: float = 0, y: float = 0) -> dict:
     """Hover over an element (reveal menus/tooltips/submenus). Resolves fresh
-    coordinates via the V19 registry, then reuses the humanized ghost_move_to."""
+    coordinates via the element registry, then reuses the humanized ghost_move_to."""
     page = _get_page()
     try:
         if element_id:
@@ -1150,7 +1150,7 @@ async def mcp_set_date_of_birth(element_id: str | None, iso_date: str) -> dict:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  V33: Comprehensive Browser Action Suite — New Primitives
+#  Comprehensive Browser Action Suite — New Primitives
 # ═══════════════════════════════════════════════════════════════════════════════
 
 async def mcp_drag_and_drop(
@@ -1554,7 +1554,7 @@ async def mcp_ground_action(
     page = _get_page()
     smap = selector_map or _SELECTOR_MAP
 
-    # Layer 0 (V19): Live registry resolution — the EXACT node the LLM chose, with
+    # Layer 0 (current): Live registry resolution — the EXACT node the LLM chose, with
     # fresh coordinates. Supersedes the "snap to nearest within 60px" heuristic
     # that could land on the wrong neighbour on dense pages.
     if element_id is not None:

@@ -1,4 +1,4 @@
-"""Unit tests for V22 anti-bot realism (virtual display + stealth-script repair).
+"""Unit tests for anti-bot realism (virtual display + stealth-script repair).
 
 Guarantees under test:
   - virtual_display: a real DISPLAY short-circuits (no Xvfb spawned); a true
@@ -7,7 +7,7 @@ Guarantees under test:
     (the `\\r\\n`-in-a-non-raw-string bug silently aborted WebGL/audio/font/
     WebRTC spoofing); the platform-consistent GPU selection must be present.
 
-Run: .venv/bin/python -m pytest tests/integration/test_antibot_v22.py -v
+Run: .venv/bin/python -m pytest tests/integration/test_antibot.py -v
 """
 
 from __future__ import annotations

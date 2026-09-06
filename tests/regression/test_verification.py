@@ -1,4 +1,4 @@
-"""Unit tests for V20 Outcome Verification (the evidence-grounded done-gate).
+"""Unit tests for outcome verification (the evidence-grounded done-gate).
 
 Guarantees under test:
   - should_accept: only a confident, achieved verdict passes.
@@ -10,7 +10,7 @@ Guarantees under test:
     MAX_DONE_BLOCKS rejections → honest finalize (escalate), never an
     infinite block-loop.
 
-Run: .venv/bin/python -m pytest tests/regression/test_verification_v20.py -v
+Run: .venv/bin/python -m pytest tests/regression/test_verification.py -v
 """
 
 from __future__ import annotations

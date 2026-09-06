@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
-"""Quick import test for all True Brain v16.0 modules."""
-print("=== True Brain v16.0 Import Test ===\n")
+"""Quick import test for all Agent First Browse modules."""
+print("=== Agent First Browse Import Test ===\n")
 
 # 1. BrainState
 from agent_first_browse.agent.state import BrainState

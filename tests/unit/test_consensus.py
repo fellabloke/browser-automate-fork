@@ -1,4 +1,4 @@
-"""Unit tests for V27/P2 — multi-model consensus + abstention.
+"""Unit tests for current/P2 — multi-model consensus + abstention.
 
 Guarantees:
   - confidence-weighted (CISC) vote picks the right winner;
@@ -7,7 +7,7 @@ Guarantees:
   - distinct-base-model selection (the independent voters);
   - the ensemble sampler polls each model once and tolerates failures.
 
-Run: .venv/bin/python -m pytest tests/unit/test_consensus_v27.py -v
+Run: .venv/bin/python -m pytest tests/unit/test_consensus.py -v
 """
 
 from __future__ import annotations
@@ -128,7 +128,7 @@ def test_sample_ensemble_polls_each_and_tolerates_failure():
     assert len(out) == 2               # the failing voter dropped out
 
 
-# ── dynamic cascade consensus (V28: time-vs-accuracy) ──
+# ── dynamic cascade consensus (time-vs-accuracy) ──
 
 class _Dec:
     """Minimal WorkerAction-like decision for cascade tests."""

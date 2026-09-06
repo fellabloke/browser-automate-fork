@@ -1,6 +1,6 @@
 """Native Playwright browser runtime for Agent First IDE.
 
-Architecture (v4.0 — Persistent Context):
+Architecture (Persistent Context):
     +─────────────────+    +────────────────────────+    +──────────────+
     │ Python Agent     │───>│ Playwright Engine       │───>│ Chromium DOM  │
     │ (LangGraph)      │    │ (persistent context)    │    │ (real events) │

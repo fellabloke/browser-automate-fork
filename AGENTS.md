@@ -230,7 +230,7 @@ README.md — user-facing setup and usage.
 
 docs/ — detailed architecture, development guides, decisions, audits, and plans.
 
-Historical/versioned planning documents are evidence of past decisions, not automatically current truth.
+Historical planning documents are evidence of past decisions, not automatically current truth.
 
 When code contradicts an old plan, verify the live code path and tests before implementing something the plan says is “missing.”
 

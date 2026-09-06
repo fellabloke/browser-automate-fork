@@ -109,7 +109,7 @@ class DreamerResult:
 class Candidate(BaseModel):
     """One candidate action proposed by the planner.
 
-    V17.0: typed nested model (was a free-form dict) — strict-mode providers
+    typed nested model (was a free-form dict) — strict-mode providers
     like Groq require `additionalProperties: false` on every nested object,
     which Pydantic emits via extra='forbid'. The untyped dict caused 400s.
     """
@@ -345,7 +345,7 @@ class WebDreamer:
         
         action_desc = candidate.describe()
         
-        # V15.0 F3: Extract specific element context from DOM markdown
+        # current F3: Extract specific element context from DOM markdown
         # When the DOM is truncated to 2500 chars, the target element [eN] may be cut.
         # The world model then hallucinates "element does not exist" and scores 0.0.
         # Fix: find the element's line and inject it explicitly into the prompt.
@@ -478,7 +478,7 @@ class WebDreamer:
         start_time = time.monotonic()
         total_sims = 0
 
-        # V29: situational tuning — flag-gated; None ⇒ vacuum-scoring baseline.
+        # situational tuning — flag-gated; None ⇒ vacuum-scoring baseline.
         situ = None
         situ_note = ""
         try:
@@ -613,7 +613,7 @@ class WebDreamer:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  V29 Situational scoring tuning (flag V29_WEBDREAMER_SITUATIONAL)
+#  current Situational scoring tuning (flag WEBDREAMER_SITUATIONAL_ENABLED)
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Vacuum-scoring rated `scroll` as universally "safe progress" and feared `goto`.
 #  This layers a CONSERVATIVE, UNIVERSAL, additive (~±0.15) situational delta on top

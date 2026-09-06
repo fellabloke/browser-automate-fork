@@ -1,4 +1,4 @@
-"""Outcome Judge — evidence-grounded verification of task completion (V20).
+"""Outcome Judge — evidence-grounded verification of task completion.
 
 THE problem this solves
 ═══════════════════════
@@ -95,7 +95,7 @@ JUDGE_SYSTEM_PROMPT = """You are a task-completion verifier for a browser agent.
 The agent claims its task is finished. Your job is to decide whether the objective
 is truly achieved, using ALL available evidence.
 
-CRITICAL WORKER-DEFERENCE RULE (V31)
+CRITICAL WORKER-DEFERENCE RULE
 ═══════════════════════════════════════
 The Worker agent has TEMPORAL CONTEXT that you do not have. It observed the page
 BEFORE, DURING, and AFTER each action — you only see a frozen snapshot AFTER.
@@ -177,7 +177,7 @@ def build_judge_messages(
     judge should confirm the objective using them, not re-derive every sub-goal
     from a cold final page (which causes false 'not done' on subtle UI changes).
 
-    proof_of_completion (V31) is the worker's first-hand testimony of state-changes
+    proof_of_completion is the worker's first-hand testimony of state changes
     it observed during execution. This is TRUSTED temporal evidence — the judge
     evaluates it with deference, rejecting only on clear contradiction.
     """

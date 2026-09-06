@@ -78,7 +78,7 @@ async def _validate_coord_click(
 ) -> tuple[bool, str]:
     """Ask Vision to verify what is at (x, y) before clicking.
 
-    This is the "Look-Before-You-Leap" safety net for V30 coordinate fallback.
+    This is the "Look-Before-You-Leap" safety net for current coordinate fallback.
     When Vision returns pixel coordinates instead of an element_id (because the
     target is absent from the a11y tree), we take a SECOND screenshot and ask
     Vision to confirm that the coordinate actually matches the intended target.
@@ -425,8 +425,8 @@ async def invoke_worker(
                         "consecutive_identical_actions": 0,
                     }
 
-    # ── V18 Cognition: the agent reasons WITH its persistent strategy + beliefs ──
-    # V27: strategy block is the PERSISTENT context only; the goal_complete_hint
+    # ── current Cognition: the agent reasons WITH its persistent strategy + beliefs ──
+    # strategy block is the PERSISTENT context only; the goal_complete_hint
     # (transient "finish now" nudge) is now owned by the Guidance Bus below.
     from agent_first_browse.cognition.reasoning import render_strategy_block, build_guidance
     strategy_block = render_strategy_block(
@@ -436,7 +436,7 @@ async def invoke_worker(
         success_criteria=state.get("success_criteria", ""),
     )
 
-    # ── V29 Target Lock: bind this step to the target item's semantic identity so
+    # ── current Target Lock: bind this step to the target item's semantic identity so
     #    identical-looking distractor controls (a neighbor's 'Add to cart') can
     #    never steal focus — even when the agent is confused. ──
     bound_target = None
@@ -455,7 +455,7 @@ async def invoke_worker(
     except Exception as e:  # noqa: BLE001
         logger.debug("Target Lock skipped (non-fatal): %s", e)
 
-    # ── V29 Atomic Intent Journal: if the PREVIOUS side-effecting action did not
+    # ── current Atomic Intent Journal: if the PREVIOUS side-effecting action did not
     #    return a confirmed success, surface the pending-action ledger here so the
     #    worker — and EVERY model in the failover chain that answers this same
     #    prompt — is warned not to blindly repeat it (handoff-amnesia fix). ──
@@ -474,7 +474,7 @@ async def invoke_worker(
     except Exception as e:  # noqa: BLE001
         logger.debug("Hesitation block skipped (non-fatal): %s", e)
 
-    # ── V29 Sub-Goal Lock: surface the FORBID-list of already-completed (verified)
+    # ── current Sub-Goal Lock: surface the FORBID-list of already-completed (verified)
     #    sub-goals so the agent never re-does finished work — even after a global
     #    'done' rejection. This forbids; it adds no pending focus, so it is
     #    complementary to plan_steps (no competing-checklist regression). ──
@@ -496,7 +496,7 @@ async def invoke_worker(
             "DO NOT attempt to log in again."
         )
 
-    # ── V27 Guidance Bus: exactly ONE arbitrated transient directive ──
+    # ── current Guidance Bus: exactly ONE arbitrated transient directive ──
     # Replaces the old stacking of correction_context + recovery_advice +
     # dedup_override + critical_action_hint (the F2 regression). The PRM-checklist
     # re-injection is GONE — plan_steps (system prompt) is the only sub-goal source.
@@ -532,7 +532,7 @@ async def invoke_worker(
            if page_text and not survey_handoff else "")
         + f"═══ PAGE STRUCTURE ═══\n"
         f"{prompt_dom}\n\n"
-        # V17: Objective anchor at the BOTTOM of the prompt (sandwich pattern).
+        # Objective anchor at the BOTTOM of the prompt (sandwich pattern).
         # On pages with large DOM markdown, the objective at the top gets buried
         # in the context window. Repeating it here ensures the LLM's attention
         # stays locked on the goal, not on pattern-matching DOM elements.
@@ -1088,7 +1088,7 @@ async def invoke_worker(
     consensus_update: dict[str, Any] = {}
     force_consult = False
 
-    # ── V29 Clarity Gate: how clear/unambiguous is this action? (drives BOTH the
+    # ── current Clarity Gate: how clear/unambiguous is this action? (drives BOTH the
     #    broadened pre-action consensus and the vision trigger below). ──
     clarity_sig = None
     try:
@@ -1204,7 +1204,7 @@ async def invoke_worker(
         else:
             do_vote, vote_reason = is_irrev, "irreversible action"
 
-        # V29 Intent Journal: re-proposing an UNCONFIRMED prior action is the
+        # current Intent Journal: re-proposing an UNCONFIRMED prior action is the
         # double-toggle risk — never fire it blind; force a second opinion first.
         repeating_uncertain = False
         try:
@@ -1313,7 +1313,7 @@ async def invoke_worker(
     except Exception as e:  # noqa: BLE001 — consensus never breaks the step
         logger.debug("Cascade consensus skipped (non-fatal): %s", e)
 
-    # ── Vision-on-demand (V21): the agent works on the a11y DOM by default and
+    # ── Vision-on-demand (current): the agent works on the a11y DOM by default and
     #    "opens its eyes" for ONE step only when it cannot resolve the page from
     #    text — then this update reverts (force_vision cleared) and the next step
     #    is text-only again. ──
@@ -1512,7 +1512,7 @@ async def invoke_worker(
             logger.info("👁️→⚡ Vision refined the action → %s [%s]",
                         proposed["verb"], proposed.get("element_id") or "")
 
-            # ── V30 Coordinate Validation: Look-Before-You-Leap ──
+            # ── current Coordinate Validation: Look-Before-You-Leap ──
             # When Vision returned raw coordinates (element not in a11y tree),
             # verify the target via a second vision check before sending to
             # Overwatch. This ensures coordinate clicks are precise and safe.
@@ -1605,7 +1605,7 @@ async def invoke_worker(
             logger.debug("Survey hold guard skipped (non-fatal): %s", e)
 
     # ══════════════════════════════════════════════════════════════════════
-    #  V29 Phase B — WebDreamer: look-before-you-leap on HIGH-STAKES AMBIGUOUS
+    #  B — WebDreamer: look-before-you-leap on HIGH-STAKES AMBIGUOUS
     #  steps. It IMAGINES (LLM world-model — no real browser action) the outcome
     #  of the top-K candidate actions and picks the best. Gated by the Clarity Gate
     #  (only fires when uncertain) AND a cost gate (should_invoke_dreamer:
@@ -1643,7 +1643,7 @@ async def invoke_worker(
                             ), objective=objective,
                             plan_context=plan_render, action_history=history_compressed,
                             current_url=current_url, proposed_action=proposed_ca,
-                            situation=state),  # V29: situational tuning (state signals only)
+                            situation=state),  # situational tuning (state signals only)
                         timeout=WEB_DREAMER_TIMEOUT_SECONDS)
                     best = dr.best_action
                     logger.info("🌙 WebDreamer: best=%s score=%.2f (k=%d)",
@@ -1663,7 +1663,7 @@ async def invoke_worker(
                                     "risk_level": win_risk.name,
                                     "reversible": win_risk == ActionRisk.REVERSIBLE,
                                     "reasoning": f"[dreamer] {(best.reasoning or '')[:160]}"}
-                        # V30: Preserve validated vision coordinates through WebDreamer
+                        # Preserve validated vision coordinates through WebDreamer
                         # override. When WebDreamer's best action has no grounding
                         # (no element_id, no coords) but the PRIOR proposed action had
                         # validated vision coordinates, carry them forward. This prevents
@@ -1689,7 +1689,7 @@ async def invoke_worker(
     except Exception as e:  # noqa: BLE001 — simulation never breaks the step
         logger.debug("WebDreamer skipped (non-fatal): %s", e)
 
-    # ── V29 Sub-Goal Lock — deterministic anti-amnesia backstop ──
+    # ── current Sub-Goal Lock — deterministic anti-amnesia backstop ──
     # Fires ONLY in the post-rejection danger zone (a 'done' was just rejected),
     # so it never interferes with normal multi-step work. If the worker proposes
     # RE-DOING an already-locked sub-goal, we don't execute it — hold (wait) and
@@ -1948,7 +1948,7 @@ async def invoke_worker(
         "last_action_signature": current_sig,
         "consecutive_identical_actions": new_consecutive,
         "survey_model_wait_seconds": model_wait_seconds,
-        # V29: expose the bound target so Overwatch (reality note) and the
+        # expose the bound target so Overwatch (reality note) and the
         # done-judge can keep the agent locked on the right item.
         "bound_target": (bound_target.phrase if bound_target else ""),
         **consensus_update,

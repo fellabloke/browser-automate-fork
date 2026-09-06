@@ -1,4 +1,4 @@
-"""Unit tests for the V17.0 Resilient Reasoning Foundation.
+"""Unit tests for the resilient reasoning and failover foundation.
 
 Covers the model-first failover guarantees the user explicitly required:
   - ALL instances of the best model (every key, every provider) are tried
@@ -10,7 +10,7 @@ Covers the model-first failover guarantees the user explicitly required:
   - Dead models (404) are pruned by the startup probe.
   - Pydantic schemas emit additionalProperties:false (Groq strict mode).
 
-Run: .venv/bin/python -m pytest tests/unit/test_failover_v17.py -v
+Run: .venv/bin/python -m pytest tests/unit/test_failover.py -v
 """
 
 from __future__ import annotations

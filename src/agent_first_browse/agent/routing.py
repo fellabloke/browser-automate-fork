@@ -1,4 +1,4 @@
-"""MoE Router — Mixture-of-Experts routing for the True Brain v16.0.
+"""MoE Router — Mixture-of-Experts routing for the Agent First Browse.
 
 Decides which specialist worker node should handle the current step.
 Uses a confidence-gated hybrid approach:
@@ -192,7 +192,7 @@ def _classify_plan_step(step_desc: str) -> str | None:
 #       p_eff = 1 − (1 − p)^(RETRY_BUDGET + 1)
 # so a k-critical-step task succeeds with S = p_eff^k. With p=0.70, k=6:
 #       RETRY_BUDGET 0 → 12%,  2 → 85%,  3 → 95%.
-# Independence of attempts is guaranteed by the V18 escalation ladder (each retry
+# Independence of attempts is guaranteed by the current escalation ladder (each retry
 # is a DISTINCT tactic). RETRY_BUDGET=3 ⇒ 4 attempts ⇒ exponent (RETRY_BUDGET+1)=4.
 RETRY_BUDGET = 3
 

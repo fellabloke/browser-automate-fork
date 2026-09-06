@@ -393,7 +393,7 @@ async def resilient_type(
     If x, y are provided, clicks to focus the field first.
     Tries increasingly aggressive strategies until text is verified.
 
-    v2.0 UPGRADE: After initial verification, performs a delayed recheck
+    current UPGRADE: After initial verification, performs a delayed recheck
     (300ms) to catch React/Vue state reversions. If reverted, falls through
     to the next strategy (cdp_key_events fires individual keystrokes that
     React's onChange handler processes correctly).
@@ -427,7 +427,7 @@ async def resilient_type(
             try:
                 await ghost_click(page, x, y)
                 await asyncio.sleep(0.3)
-                # V15.0 F2: Collapse selection to end of field value (W3C setSelectionRange)
+                # current F2: Collapse selection to end of field value (W3C setSelectionRange)
                 # React/Angular onFocus handlers often call select() which highlights all text.
                 # setSelectionRange(len, len) deselects and places cursor at end, preventing
                 # subsequent insertText from overwriting existing content.
@@ -450,7 +450,7 @@ async def resilient_type(
             except Exception as e:
                 logger.warning("Focus click failed: %s", e)
 
-        # V15.1 Patch B: Smart clear detection — auto-detect append vs replace
+        # B: Smart clear detection — auto-detect append vs replace
         if clear_first and not force_retype:
             try:
                 existing_val = await page.evaluate("""() => {
@@ -502,7 +502,7 @@ async def resilient_type(
             logger.warning("%s execution failed — trying next strategy", strategy_name)
             continue
 
-        # ── Phase 1: Immediate verification ──
+        # ── Immediate verification ──
         await asyncio.sleep(0.3)
         if element_id:
             verification = await _verify_typed_text(
@@ -522,7 +522,7 @@ async def resilient_type(
             )
             continue
 
-        # ── Phase 2: Delayed React reversion check (v2.0) ──
+        # ── Delayed React reversion check ──
         # The rich-editor bulk fallback needs a delayed framework reversion
         # check. Both keyboard strategies already fire onChange per character.
         react_stable = True

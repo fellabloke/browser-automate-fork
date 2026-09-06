@@ -1,4 +1,4 @@
-"""ModelRegistry — Model-Agnostic Provider Layer for Agent First IDE v17.0.
+"""ModelRegistry — model-agnostic provider layer for Agent First Browse.
 
 Enforces STRICT separation between Text, Vision, and Audio API pipelines.
 No graph node should ever construct an LLM client directly.
@@ -6,7 +6,7 @@ All model access goes through this registry.
 
 Reads ALL API keys from .env — NVIDIA NIM, Cloudflare, Google Gemini.
 
-V17.0 — Resilient Reasoning Foundation:
+Responsibilities include resilient reasoning, provider health, and structured recovery:
   - ROLE-AWARE failover: the chain is sorted by explicit role priority, model
     quality tier, then expected cost. Duplicate keys for the same provider/model
     remain adjacent while empirically unreliable hosts can be demoted.
@@ -130,7 +130,7 @@ class ModelRegistry:
     _instance: "ModelRegistry | None" = None
 
     def __init__(self):
-        # V24 dual-mode: premium (one trusted paid key) vs free (juggle + gate).
+        # current dual-mode: premium (one trusted paid key) vs free (juggle + gate).
         self.mode = get_agent_mode()
         if self.mode == "premium":
             self._text_pipeline, self._vision_pipeline = _build_premium_pipeline()
@@ -225,7 +225,7 @@ class ModelRegistry:
         return len(self._audio_pipeline) > 0
 
     def get_worker_chain(self) -> list[ModelClient]:
-        """V24 role separation — the WORKER (action decisions, the critical path)
+        """current role separation — the WORKER (action decisions, the critical path)
         draws only from the most capable models. Premium → the single premium
         model. Free → tier ≤ WORKER_MAX_TIER, ordered by WORKER_MODEL_ORDER.
         Chronically unreliable instances are omitted so the worker fails fast
@@ -265,7 +265,7 @@ class ModelRegistry:
             f"TEXT chain ({len(self._text_pipeline)}): {t}\nVISION chain ({len(self._vision_pipeline)}): {v}"
         )
 
-    # ── V17.0: Startup probe — prune dead models, seed latency ──────────────
+    # ── Startup probe — prune dead models and seed latency ─────────────────────
 
     async def probe_and_prune(
         self, timeout: float = 8.0, vision_timeout: float | None = None,

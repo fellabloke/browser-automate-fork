@@ -1,6 +1,6 @@
-"""Unit tests for V24 — Agentic Capability Gate + dual-mode (free/premium).
+"""Unit tests for Agentic Capability Gate + dual-mode (free/premium).
 
-Guarantees under test (mirror STRATEGY.md invariants):
+Guarantees under test (mirror ARCHITECTURE.md invariants):
   - Mode detection: auto→premium iff PREMIUM_API_KEY; explicit premium/free force.
   - Premium pipeline: one key/model serves text+vision; separate vision model
     honored; missing model → empty (caller falls back to free).
@@ -11,7 +11,7 @@ Guarantees under test (mirror STRATEGY.md invariants):
   - Capability gate: incapable combos excluded; if that would EMPTY a pipeline,
     allowlisted-alive models are restored (never empty — invariant #2).
 
-Run: .venv/bin/python -m pytest tests/unit/test_capability_v24.py -v
+Run: .venv/bin/python -m pytest tests/unit/test_capability.py -v
 """
 
 from __future__ import annotations

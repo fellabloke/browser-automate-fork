@@ -1,4 +1,4 @@
-"""Atomic Intent Journal — write-ahead logging for side-effecting actions (V29).
+"""Atomic Intent Journal — write-ahead logging for side-effecting actions (current).
 
 THE HANDOFF-AMNESIA / DOUBLE-TOGGLE CURE
 ════════════════════════════════════════

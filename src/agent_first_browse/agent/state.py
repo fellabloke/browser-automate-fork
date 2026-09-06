@@ -1,4 +1,4 @@
-"""BrainState — Typed Global State for the True Brain v16.0 Architecture.
+"""BrainState — Typed Global State for the Agent First Browse Architecture.
 
 Consolidates all 15+ scattered variables from advanced_agent.py into a
 single Pydantic model that flows through the LangGraph StateGraph.
@@ -130,7 +130,7 @@ class BrainState(BaseModel):
     plan_progress_pct: int = 0
     reflections: list[str] = Field(default_factory=list)
 
-    # ── Cognition Core (V18) — the agent's working theory of the task ──
+    # ── Cognition Core — the agent's working theory of the task ──
     # NOTE: `beliefs` deliberately uses overwrite (not the `add` reducer) so the
     # updating node can keep it capped/de-duplicated — bounded memory prevents
     # prompt overload / hallucination. See cognition.merge_beliefs().
@@ -239,7 +239,7 @@ class BrainState(BaseModel):
     action_outcome: str = ""  # "→ OK" | "→ FAILED: ..." | etc.
     retry_count: int = 0
 
-    # ── V21 Vision-on-demand (a11y DOM is default; vision is a per-step toggle) ──
+    # ── Vision-on-demand (a11y DOM is default; vision is a per-step toggle) ──
     vision_consults: int = 0       # per-task budget counter
     force_vision: bool = False     # set by the ladder's vision rung; consumed next step
     ineffective_streak: int = 0    # consecutive ineffective click/type on same target
@@ -254,7 +254,7 @@ class BrainState(BaseModel):
     captcha_refreshes: int = 0
     captcha_last_result: str = ""
 
-    # ── V29 Reality Monitor (Phase 1) — screen-reality reconciliation ──
+    # ── Reality Monitor — screen-reality reconciliation ──
     # Written ONLY by Overwatch after executing an action. `reality_status` is
     # observational; `reality_note` carries a CONTRADICTED discrepancy back to the
     # worker via the guidance bus so the agent re-evaluates the REAL screen instead
@@ -262,15 +262,15 @@ class BrainState(BaseModel):
     reality_status: str = ""   # "" | CONFIRMED | CONTRADICTED | UNCLEAR | NULL
     reality_note: str = ""     # discrepancy fed to the guidance bus on contradiction
 
-    # ── V29 Phase A — unified DOM-diff state-change signal (written by Overwatch
-    # from CriticV12). 0..1: how much the page state changed after the last action.
+    # ── Unified DOM-diff state-change signal (written by Overwatch
+    # from ProgressCritic). 0..1: how much the page state changed after the last action.
     state_change_score: float = 0.0
 
-    # ── V29 Phase B — WebDreamer (predictive simulation) diagnostics ──
+    # ── WebDreamer predictive-simulation diagnostics ──
     webdreamer_runs: int = 0       # times the dreamer simulated before acting
     webdreamer_overrides: int = 0  # times its imagined best replaced the worker pick
 
-    # ── V29 Phase 2/3 — Clarity Gate, Target Lock, Stagnation, Smart Scroll ──
+    # ── Clarity Gate, Target Lock, Stagnation, Smart Scroll ──
     # bound_target: the semantic identity of the current sub-task's target (written
     # by perceive_node). stagnation_*: written by perceive_node. scroll_stuck_streak:
     # written by overwatch when a scroll yields no new content / no movement.
@@ -279,7 +279,7 @@ class BrainState(BaseModel):
     stagnation_note: str = ""          # guidance-bus directive when stuck
     scroll_stuck_streak: int = 0       # consecutive unproductive scrolls
 
-    # ── V29 Atomic Intent Journal — write-ahead record of a side-effecting action.
+    # ── current Atomic Intent Journal — write-ahead record of a side-effecting action.
     # Written by Overwatch BEFORE execution; cleared on a confirmed success. While
     # set (action timed out / unconfirmed), the next worker decision is warned not
     # to blindly repeat it — fixes handoff-amnesia double-toggling.
@@ -308,7 +308,7 @@ class BrainState(BaseModel):
     # multi-model vote, and how many were abstained (held back as too ambiguous).
     consensus_votes: int = 0
     abstentions: int = 0
-    # V20: the outcome judge's cited on-page proof (or the honest gap on an
+    # The outcome judge's cited on-page proof (or the honest gap on an
     # unverified shutdown) — surfaced in the finalize report.
     done_evidence: str = ""
 

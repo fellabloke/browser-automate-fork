@@ -1,4 +1,4 @@
-"""Unit tests for V29 / Phase 1 — the Reality Monitor (screen-reality reconciliation).
+"""Unit tests for the Reality Monitor (screen-reality reconciliation).
 
 Covers the blind-execution cure end to end at the logic layer:
   • classify_reality: CONTRADICTED / CONFIRMED / UNCLEAR / NULL across the real
@@ -9,7 +9,7 @@ Covers the blind-execution cure end to end at the logic layer:
   • wiring guards: Overwatch + BrainState actually carry the new layer.
 
 Pure logic — no browser, no network.
-Run: .venv/bin/python -m pytest tests/regression/test_reality_v29.py -v
+Run: .venv/bin/python -m pytest tests/regression/test_reality.py -v
 """
 
 from __future__ import annotations
@@ -33,7 +33,7 @@ def test_contradiction_new_error_text():
         verb="click",
         pre_text="Product page. In stock. Add to Cart.",
         post_text="Error: this item is out of stock and cannot be added.",
-        critic_success=True,  # the DOM DID change → CriticV12 would say 'progress'
+        critic_success=True,  # the DOM DID change → ProgressCritic would say 'progress'
     )
     assert rv.status == CONTRADICTED
     assert "out of stock" in rv.note or "error" in rv.note.lower()
@@ -183,18 +183,18 @@ def test_clear_transient_wipes_reality_fields():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_flags_default_on(monkeypatch):
-    for k in ("V29_ENABLED", "V29_REALITY", "V29_REALITY_LLM",
-              "V29_CLARITY_CONSENSUS", "V29_STAGNATION"):
+    for k in ("COGNITIVE_FEATURES_ENABLED", "REALITY_MONITOR_ENABLED", "REALITY_LLM_ENABLED",
+              "CLARITY_CONSENSUS_ENABLED", "STAGNATION_DETECTION_ENABLED"):
         monkeypatch.delenv(k, raising=False)
-    assert ff.v29_enabled() is True
+    assert ff.cognitive_features_enabled() is True
     assert ff.reality_enabled() is True
     assert ff.reality_llm_enabled() is True
     assert ff.clarity_consensus_enabled() is True
 
 
 def test_master_kill_switch_reverts_everything(monkeypatch):
-    monkeypatch.setenv("V29_ENABLED", "0")
-    assert ff.v29_enabled() is False
+    monkeypatch.setenv("COGNITIVE_FEATURES_ENABLED", "0")
+    assert ff.cognitive_features_enabled() is False
     assert ff.reality_enabled() is False
     assert ff.reality_llm_enabled() is False
     assert ff.clarity_consensus_enabled() is False
@@ -202,9 +202,9 @@ def test_master_kill_switch_reverts_everything(monkeypatch):
 
 
 def test_per_feature_switch_isolated(monkeypatch):
-    monkeypatch.delenv("V29_ENABLED", raising=False)
-    monkeypatch.setenv("V29_REALITY", "0")
-    assert ff.v29_enabled() is True          # master still on
+    monkeypatch.delenv("COGNITIVE_FEATURES_ENABLED", raising=False)
+    monkeypatch.setenv("REALITY_MONITOR_ENABLED", "0")
+    assert ff.cognitive_features_enabled() is True          # master still on
     assert ff.reality_enabled() is False     # this organ off
     assert ff.reality_llm_enabled() is False  # depends on reality
     assert ff.stagnation_enabled() is True   # siblings unaffected

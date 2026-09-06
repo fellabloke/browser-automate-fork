@@ -1,10 +1,10 @@
-"""Phase B tests — WebDreamer revival (predictive simulation, Clarity-gated).
+"""WebDreamer predictive simulation and clarity-gate tests.
 
 The simulation itself is LLM-driven (not unit-testable offline), so these pin the
 PURE decision/gate logic + the wiring, which is what governs WHEN it fires and
 WHETHER it overrides — the parts that must never burn compute on obvious steps.
 
-Run: .venv/bin/python -m pytest tests/regression/test_phase_b_v29.py -v
+Run: .venv/bin/python -m pytest tests/regression/test_dreamer_gates.py -v
 """
 
 from __future__ import annotations
@@ -79,13 +79,13 @@ def test_no_override_when_low_score():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_webdreamer_flag(monkeypatch):
-    monkeypatch.delenv("V29_ENABLED", raising=False)
-    monkeypatch.delenv("V29_WEBDREAMER", raising=False)
+    monkeypatch.delenv("COGNITIVE_FEATURES_ENABLED", raising=False)
+    monkeypatch.delenv("WEBDREAMER_ENABLED", raising=False)
     assert ff.webdreamer_enabled() is True
-    monkeypatch.setenv("V29_WEBDREAMER", "0")
+    monkeypatch.setenv("WEBDREAMER_ENABLED", "0")
     assert ff.webdreamer_enabled() is False
-    monkeypatch.setenv("V29_WEBDREAMER", "1")
-    monkeypatch.setenv("V29_ENABLED", "0")
+    monkeypatch.setenv("WEBDREAMER_ENABLED", "1")
+    monkeypatch.setenv("COGNITIVE_FEATURES_ENABLED", "0")
     assert ff.webdreamer_enabled() is False   # master kill-switch wins
 
 
@@ -161,17 +161,17 @@ def test_adjusted_score_baseline_is_identity_when_no_situation():
 
 
 def test_situational_flag(monkeypatch):
-    monkeypatch.delenv("V29_ENABLED", raising=False)
-    monkeypatch.delenv("V29_WEBDREAMER", raising=False)
-    monkeypatch.delenv("V29_WEBDREAMER_SITUATIONAL", raising=False)
+    monkeypatch.delenv("COGNITIVE_FEATURES_ENABLED", raising=False)
+    monkeypatch.delenv("WEBDREAMER_ENABLED", raising=False)
+    monkeypatch.delenv("WEBDREAMER_SITUATIONAL_ENABLED", raising=False)
     assert ff.webdreamer_situational_enabled() is True
-    monkeypatch.setenv("V29_WEBDREAMER_SITUATIONAL", "0")
+    monkeypatch.setenv("WEBDREAMER_SITUATIONAL_ENABLED", "0")
     assert ff.webdreamer_situational_enabled() is False          # instant fallback
-    monkeypatch.setenv("V29_WEBDREAMER_SITUATIONAL", "1")
-    monkeypatch.setenv("V29_WEBDREAMER", "0")
+    monkeypatch.setenv("WEBDREAMER_SITUATIONAL_ENABLED", "1")
+    monkeypatch.setenv("WEBDREAMER_ENABLED", "0")
     assert ff.webdreamer_situational_enabled() is False          # parent gate
-    monkeypatch.setenv("V29_WEBDREAMER", "1")
-    monkeypatch.setenv("V29_ENABLED", "0")
+    monkeypatch.setenv("WEBDREAMER_ENABLED", "1")
+    monkeypatch.setenv("COGNITIVE_FEATURES_ENABLED", "0")
     assert ff.webdreamer_situational_enabled() is False          # master gate
 
 

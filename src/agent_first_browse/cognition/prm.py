@@ -5,12 +5,12 @@ Implements the Web-Shepherd pattern (Kim et al., arXiv:2505.15277):
   2. After each action: score which checklist items are now satisfied
   3. Reward = weighted sum of checklist scores
 
-This provides dense, goal-aware progress signal that the heuristic CriticV12
-cannot offer. CriticV12 detects "did something change?" — this module detects
+This provides dense, goal-aware progress signal that the heuristic ProgressCritic
+cannot offer. ProgressCritic detects "did something change?" — this module detects
 "did we get CLOSER TO THE GOAL?"
 
 Integration:
-  - Augments (not replaces) CriticV12 for ambiguous verdicts
+  - Augments (not replaces) ProgressCritic for ambiguous verdicts
   - Serves as the value function inside WebDreamer's scoring step
   - Generates the checklist alongside _decompose_objective at task start
 """
@@ -46,13 +46,13 @@ class ChecklistItem:
     status: str = "pending"     # pending | in_progress | done | failed
     confidence: float = 0.0     # 0.0 to 1.0 — how confident we are this is done
     step_completed: int = -1    # Which step completed this item (-1 = not done)
-    # V26: once a sub-goal is VERIFIED done it is sticky — a later audit that
+    # once a sub-goal is VERIFIED done it is sticky — a later audit that
     # can't re-confirm it from the current page must NOT demote it (the root
     # cause of the "re-do an already-completed action" loop). Generalized: this
     # is task-agnostic, driven purely by the verdict, not by any site/UI rule.
     verified: bool = False
     evidence: str = ""          # the concrete on-page proof captured at verification
-    # V17: weighted scoring — navigation/setup items get 0.5, critical actions
+    # weighted scoring — navigation/setup items get 0.5, critical actions
     # get 2.0. Prevents the total score from being dominated by trivially-
     # completed early steps while the actual critical action is still pending.
     weight: float = 1.0
@@ -112,7 +112,7 @@ class ChecklistGeneration(BaseModel):
 class EvaluationItem(BaseModel):
     """One checklist item's evaluation against the current page state.
 
-    V17.0: typed nested model (was a free-form dict) — strict-mode providers
+    typed nested model (was a free-form dict) — strict-mode providers
     like Groq require `additionalProperties: false` on every nested object,
     which Pydantic emits via extra='forbid'. The untyped dict caused 400s.
     """
@@ -239,7 +239,7 @@ class PRMCritic:
             for i, desc in enumerate(items_raw):
                 if not desc.strip():
                     continue
-                # V17: weight assignment — generalized by position.
+                # weight assignment — generalized by position.
                 # First item (usually navigation/setup) gets low weight.
                 # Last item (usually the critical verification) gets high weight.
                 # Middle items get normal weight.
@@ -325,8 +325,8 @@ class PRMCritic:
                 #    always allowed; regressions of 'done' are not.
                 #
                 # NOTE: this background goal-audit does NOT auto-lock items as
-                # "verified". An earlier version did (confidence ≥ 0.7), which on
-                # busy/dynamic e-commerce pages prematurely marked sub-goals done
+                # "verified". A confidence threshold of 0.7 on busy/dynamic
+                # e-commerce pages prematurely marked sub-goals done
                 # and made the agent SKIP real work. The evidence-grounded
                 # done-judge — which inspects the live page — is the real gate.
                 if item.status == "done" and new_status != "done":
@@ -343,7 +343,7 @@ class PRMCritic:
         except Exception as e:
             logger.warning("PRM step scoring failed: %s", e)
         
-        # Calculate aggregate score (V17: weighted — item.score already includes weight)
+        # Calculate aggregate score (weighted — item.score already includes weight)
         total_weight = sum(item.weight for item in checklist) if checklist else 1.0
         total_score = sum(item.score for item in checklist) / total_weight if checklist else 0.0
         items_done = sum(1 for item in checklist if item.status == "done")

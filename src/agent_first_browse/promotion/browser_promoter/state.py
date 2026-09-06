@@ -17,7 +17,7 @@ class CampaignContext(BaseModel):
     target_platforms: list[str] = Field(default_factory=list)
     session_id: str = Field(min_length=1)
 
-    # v3.0 Marketing Intelligence
+    # current Marketing Intelligence
     github_username: str = ""
     promotion_repos: list[str] = Field(default_factory=list)
     promotion_style: Literal["organic", "direct", "educational"] = "organic"

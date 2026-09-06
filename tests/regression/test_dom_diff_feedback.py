@@ -1,7 +1,7 @@
-"""Phase A tests — DOM Diffing (state-change) + Hybrid Primitives / clean feedback.
+"""DOM diffing (state-change) and hybrid primitive feedback tests.
 
 Pure logic + monkeypatched async handlers — no browser, no network.
-Run: .venv/bin/python -m pytest tests/regression/test_phase_a_v29.py -v
+Run: .venv/bin/python -m pytest tests/regression/test_dom_diff_feedback.py -v
 """
 
 from __future__ import annotations
@@ -89,13 +89,13 @@ def test_score_is_bounded_and_monotonic():
 
 
 def test_diffing_flag(monkeypatch):
-    monkeypatch.delenv("V29_ENABLED", raising=False)
-    monkeypatch.delenv("V29_DIFFING", raising=False)
+    monkeypatch.delenv("COGNITIVE_FEATURES_ENABLED", raising=False)
+    monkeypatch.delenv("PERCEPTION_DIFFING_ENABLED", raising=False)
     assert ff.diffing_enabled() is True
-    monkeypatch.setenv("V29_DIFFING", "0")
+    monkeypatch.setenv("PERCEPTION_DIFFING_ENABLED", "0")
     assert ff.diffing_enabled() is False
-    monkeypatch.setenv("V29_DIFFING", "1")
-    monkeypatch.setenv("V29_ENABLED", "0")
+    monkeypatch.setenv("PERCEPTION_DIFFING_ENABLED", "1")
+    monkeypatch.setenv("COGNITIVE_FEATURES_ENABLED", "0")
     assert ff.diffing_enabled() is False
 
 
@@ -137,13 +137,13 @@ def test_render_success_is_terse_with_no_strategy_leak():
 
 
 def test_hybrid_primitives_flag(monkeypatch):
-    monkeypatch.delenv("V29_ENABLED", raising=False)
-    monkeypatch.delenv("V29_HYBRID_PRIMITIVES", raising=False)
+    monkeypatch.delenv("COGNITIVE_FEATURES_ENABLED", raising=False)
+    monkeypatch.delenv("HYBRID_PRIMITIVES_ENABLED", raising=False)
     assert ff.hybrid_primitives_enabled() is True
-    monkeypatch.setenv("V29_HYBRID_PRIMITIVES", "0")
+    monkeypatch.setenv("HYBRID_PRIMITIVES_ENABLED", "0")
     assert ff.hybrid_primitives_enabled() is False
-    monkeypatch.setenv("V29_HYBRID_PRIMITIVES", "1")
-    monkeypatch.setenv("V29_ENABLED", "0")
+    monkeypatch.setenv("HYBRID_PRIMITIVES_ENABLED", "1")
+    monkeypatch.setenv("COGNITIVE_FEATURES_ENABLED", "0")
     assert ff.hybrid_primitives_enabled() is False
 
 

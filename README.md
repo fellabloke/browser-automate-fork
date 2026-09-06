@@ -427,9 +427,9 @@ The following defaults prevent routine browser turns from triggering several
 extra model calls. Irreversible/high-risk actions still force safety consensus.
 
 ```dotenv
-V29_CLARITY_CONSENSUS=0
-V29_REALITY_LLM=0
-V29_WEBDREAMER=0
+CLARITY_CONSENSUS_ENABLED=0
+REALITY_LLM_ENABLED=0
+WEBDREAMER_ENABLED=0
 PRM_AUDIT_EVERY=4
 WEB_DREAMER_NUM_CANDIDATES=1
 WEB_DREAMER_NUM_SIMULATIONS=1
@@ -540,7 +540,7 @@ If your project or work is reflected here and you'd like different or additional
 
 ## License
 
-Licensed under the **GNU General Public License v3.0 (GPLv3)** — see [LICENSE](LICENSE) for the full text.
+Licensed under the **GNU General Public License v3 (GPLv3)** — see [LICENSE](LICENSE) for the full text.
 
 You are free to use, study, share, and modify this software under the terms of the GPLv3; derivative works
 and redistributions must remain licensed under GPLv3 and keep this notice. The software is provided **"as is",

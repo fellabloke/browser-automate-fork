@@ -1,11 +1,11 @@
-"""Reality Monitor — Screen-Reality Reconciliation (V29 / Phase 1, Mandate 1).
+"""Reality Monitor — screen-reality reconciliation.
 
 THE BLIND-EXECUTION CURE
 ════════════════════════
 Before every action the worker emits `expected_change` — a forward model of the
 exact observable effect ("the button flips to 'Starred' and the count
 increments"). Until now that prediction was generated, logged, and then THROWN
-AWAY: the only post-action check (CriticV12) answers "did *anything* change?"
+AWAY: the only post-action check (ProgressCritic) answers "did *anything* change?"
 (binary progress), never "did the change we PREDICTED happen — or did the page do
 something *else*?"
 
@@ -134,7 +134,7 @@ def classify_reality(
     """Deterministically reconcile the worker's prediction with the live screen.
 
     Inputs are all already available in Overwatch after execution (the predicted
-    change, the pre/post DOM text + URL, and CriticV12's binary verdict). Returns
+    change, the pre/post DOM text + URL, and ProgressCritic's binary verdict). Returns
     a RealityVerdict; only CONTRADICTED changes control flow upstream.
     """
     verb = (verb or "").strip().lower()

@@ -1,11 +1,11 @@
-"""THE CRITIC V12 — Task-Aware Progress Detection + Circuit Breaker.
+"""Progress Critic — task-aware progress detection and circuit breaker.
 
-V11 Problem: The old Critic compared screenshot hashes. JPEG artifacts
+Problem: the old critic compared screenshot hashes. JPEG artifacts
 caused false positives ("page changed" when it didn't), so the agent
 clicked "Post" 8+ times in a loop without ever detecting the lack of
 real progress.
 
-V12 Solution: Multi-signal progress detection that answers the question:
+Solution: multi-signal progress detection that answers the question:
 "Did this action move us CLOSER to the goal?" — not just "Did pixels change?"
 
 Signals used (ranked by reliability):
@@ -32,7 +32,7 @@ from typing import Any
 
 from playwright.async_api import Page
 
-logger = logging.getLogger("orchestrator.critic_v12")
+logger = logging.getLogger("orchestrator.progress_critic")
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -66,7 +66,7 @@ class Verdict:
         self.semantic_changed = semantic_changed
         self.element_delta = element_delta
         self.circuit_breaker_triggered = circuit_breaker_triggered
-        # V29 Diffing: unified [0,1] "how much did the page state change" signal.
+        # Unified [0,1] signal for how much the page state changed.
         self.state_change_score = state_change_score
 
     def __repr__(self) -> str:
@@ -125,14 +125,14 @@ class PageState:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  CriticV12 — The Brain's Self-Correction Engine
+#  ProgressCritic — The Brain's Self-Correction Engine
 # ═══════════════════════════════════════════════════════════════════════════════
 
-class CriticV12:
+class ProgressCritic:
     """Task-aware progress detection with automatic circuit breaking.
 
     Usage:
-        critic = CriticV12(page)
+        critic = ProgressCritic(page)
         await critic.snapshot_before(a11y_data)
         # ... execute action ...
         verdict = await critic.evaluate(action, target_ref, a11y_data_after)
@@ -144,7 +144,7 @@ class CriticV12:
     def __init__(self, page: Page) -> None:
         self._page = page
         self._prev_state: PageState | None = None
-        self._prev_signals: dict | None = None   # V29 Diffing: page-signal vector
+        self._prev_signals: dict | None = None   # page-signal vector
         self._no_progress_streak: int = 0
         self._action_history: deque[ActionFingerprint] = deque(maxlen=self.MAX_ACTION_HISTORY)
         self._total_actions: int = 0
@@ -198,7 +198,7 @@ class CriticV12:
             title=title,
         )
 
-        # V29 Diffing: capture the pre-action page-signal vector (cheap, gated).
+        # Capture the pre-action page-signal vector (cheap, gated).
         self._prev_signals = await self._capture_signals()
 
     async def _capture_signals(self) -> dict | None:
@@ -227,7 +227,7 @@ class CriticV12:
     ) -> Verdict:
         """Evaluate whether an action achieved real task progress.
 
-        This is the core intelligence of V12. Instead of just checking
+        This is the core intelligence of the progress critic. Instead of just checking
         "did the page change?", it checks "did we make PROGRESS?"
 
         Args:
@@ -399,7 +399,7 @@ class CriticV12:
                 semantic_changed=semantic_changed,
             )
 
-        # ── V29 Diffing: fold subtle overlay/panel/focus changes into the signals.
+        # ── Fold subtle overlay/panel/focus changes into the signals.
         #    A click that opens a small overlay using existing nodes (so element_delta
         #    ≈ 0) used to read as "no progress" → stagnation loop. The page-signal
         #    vector catches it. The diff stays in code; only this one phrase reaches
@@ -532,9 +532,9 @@ class CriticV12:
         logger.info("Circuit breaker reset after replan")
 
     def reset_for_task(self) -> None:
-        """Full reset of per-task state (V18 clean handoff).
+        """Full reset of per-task state for a clean handoff.
 
-        Called at task finalize so a reused CriticV12 instance never carries a
+        Called at task finalize so a reused ProgressCritic instance never carries a
         previous task's progress streak, action history, or snapshot into a new
         one.
         """
@@ -543,4 +543,4 @@ class CriticV12:
         self._action_history.clear()
         self._total_actions = 0
         self._total_progress = 0
-        logger.info("CriticV12 reset for new task")
+        logger.info("ProgressCritic reset for new task")

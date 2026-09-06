@@ -1,4 +1,4 @@
-"""Unit tests for V27/P1 — the Guidance Bus (single arbitrated directive).
+"""Unit tests for current/P1 — the Guidance Bus (single arbitrated directive).
 
 Guarantees:
   - build_guidance returns EXACTLY one block (or empty), honoring priority
@@ -6,7 +6,7 @@ Guarantees:
   - The abstract PRM-checklist re-injection (critical_action_hint) is GONE.
   - render_strategy_block no longer embeds the transient goal_complete_hint.
 
-Run: .venv/bin/python -m pytest tests/unit/test_guidance_v27.py -v
+Run: .venv/bin/python -m pytest tests/unit/test_guidance.py -v
 """
 
 from __future__ import annotations

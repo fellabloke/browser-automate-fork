@@ -1,4 +1,4 @@
-"""Canonical browser/session lifecycle for the v16 runtime.
+"""Canonical browser/session lifecycle for the current runtime.
 
 This module owns the launch, attach, persistence, manual-login, and shutdown
 behavior previously embedded in ``advanced_agent.py``.  The implementation is
@@ -119,7 +119,7 @@ class SessionGuard:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Browser Launch — Pure Native Persistence (v8.0)
+#  Browser Launch — Pure Native Persistence (current)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 

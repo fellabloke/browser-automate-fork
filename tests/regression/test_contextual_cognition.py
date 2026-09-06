@@ -1,4 +1,4 @@
-"""Unit tests for V29 Phase 2 + 3 + the Contextual-Focus mandate.
+"""Unit tests for contextual cognition and focus controls.
 
 Covers (pure logic — no browser/network):
   • target_lock: semantic target binding, look-alike counting, off-target risk,
@@ -9,7 +9,7 @@ Covers (pure logic — no browser/network):
     action-cycle) and its guidance-bus priority.
   • flags + clear_transient + wiring guards.
 
-Run: .venv/bin/python -m pytest tests/regression/test_phase23_v29.py -v
+Run: .venv/bin/python -m pytest tests/regression/test_contextual_cognition.py -v
 """
 
 from __future__ import annotations
@@ -175,13 +175,13 @@ def test_clear_transient_wipes_phase3_fields():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_target_lock_flag(monkeypatch):
-    monkeypatch.delenv("V29_ENABLED", raising=False)
-    monkeypatch.delenv("V29_TARGET_LOCK", raising=False)
+    monkeypatch.delenv("COGNITIVE_FEATURES_ENABLED", raising=False)
+    monkeypatch.delenv("TARGET_LOCK_ENABLED", raising=False)
     assert ff.target_lock_enabled() is True
-    monkeypatch.setenv("V29_TARGET_LOCK", "0")
+    monkeypatch.setenv("TARGET_LOCK_ENABLED", "0")
     assert ff.target_lock_enabled() is False
-    monkeypatch.setenv("V29_TARGET_LOCK", "1")
-    monkeypatch.setenv("V29_ENABLED", "0")
+    monkeypatch.setenv("TARGET_LOCK_ENABLED", "1")
+    monkeypatch.setenv("COGNITIVE_FEATURES_ENABLED", "0")
     assert ff.target_lock_enabled() is False  # master kill-switch wins
 
 

@@ -288,11 +288,11 @@ def log_data_access(
         )
         conn.commit()
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Marketing Engine Tables & Helpers (v3.0)
+#  Marketing Engine Tables & Helpers (current)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _create_marketing_tables(connection: sqlite3.Connection) -> None:
-    """Create v3.0 marketing engine tables if they don't exist."""
+    """Create current marketing engine tables if they don't exist."""
 
     # Cached GitHub repo intelligence
     connection.execute(

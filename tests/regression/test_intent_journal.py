@@ -1,4 +1,4 @@
-"""Unit tests for V29 — Atomic Intent Journaling (handoff-amnesia / double-toggle fix).
+"""Unit tests for Atomic Intent Journaling (handoff-amnesia / double-toggle fix).
 
 Covers (pure logic + durable ledger; no browser/network):
   • make_intent / should_journal / signatures.
@@ -11,7 +11,7 @@ Covers (pure logic + durable ledger; no browser/network):
   • flags + clear_transient + wiring guards (Overwatch write-ahead, base_worker
     hesitation + repeat-guard, BrainState field).
 
-Run: .venv/bin/python -m pytest tests/regression/test_intent_journal_v29.py -v
+Run: .venv/bin/python -m pytest tests/regression/test_intent_journal.py -v
 """
 
 from __future__ import annotations
@@ -152,13 +152,13 @@ def test_durable_ledger_never_raises_on_bad_path():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_intent_journal_flag(monkeypatch):
-    monkeypatch.delenv("V29_ENABLED", raising=False)
-    monkeypatch.delenv("V29_INTENT_JOURNAL", raising=False)
+    monkeypatch.delenv("COGNITIVE_FEATURES_ENABLED", raising=False)
+    monkeypatch.delenv("INTENT_JOURNAL_ENABLED", raising=False)
     assert ff.intent_journal_enabled() is True
-    monkeypatch.setenv("V29_INTENT_JOURNAL", "0")
+    monkeypatch.setenv("INTENT_JOURNAL_ENABLED", "0")
     assert ff.intent_journal_enabled() is False
-    monkeypatch.setenv("V29_INTENT_JOURNAL", "1")
-    monkeypatch.setenv("V29_ENABLED", "0")
+    monkeypatch.setenv("INTENT_JOURNAL_ENABLED", "1")
+    monkeypatch.setenv("COGNITIVE_FEATURES_ENABLED", "0")
     assert ff.intent_journal_enabled() is False   # master kill-switch wins
 
 

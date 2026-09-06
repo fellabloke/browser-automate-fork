@@ -1,4 +1,4 @@
-"""Target Lock — strict goal-binding + distraction resistance (V29 / Mandate: Contextual Focus).
+"""Target Lock — strict goal-binding + distraction resistance (current / Mandate: Contextual Focus).
 
 THE CONTEXT-DRIFT CURE
 ══════════════════════

@@ -1,4 +1,4 @@
-"""Overwatch — Multi-Layered Verification Subgraph for True Brain v16.0.
+"""Overwatch — Multi-Layered Verification Subgraph for Agent First Browse.
 
 The Overwatch is the ONLY node that can commit state. Every worker
 proposes an action; Overwatch validates it before it becomes permanent.
@@ -6,7 +6,7 @@ proposes an action; Overwatch validates it before it becomes permanent.
 Verification layers (ordered cheap → expensive):
   Layer 1: Deterministic state validation (~0ms)
   Layer 2: Grounding validation (~5ms)
-  Layer 3: Action execution + DOM ground-truth (CriticV12) (~200ms)
+  Layer 3: Action execution + DOM ground-truth (ProgressCritic) (~200ms)
   Layer 4: CoVe action-trail gate (for 'done' actions) (~0ms)
   Layer 5: Loop detection + circuit breaker (~0ms)
 
@@ -15,7 +15,7 @@ Design:
   - Each layer can short-circuit with a verdict (retry/rollback/escalate)
   - Only Layer 3 actually executes the action on the live browser
   - The Overwatch NEVER calls the LLM for decisions — it uses
-    deterministic checks + existing CriticV12 for post-action analysis
+    deterministic checks + existing ProgressCritic for post-action analysis
 
 References:
   - Universal Verifier (arXiv 2604.06240): layered verification cuts
@@ -50,7 +50,7 @@ except ImportError:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  V18 Cognition — escalation ladder driver
+#  current Cognition — escalation ladder driver
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def _escalate(state: dict, reason: str, updates: dict) -> dict:
@@ -89,7 +89,7 @@ def _escalate(state: dict, reason: str, updates: dict) -> dict:
         updates["correction_context"] = (
             f"\n\n🧗 ADAPTIVE TACTIC [{lad['tactic']}]: {lad['directive']}"
         )
-        # V21: the 'vision' rung now triggers a REAL screenshot consult on the
+        # the 'vision' rung now triggers a REAL screenshot consult on the
         # next worker step (was a no-op text directive before).
         if lad["tactic"] == "vision":
             updates["force_vision"] = True
@@ -163,7 +163,7 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
     Args:
         state: Current BrainState dict
         page: Live Playwright page reference
-        critic: CriticV12 instance
+        critic: ProgressCritic instance
         action_verifier: ActionVerifier instance (optional)
 
     Returns:
@@ -406,10 +406,10 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
         updates["proposed_action"] = proposed
 
     # ═══════════════════════════════════════════════════════════════════
-    #  Layer 3: Execute + DOM Ground-Truth Check (CriticV12)
+    #  Layer 3: Execute + DOM Ground-Truth Check (ProgressCritic)
     # ═══════════════════════════════════════════════════════════════════
 
-    # Pre-action snapshot — V19: REUSE the perceive snapshot already in state
+    # Pre-action snapshot — REUSE the perceive snapshot already in state
     # instead of re-extracting. This (a) saves one full DOM extraction per step,
     # and (b) crucially keeps window.__aid (the element-handle registry) exactly
     # as the LLM saw it, so the action resolves the SAME node the LLM chose
@@ -431,7 +431,7 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
             pass
 
     # ═══════════════════════════════════════════════════════════════════
-    #  V29 Atomic Intent Journal — WRITE-AHEAD record BEFORE the side-effect.
+    #  current Atomic Intent Journal — WRITE-AHEAD record BEFORE the side-effect.
     #  If the action times out / crashes mid-execution, this record survives so the
     #  NEXT decision knows the action was attempted (and may have partially applied)
     #  and must NOT blindly repeat it. The in-state write rides the node's atomic
@@ -521,10 +521,10 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
             pass
 
     # ═══════════════════════════════════════════════════════════════════
-    #  V29 Smart-Scroll guard — stop scrolling into a wall (Mandate 3)
+    #  Smart-Scroll guard — stop scrolling into a wall.
     #  A scroll that doesn't move the page, or that has reached the bottom, is not
     #  going to reveal the target. Track the streak and escalate a DIFFERENT tactic
-    #  instead of looping the scroll. Flag-gated; off ⇒ identical to V28.
+    #  instead of looping the scroll. Flag-gated; off ⇒ identical to current.
     # ═══════════════════════════════════════════════════════════════════
     if verb == "scroll":
         try:
@@ -561,7 +561,7 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
         from agent_first_browse.cognition.core import dom_data_to_a11y_format
         post_dom = await dom_parser.extract(page, timeout=3.0)
         post_a11y = dom_data_to_a11y_format(post_dom)
-        # V29 Reality Monitor inputs (free — we already extracted the post DOM).
+        # current Reality Monitor inputs (free — we already extracted the post DOM).
         post_markdown = post_dom.get("markdown", "") or ""
         post_page_text = post_dom.get("page_text", "") or ""
         post_selector_map = {
@@ -594,18 +594,18 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
         skill_success=execution_confirmed,
         skill_error=("" if execution_confirmed else action_outcome),
     )
-    # V29 Phase A: surface the unified state-change score (CriticV12 diffing).
+    # A: surface the unified state-change score (ProgressCritic diffing).
     updates["state_change_score"] = float(getattr(verdict, "state_change_score", 0.0) or 0.0)
 
     # ═══════════════════════════════════════════════════════════════════
-    #  V29 Reality Monitor — did the page do what the worker PREDICTED?
-    #  CriticV12 above only answers "did *anything* change?". This compares the
+    #  current Reality Monitor — did the page do what the worker PREDICTED?
+    #  ProgressCritic above only answers "did *anything* change?". This compares the
     #  worker's pre-committed `expected_change` against the LIVE screen. A
     #  CONTRADICTED screen (error / rejection / wrong redirect / out-of-stock)
     #  must NOT be committed as progress just because the DOM mutated — that is
     #  exactly the "blind execution" failure. We block it, note the discrepancy,
     #  and feed it back to the worker (via the guidance bus) to re-evaluate.
-    #  Fully additive + flag-gated (V29_REALITY) — off ⇒ identical to V28.
+    #  Fully additive + flag-gated (REALITY_MONITOR_ENABLED) — off ⇒ identical to current.
     # ═══════════════════════════════════════════════════════════════════
     try:
         from agent_first_browse.config.feature_flags import reality_enabled, reality_llm_enabled
@@ -665,7 +665,7 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
             if rv.status == CONFIRMED:
                 # Positive reconciliation — clear any stale discrepancy note.
                 updates["reality_note"] = ""
-                # V32: Reality confirmed the action worked → clear the intent
+                # Reality confirmed the action worked → clear the intent
                 # journal so HESITATION doesn't fire on the next step. Without
                 # this, the Worker gets told "predecessor click unconfirmed"
                 # even though Overwatch visually confirmed the click succeeded.
@@ -700,7 +700,7 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
         cf = state.get("correction_failures", 0) + 1
         updates["correction_failures"] = cf
         updates["critic_no_progress"] = state.get("critic_no_progress", 0) + 1
-        # V21: a click/type that produced no visible effect — count it so that a
+        # a click/type that produced no visible effect — count it so that a
         # short streak escalates to a vision look (the DOM says act, page doesn't).
         if verb in _PROGRESS_ACTIONS:
             updates["ineffective_streak"] = state.get("ineffective_streak", 0) + 1
@@ -751,7 +751,7 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
         loop_sigs, [sig], LOOP_SIGNATURE_MAX
     )
 
-    # V29: the action is VERIFIED-effective → resolve the intent journal. There is
+    # the action is VERIFIED-effective → resolve the intent journal. There is
     # no ambiguity to carry forward, so the next decision starts with a clean slate.
     if intent_entry is not None:
         updates["last_attempted_action"] = None
@@ -907,7 +907,7 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Layer 4: Outcome verification (for 'done' actions)
 # ═══════════════════════════════════════════════════════════════════════════════
-#  V20: the gate is now an EVIDENCE-GROUNDED judge over the FRESH page state
+#  the gate is now an EVIDENCE-GROUNDED judge over the FRESH page state
 #  (objective + planner success-criteria + live DOM + action trail), not the old
 #  process-trail heuristics. The heuristics remain ONLY as a fallback when no
 #  LLM verdict can be obtained. See outcome_judge.py for the full rationale.
@@ -936,7 +936,7 @@ def _block_done(state: dict, updates: dict, reason: str,
     The old counter was incremented but never read — block-loops could spin
     forever (observed: done ×5 blocked on the HN run).
 
-    V31 WORKER VETO: If the worker has provided substantive proof_of_completion
+    current WORKER VETO: If the worker has provided substantive proof_of_completion
     and been rejected 2+ times, force-accept. The Worker has temporal context
     that the static Judge lacks (e.g. saw cart count change, button state flip).
     """
@@ -950,7 +950,7 @@ def _block_done(state: dict, updates: dict, reason: str,
         "outcome": f"BLOCKED: {reason[:80]}",
     }], HISTORY_MAX_ENTRIES)
 
-    # ── V31 WORKER VETO: Confidence Override ──
+    # ── current WORKER VETO: Confidence Override ──
     # If the worker has fired done 2+ times with substantive proof, the worker's
     # temporal context overrides the judge's static snapshot. This prevents
     # infinite stagnation on successfully completed tasks (e.g. Amazon smart-wagon
@@ -1115,7 +1115,7 @@ async def _layer_4_cove_check(state: dict, page, updates: dict) -> dict:
         ) if s
     )
 
-    # V31: Extract worker's proof_of_completion for the judge
+    # Extract worker's proof_of_completion for the judge
     proof_of_completion = (proposed.get("proof_of_completion", "") or "").strip()
     if proof_of_completion:
         logger.info("📋 Worker proof_of_completion: %s", proof_of_completion[:200])
@@ -1141,7 +1141,7 @@ async def _layer_4_cove_check(state: dict, page, updates: dict) -> dict:
             updates["mission_success"] = True
             updates["done_evidence"] = verdict.evidence[:300]
             return updates
-        # V29 Sub-Goal Lock: a global rejection must NOT erase verified sub-goals.
+        # current Sub-Goal Lock: a global rejection must NOT erase verified sub-goals.
         # Re-affirm the locked-done work + name only what REMAINS (Partial Success),
         # and align the plan to the ledger — instead of a bare "missing X" that makes
         # the agent re-do an already-finished sub-goal (the amnesia loop).
@@ -1335,7 +1335,7 @@ async def _execute_guarded_survey_queue(
 async def _execute_action(proposed: dict, page) -> str:
     """Execute a proposed action via MCP tools. Returns an outcome string.
 
-    V29 Phase A: asymmetric verbosity — terse on success (observable effect only,
+    A: asymmetric verbosity — terse on success (observable effect only,
     no internal strategy name), semantic FailureClass on failure — gated by
     `hybrid_primitives_enabled`. Plus expanded primitives (hover/select_option/
     press_key). Success keeps the "→ OK" prefix and failures keep the raw error so

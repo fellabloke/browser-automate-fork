@@ -1,4 +1,4 @@
-"""Consensus — multi-model voting + abstention for IRREVERSIBLE actions (V27 / P2).
+"""Consensus — multi-model voting + abstention for IRREVERSIBLE actions (current / P2).
 
 The reliability amplifier. Verifier-gated retry already converts a weak per-step
 model into a near-perfect executor on REVERSIBLE setup steps:

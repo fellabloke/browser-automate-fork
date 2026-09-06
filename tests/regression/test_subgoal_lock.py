@@ -4,7 +4,7 @@ Scenario: objective "Do X and Do Y"; Y is verified-complete (locked); a prematur
 'done' is globally rejected for missing X. The agent must NOT re-do Y.
 
 Pure logic — no browser/network.
-Run: .venv/bin/python -m pytest tests/regression/test_subgoal_lock_v29.py -v
+Run: .venv/bin/python -m pytest tests/regression/test_subgoal_lock.py -v
 """
 
 from __future__ import annotations
@@ -81,13 +81,13 @@ def test_backstop_blocks_redo_of_locked_but_not_distinct_remaining():
 
 
 def test_subgoal_lock_flag(monkeypatch):
-    monkeypatch.delenv("V29_ENABLED", raising=False)
-    monkeypatch.delenv("V29_SUBGOAL_LOCK", raising=False)
+    monkeypatch.delenv("COGNITIVE_FEATURES_ENABLED", raising=False)
+    monkeypatch.delenv("SUBGOAL_LOCK_ENABLED", raising=False)
     assert ff.subgoal_lock_enabled() is True
-    monkeypatch.setenv("V29_SUBGOAL_LOCK", "0")
+    monkeypatch.setenv("SUBGOAL_LOCK_ENABLED", "0")
     assert ff.subgoal_lock_enabled() is False
-    monkeypatch.setenv("V29_SUBGOAL_LOCK", "1")
-    monkeypatch.setenv("V29_ENABLED", "0")
+    monkeypatch.setenv("SUBGOAL_LOCK_ENABLED", "1")
+    monkeypatch.setenv("COGNITIVE_FEATURES_ENABLED", "0")
     assert ff.subgoal_lock_enabled() is False    # master kill-switch wins
 
 

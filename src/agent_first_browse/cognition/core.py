@@ -1,4 +1,4 @@
-"""CognitiveCore — PlanState & WorkingMemory for Agent First IDE v2.0.
+"""CognitiveCore — PlanState & WorkingMemory for Agent First Browse.
 
 Fixes:
   B-01  Purpose Amnesia — PlanState persists the mission + plan across all steps
@@ -54,7 +54,7 @@ class PlanState:
     steps: list[dict] = field(default_factory=list)
     current_step_id: int = 0
     reflections: list[str] = field(default_factory=list)
-    checklist: list[Any] = field(default_factory=list)  # Phase 2: PRM ChecklistItems
+    checklist: list[Any] = field(default_factory=list)  # PRM ChecklistItems
 
     @property
     def checklist_progress(self) -> float:
@@ -98,7 +98,7 @@ class PlanState:
         # Find next pending
         for s in self.steps:
             if s["status"] == "pending":
-                s["status"] = "in_progress"  # v2.1: explicit in_progress (from report B)
+                s["status"] = "in_progress"  # explicit in_progress (from report B)
                 self.current_step_id = s["id"]
                 return
 
@@ -352,13 +352,13 @@ class WorkingMemory:
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  Utility: Compute semantic hash for CriticV12 compatibility
+#  Utility: Compute semantic hash for ProgressCritic compatibility
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def compute_semantic_hash(elements: list[dict]) -> int:
     """Compute a deterministic hash of the page's element structure.
 
-    Used by CriticV12 to detect whether the page semantically changed.
+    Used by ProgressCritic to detect whether the page semantically changed.
     Unlike screenshot hashes, this is immune to JPEG artifacts and
     sub-pixel rendering differences.
     """
@@ -374,10 +374,10 @@ def compute_semantic_hash(elements: list[dict]) -> int:
 
 
 def dom_data_to_a11y_format(dom_data: dict) -> dict:
-    """Bridge dom_parser.extract() output to CriticV12's expected a11y format.
+    """Bridge dom_parser.extract() output to ProgressCritic's expected a11y format.
 
     dom_parser returns: {"elements": [...], "element_count": N, "markdown": "..."}
-    CriticV12 expects: {"elements": [...], "element_count": N, "semantic_hash": int}
+    ProgressCritic expects: {"elements": [...], "element_count": N, "semantic_hash": int}
     """
     elements = dom_data.get("elements", [])
     return {
@@ -401,19 +401,19 @@ def dom_data_to_a11y_format(dom_data: dict) -> dict:
     }
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  V2.1 Infrastructure — AgentMetrics & Critic Result Types
+#  current Infrastructure — AgentMetrics & Critic Result Types
 # ═══════════════════════════════════════════════════════════════════════════════
 
 @dataclass
 class ValidationResult:
-    """PRE-ACT: Is this action valid to execute? (v2.1 B-03)"""
+    """PRE-ACT: Is this action valid to execute? (current B-03)"""
     valid: bool
     reason: str
     grounded_element: dict | None = None
 
 @dataclass
 class VerificationResult:
-    """POST-ACT: Did this action achieve progress? (v2.1 B-03)"""
+    """POST-ACT: Did this action achieve progress? (current B-03)"""
     progress: bool
     reason: str
     confidence: float = 0.0
@@ -421,7 +421,7 @@ class VerificationResult:
 
 @dataclass
 class AgentMetrics:
-    """Measurable quality metrics (v2.1 S-5)."""
+    """Measurable quality metrics (current S-5)."""
     total_actions: int = 0
     grounding_rejects: int = 0
     critic_no_progress: int = 0

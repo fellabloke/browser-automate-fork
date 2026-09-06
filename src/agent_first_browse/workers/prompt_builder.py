@@ -31,7 +31,7 @@ EXACT state-changes you observed that prove success. Examples:
   • 'Form submitted, page redirected to /thank-you confirmation page'
 This proof is YOUR testimony — be specific and factual about what changed.
 
-═══ HIERARCHY OF TRUTH (V32 — CRITICAL) ═══
+═══ HIERARCHY OF TRUTH (CRITICAL) ═══
 If an action log reports an error (e.g., 'Click Failed', 'Click Ineffective'), but your
 observation of the CURRENT PAGE STATE shows the intended result DID happen (e.g., the
 radio button is now selected, the checkbox is checked, the text is typed, the dropdown
@@ -99,7 +99,7 @@ EXACT state-changes you observed that prove success. Examples:
   • 'Confirmation toast appeared: Your order has been placed'
 This proof is YOUR testimony — be specific and factual about what changed.
 
-═══ HIERARCHY OF TRUTH (V32 — CRITICAL) ═══
+═══ HIERARCHY OF TRUTH (CRITICAL) ═══
 If an action log reports an error (e.g., 'Click Failed', 'Click Ineffective'), but your
 observation of the CURRENT PAGE STATE shows the intended result DID happen (e.g., the
 radio button is now selected, the checkbox is checked, the text is typed, the dropdown
@@ -160,7 +160,7 @@ identifying product details, parsing tables, and capturing information.
 When you output action_type='done', you MUST fill proof_of_completion with the
 EXACT evidence of what you found/extracted. Be specific and factual.
 
-═══ HIERARCHY OF TRUTH (V32 — CRITICAL) ═══
+═══ HIERARCHY OF TRUTH (CRITICAL) ═══
 If an action log reports an error (e.g., 'Click Failed', 'Click Ineffective'), but your
 observation of the CURRENT PAGE STATE shows the intended result DID happen (e.g., the
 radio button is now selected, the checkbox is checked, the text is typed, the dropdown
@@ -320,4 +320,3 @@ attention-check, questionnaire, and completion redirects.
   credit finishes one cycle, not the overall mission: return to the dashboard,
     select the next best-value offer, and continue until the user stops the run.
 """
-

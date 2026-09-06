@@ -10,7 +10,7 @@ P0 is a behavior-identical Tier-1 passthrough, so these tests pin exactly that:
   • flags + wiring guards.
 
 Pure logic + monkeypatched async snapshot — no browser, no network.
-Run: .venv/bin/python -m pytest tests/regression/test_perception_engine_v29.py -v
+Run: .venv/bin/python -m pytest tests/regression/test_perception_engine.py -v
 """
 
 from __future__ import annotations
@@ -175,14 +175,14 @@ def test_coordless_elements_pass_through_unchanged():
 
 
 def test_strict_viewport_flag(monkeypatch):
-    monkeypatch.delenv("V29_ENABLED", raising=False)
-    monkeypatch.delenv("V29_ADAPTIVE_PERCEPTION", raising=False)
-    monkeypatch.delenv("V29_STRICT_VIEWPORT", raising=False)
+    monkeypatch.delenv("COGNITIVE_FEATURES_ENABLED", raising=False)
+    monkeypatch.delenv("ADAPTIVE_PERCEPTION_ENABLED", raising=False)
+    monkeypatch.delenv("STRICT_VIEWPORT_ENABLED", raising=False)
     assert ff.strict_viewport_enabled() is True
-    monkeypatch.setenv("V29_STRICT_VIEWPORT", "0")
+    monkeypatch.setenv("STRICT_VIEWPORT_ENABLED", "0")
     assert ff.strict_viewport_enabled() is False
-    monkeypatch.setenv("V29_STRICT_VIEWPORT", "1")
-    monkeypatch.setenv("V29_ADAPTIVE_PERCEPTION", "0")
+    monkeypatch.setenv("STRICT_VIEWPORT_ENABLED", "1")
+    monkeypatch.setenv("ADAPTIVE_PERCEPTION_ENABLED", "0")
     assert ff.strict_viewport_enabled() is False   # parent gate wins
 
 
@@ -210,13 +210,13 @@ def test_engine_source_has_no_site_or_commerce_literals():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_adaptive_perception_flag(monkeypatch):
-    monkeypatch.delenv("V29_ENABLED", raising=False)
-    monkeypatch.delenv("V29_ADAPTIVE_PERCEPTION", raising=False)
+    monkeypatch.delenv("COGNITIVE_FEATURES_ENABLED", raising=False)
+    monkeypatch.delenv("ADAPTIVE_PERCEPTION_ENABLED", raising=False)
     assert ff.adaptive_perception_enabled() is True
-    monkeypatch.setenv("V29_ADAPTIVE_PERCEPTION", "0")
+    monkeypatch.setenv("ADAPTIVE_PERCEPTION_ENABLED", "0")
     assert ff.adaptive_perception_enabled() is False
-    monkeypatch.setenv("V29_ADAPTIVE_PERCEPTION", "1")
-    monkeypatch.setenv("V29_ENABLED", "0")
+    monkeypatch.setenv("ADAPTIVE_PERCEPTION_ENABLED", "1")
+    monkeypatch.setenv("COGNITIVE_FEATURES_ENABLED", "0")
     assert ff.adaptive_perception_enabled() is False  # master kill-switch wins
 
 

@@ -188,7 +188,7 @@ class WorkerAction(BaseModel):
         default="",
         description="If needs_vision: the specific thing to resolve by looking (e.g. 'which button is the real Add to Cart?').",
     )
-    # V31: Worker Veto — proof of completion for done actions
+    # Worker Veto — proof of completion for done actions
     proof_of_completion: str = Field(
         default="",
         description=(

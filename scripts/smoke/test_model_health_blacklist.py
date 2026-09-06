@@ -1,4 +1,4 @@
-"""V15.1 Patch A+C Unit Test: Base-name blacklist covers all model instances."""
+"""A+C Unit Test: Base-name blacklist covers all model instances."""
 from agent_first_browse.models import ProviderHealthTracker
 
 h = ProviderHealthTracker()

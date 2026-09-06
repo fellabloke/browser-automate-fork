@@ -1,4 +1,4 @@
-"""Virtual display — run the browser HEADED on a display-less machine (V22 anti-bot).
+"""Virtual display — run the browser HEADED on a display-less machine (anti-bot).
 
 WHY
 ═══

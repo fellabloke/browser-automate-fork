@@ -92,8 +92,8 @@ _ALWAYS_REVERSIBLE_ACTIONS: frozenset[str] = frozenset({
     "scroll",
     "wait",
     "done",
-    "hover",      # V29: pointer move only — never mutates state
-    "scroll_to",  # V33: directional scroll — never mutates state
+    "hover",      # pointer move only — never mutates state
+    "scroll_to",  # directional scroll — never mutates state
 })
 
 # Element kinds that are generally navigational (and therefore safer).
@@ -229,7 +229,7 @@ def classify_action(
             text_lower,
         )
         if match:
-            # V15.0 F4: URL context gate — distinguish navigation-to-compose from submission
+            # current F4: URL context gate — distinguish navigation-to-compose from submission
             # "Create Post" on a feed page (/r/test/) = navigation, not submission
             # "Post" on a compose page (/r/test/submit/) = actual submission
             COMPOSE_URL_PATTERNS = ('/submit', '/compose', '/new', '/create', '/editor',
@@ -286,13 +286,13 @@ def classify_action(
         return ActionRisk.CAUTIOUS
 
     # ------------------------------------------------------------------
-    # 5. V33: New action types — CAUTIOUS by default (mutate form state)
+    # 5. New action types — CAUTIOUS by default (mutate form state)
     # ------------------------------------------------------------------
     if action in (
         "select_option", "press_key", "press_combo", "drag_and_drop", "upload_file",
         "set_date_of_birth",
     ):
-        logger.debug("V33 action '%s' is CAUTIOUS by default.", action)
+        logger.debug("current action '%s' is CAUTIOUS by default.", action)
         return ActionRisk.CAUTIOUS
 
     # ------------------------------------------------------------------

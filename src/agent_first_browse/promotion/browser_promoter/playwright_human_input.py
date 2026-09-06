@@ -17,7 +17,7 @@ Key advantages over PhysicalInputDriver:
   - Playwright's built-in actionability checks (auto-wait, scroll-into-view)
   - Human-like timing preserved via configurable random delays
 
-v2.1 improvements:
+current improvements:
   - Realistic scroll physics with ease-in/ease-out curve
   - Auto-scroll-into-view during long typing sessions
   - Smooth deceleration at scroll boundaries
@@ -85,7 +85,7 @@ class PlaywrightHumanInput:
     This driver works without OS-level window focus because Playwright
     communicates directly with the browser's rendering engine via CDP.
 
-    v2.1 Features:
+    current Features:
       - Realistic scroll with ease-in/ease-out acceleration curve
       - Auto-scroll-into-view keeps cursor visible during long typing
       - Natural reading pauses during scrolling
@@ -316,7 +316,7 @@ class PlaywrightHumanInput:
 
         logger.debug("Field cleared via Ctrl+A -> Backspace")
 
-    # ── Scroll (v2.1 — realistic physics) ─────────────────────────────────
+    # ── Scroll (realistic physics) ─────────────────────────────────
 
     async def scroll(
         self,

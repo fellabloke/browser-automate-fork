@@ -1,4 +1,4 @@
-"""Canonical command-line entry point for the v16 browser agent."""
+"""Canonical command-line entry point for the current browser agent."""
 
 from __future__ import annotations
 
@@ -18,12 +18,12 @@ load_dotenv(Path(__file__).resolve().parents[2] / ".env")
 from agent_first_browse.browser.runtime import manual_login_mode
 from agent_first_browse.logging import get_logger
 
-logger = get_logger("run_v16")
+logger = get_logger("agent_first_browse")
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="True Brain v16.0 — LangGraph-based Browser Agent"
+        description="Agent First Browse — LangGraph-based Browser Agent"
     )
     sub = parser.add_subparsers(dest="command")
 
@@ -87,7 +87,7 @@ def main() -> None:
         configured_headless = os.getenv("BROWSER_HEADLESS", "false").lower() in {
             "1", "true", "yes",
         }
-        logger.info("🧠 True Brain v16.0 — LangGraph Architecture")
+        logger.info("🧠 Agent First Browse — LangGraph Architecture")
         logger.info("Objective: %s", objective[:200])
         asyncio.run(
             run_brain(

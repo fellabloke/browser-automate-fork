@@ -1,8 +1,8 @@
-"""DOM Diff — lightweight universal state-change detection (V29 Phase A).
+"""DOM Diff — lightweight universal state-change detection (A).
 
 WHY
 ═══
-CriticV12 already diffs the interactive-element SET (count, refs, target state). It
+ProgressCritic already diffs the interactive-element SET (count, refs, target state). It
 misses SUBTLE changes: a click that opens a small overlay using existing nodes, an
 `aria-expanded` toggle, a focus move — where the interactive-set barely changes, so
 the action looks like "no progress" and the agent loops (the reported stagnation).
@@ -10,7 +10,7 @@ the action looks like "no progress" and the agent loops (the reported stagnation
 This module adds a CHEAP, UNIVERSAL "page-signal vector": ~8 numbers captured in ONE
 `page.evaluate` from pure DOM/ARIA standards (no site/brand rules), diffed in code.
 The diff NEVER reaches the LLM — only a one-line verdict does — so it cannot bloat
-context. It composes with CriticV12 (raises sensitivity) and feeds a unified
+context. It composes with ProgressCritic (raises sensitivity) and feeds a unified
 `state_change_score` that Stagnation/Reality can consume.
 
 Pure logic + a tiny JS string. Unit-testable offline (no browser).

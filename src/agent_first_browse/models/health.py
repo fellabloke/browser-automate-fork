@@ -66,14 +66,14 @@ MODEL_TIMEOUT_RETRY_COOLDOWN_MAX_SECONDS = _float_env(
 
 
 class ProviderHealthTracker:
-    """Per-model exponential backoff quarantine with V15.0/V15.1 improvements.
+    """Per-model exponential-backoff quarantine with schema-aware health tracking.
 
-    V15.0 F6:
+    Health behavior includes:
       - Quarantine cap at 16s (was uncapped up to 120s)
       - Cold-start reset: if model idle 5+ min, streak resets to 0
       - Schema blacklist: models that fail structured output permanently
 
-    V15.1 Patch A+C:
+    A+C:
       - Base-model-name blacklist applies to all sibling instances of a model
         also blocks ':1' and ':2' (same underlying model, different API key)
       - Per-schema blacklist: 'ChecklistEvaluation' vs 'CandidateSet' tracked
@@ -147,7 +147,7 @@ class ProviderHealthTracker:
                         if isinstance(event, list) and len(event) == 2
                     ][-500:]
                     if cache_version < 3:
-                        # V2 counted 429 quota responses and 413 request-size
+                        # current counted 429 quota responses and 413 request-size
                         # errors as endpoint unreliability. Those counters can
                         # permanently bench a valid model after a busy run.
                         # Keep latency/quota ledgers, but relearn reliability
@@ -253,7 +253,7 @@ class ProviderHealthTracker:
     def _blacklist_key(instance_name: str) -> str:
         """Blacklist key scoped to (provider, base_model).
 
-        V17.0: schema support is a property of the provider+model combo, not
+        Schema support is a property of the provider+model combination, not
         the model name globally — gpt-oss may reject a schema on Groq while
         serving it fine on NVIDIA. Never bench a good model globally.
         """
@@ -283,7 +283,7 @@ class ProviderHealthTracker:
             self._health[identity] = self._default_state()
         return self._health[identity]
 
-    # ── V17.0: EWMA + cooldown API ─────────────────────────────────────────
+    # ── EWMA + cooldown API ─────────────────────────────────────────
 
     def observe_latency(self, name: str, seconds: float) -> None:
         """Fold an observed call latency into the EWMA estimate."""
@@ -703,12 +703,12 @@ class ProviderHealthTracker:
         return max(floor, min(cap, k * s["latency_ewma"]))
 
     def is_available(self, name: str, schema_name: str = "") -> bool:
-        # V17.0: Check schema blacklist by (provider, base_model)
+        # Check schema blacklist by (provider, base_model)
         if schema_name and self.is_schema_blacklisted(name, schema_name):
             return False
 
         s = self._get(name)
-        # V15.0: Cold-start reset — if model idle 5+ min, treat as fresh
+        # Cold-start reset — if model idle 5+ min, treat as fresh
         if (
             not self.is_chronically_unreliable(name)
             and s["last_call_time"] > 0
@@ -783,7 +783,7 @@ class ProviderHealthTracker:
             # A timeout means "at least this slow" — fold it into the estimate
             self.observe_latency(name, latency)
 
-        # V17.0: Schema blacklist keyed by (provider, base_model) — a model that
+        # Schema blacklist keyed by (provider, base_model) — a model that
         # rejects a schema on one provider may serve it fine on another.
         if error_msg and ("400" in error_msg or "Bad Request" in error_msg):
             if "additionalProperties" in error_msg or "schema" in error_msg.lower():

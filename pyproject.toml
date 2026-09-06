@@ -72,6 +72,6 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 asyncio_mode = "auto"
 addopts = [
-    "--ignore=tests/integration/test_antibot_v22.py",
-    "--ignore=tests/integration/test_perception_v19.py",
+    "--ignore=tests/integration/test_antibot.py",
+    "--ignore=tests/integration/test_perception.py",
 ]

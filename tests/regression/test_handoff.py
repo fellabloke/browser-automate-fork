@@ -1,6 +1,6 @@
-"""Unit tests for the verification hand-off (V26 → corrected in V26.1).
+"""Unit tests for the verification hand-off (current → corrected in current).
 
-After the V26 regression (a second, competing task list injected into the worker
+After the current regression (a second, competing task list injected into the worker
 caused goal-loss, and an over-eager auto-lock made the agent skip real steps),
 the behavior under test is now the SAFE subset:
   - MONOTONICITY: a 'done' sub-goal is never demoted to a lesser status by a
@@ -12,7 +12,7 @@ the behavior under test is now the SAFE subset:
     sub-goals (none from the background audit).
   - PERSISTENCE: verified/evidence survive the checklist dict round-trip.
 
-Run: .venv/bin/python -m pytest tests/regression/test_handoff_v26.py -v
+Run: .venv/bin/python -m pytest tests/regression/test_handoff.py -v
 """
 
 from __future__ import annotations

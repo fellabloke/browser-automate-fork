@@ -1,4 +1,4 @@
-"""Clarity Gate — uncertainty-triggered PRE-action consensus & vision (V29 / Phase 2).
+"""Clarity Gate — uncertainty-triggered pre-action consensus and vision.
 
 THE ZERO-RISK RULE
 ══════════════════
@@ -78,7 +78,7 @@ def compute_clarity(decision: dict, state: dict, *,
         low = True
         reasons.append("under an active escalation directive")
 
-    # Chronic no-progress (Phase 3 stagnation) also lowers clarity.
+    # Chronic no-progress also lowers clarity.
     if (state.get("stagnation_note") or "").strip():
         low = True
         reasons.append("stagnation detected (no real progress)")

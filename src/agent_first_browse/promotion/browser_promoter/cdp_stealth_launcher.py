@@ -58,7 +58,7 @@ def get_stealth_user_agent() -> str:
 STEALTH_USER_AGENT = get_stealth_user_agent()
 
 # ── Fixed Viewport ──
-# V16.1: Consistent viewport that fills ~75% of a 1920×1080 screen,
+# Consistent viewport that fills ~75% of a 1920×1080 screen,
 # top-to-bottom from the left corner. Right 25% remains free for the user.
 # Large enough for vision models to work properly and user to see everything.
 _FIXED_VIEWPORT: dict[str, int] = {"width": 1440, "height": 1080}
@@ -89,13 +89,13 @@ STEALTH_LAUNCH_ARGS = [
     "--disable-background-networking",
     # Suppress "Chrome is being controlled by automated software" infobar
     "--disable-client-side-phishing-detection",
-    # V16.1: Pin window to top-left corner, full height, 75% width
+    # Pin window to top-left corner, full height, 75% width
     "--window-position=0,0",
     f"--window-size={_FIXED_VIEWPORT['width']},{_FIXED_VIEWPORT['height']}",
 ]
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  World-Class Stealth Init Script (v4.0)
+#  World-Class Stealth Init Script (current)
 #
 #  Injection layers:
 #    0. Utility (defineSafe) + Session seed (canvasSeed + mulberry32 PRNG)

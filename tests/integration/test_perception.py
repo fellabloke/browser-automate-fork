@@ -1,4 +1,4 @@
-"""Unit + integration tests for V19 Perception & Grounding Precision.
+"""Unit + integration tests for Perception & Grounding Precision.
 
 Guarantees under test:
   - Every extracted element gets a live handle in window.__aid; resolve_element
@@ -11,7 +11,7 @@ Guarantees under test:
   - mcp_ground_action tries the registry (Layer 0) before the 60px-nearest snap,
     and falls through cleanly when the registry misses.
 
-Run: .venv/bin/python -m pytest tests/integration/test_perception_v19.py -v
+Run: .venv/bin/python -m pytest tests/integration/test_perception.py -v
 """
 
 from __future__ import annotations
@@ -131,7 +131,7 @@ def test_unknown_id_misses_gracefully():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  V19.1 — Primary-action recall (the Flipkart "Add to Cart not found" fix)
+#  Primary-action recall (the Flipkart "Add to Cart not found" fix)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # A dense product-page shape: the real ADD TO CART / BUY NOW buttons sit in a
@@ -220,7 +220,7 @@ def test_div_rendered_action_bar_is_captured_and_deduped():
             assert atc[0]["kind"] == "button", atc
             # ... and deduped: nested clones of one button collapse (not ~7 copies).
             assert len(atc) <= 3, [(e["id"], e["x"], e["y"]) for e in atc]
-            # The chosen button resolves via the V19 registry.
+            # The chosen button resolves via the element registry.
             r = await dom_parser.resolve_element(page, atc[0]["id"])
             assert r["ok"] is True, r
         finally:
@@ -252,7 +252,7 @@ def test_long_promo_text_not_treated_as_action():
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  V19.2 — Scroll actually moves the viewport (the Flipkart "scroll forever" fix)
+#  Scroll actually moves the viewport (the Flipkart "scroll forever" fix)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 # A Flipkart-shaped layout: a FIXED left column with its own overflow scroller

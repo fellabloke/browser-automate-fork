@@ -1,10 +1,10 @@
-"""VerificationEngine V13 — Multi-signal key-node success detection.
+"""VerificationEngine — multi-signal key-node success detection.
 
 Replaces the blunt hash(url + json[:500]) check with a weighted
 multi-signal verdict inspired by Mind2Web-Live key-node evaluation
 and Skyvern's Validator pattern.
 
-Fixes V-07 (stale truncated hash), V-11 (CriticV12 unused).
+Handles stale truncated hashes and ensures ProgressCritic results are consumed.
 
 Signals (ranked by reliability):
   1. Key-node predicate (platform-specific success indicator)

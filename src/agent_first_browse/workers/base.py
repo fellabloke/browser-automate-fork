@@ -10,7 +10,7 @@ All workers share the same pattern:
 Workers NEVER execute actions directly. They propose actions that
 Overwatch validates before committing.
 
-V30: Added "Look-Before-You-Leap" coordinate validation for vision-returned
+Includes "Look-Before-You-Leap" coordinate validation for vision-returned
 pixel coordinates (shadow DOM / custom web component targets not in a11y tree).
 """
 

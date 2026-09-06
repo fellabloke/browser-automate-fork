@@ -1,4 +1,4 @@
-"""Smoke test for v8.0 Self-Healing & Anti-Detection modules."""
+"""Smoke test for self-healing and anti-detection modules."""
 from collections import Counter
 
 # Test 1: Circuit Breaker
@@ -48,4 +48,4 @@ assert g1 is g2, "SessionGuard should be a singleton"
 print("✅ SessionGuard: singleton pattern works")
 
 print()
-print("=== ALL v8.0 SELF-HEALING MODULES VERIFIED ===")
+print("=== ALL SELF-HEALING MODULES VERIFIED ===")

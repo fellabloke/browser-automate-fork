@@ -462,7 +462,7 @@ async def _strategy_direct_navigate(
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  V32: Element State Capture (Visual Truth Override)
+#  Element State Capture (Visual Truth Override)
 # ═══════════════════════════════════════════════════════════════════════════════
 
 async def _capture_element_state(
@@ -694,7 +694,7 @@ async def resilient_click(
     pre_fp = await _capture_page_fingerprint(page)
     pre_url = pre_fp.get("url", "")
 
-    # V32: Capture element state BEFORE clicking (for toggleable controls)
+    # Capture element state BEFORE clicking (for toggleable controls)
     pre_element_state = await _capture_element_state(
         page, x, y, element_id=element_id
     )
@@ -830,7 +830,7 @@ async def resilient_click(
                 dispatched=True,
             )
         
-        # ── V32 VISUAL TRUTH OVERRIDE ──────────────────────────────────────
+        # ── current VISUAL TRUTH OVERRIDE ──────────────────────────────────────
         # For toggleable elements (radio buttons, checkboxes, custom toggles),
         # clicking changes ONLY the element's state attributes (checked,
         # selected, value, aria-*) — NOT the DOM structure, URL, or element

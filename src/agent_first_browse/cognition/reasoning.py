@@ -1,4 +1,4 @@
-"""Cognition Core — strategy, belief, escalation, and stall detection (V18).
+"""Cognition Core — strategy, belief, escalation, and stall detection (current).
 
 This is the agent's "how it thinks" layer. It turns the brain from a stateless
 step-reactor into a goal-directed reasoner that:
@@ -232,7 +232,7 @@ def detect_stall(goal_score_window: list[float],
                  window: int = STALL_WINDOW) -> bool:
     """True if recent goal-scores are flat (no real goal progress).
 
-    Complements CriticV12: CriticV12 answers "did anything change?" (necessary
+    Complements ProgressCritic: ProgressCritic answers "did anything change?" (necessary
     for progress); this answers "did we get CLOSER to the goal?" (sufficient).
     Only fires once the window is full, so early exploration isn't punished.
     """
@@ -252,7 +252,7 @@ def push_goal_score(window: list[float], score: float) -> list[float]:
 def prm_should_audit(step_number: int, critic_made_progress: bool) -> bool:
     """Throttle the (LLM-costing) PRM goal-audit.
 
-    Run on a fixed cadence, plus opportunistically right after CriticV12 reports
+    Run on a fixed cadence, plus opportunistically right after ProgressCritic reports
     a change (the moment a goal-score is most likely to have moved).
     """
     return critic_made_progress or (step_number > 0 and step_number % PRM_AUDIT_EVERY == 0)
@@ -303,7 +303,7 @@ def render_strategy_block(strategy: str,
     Deliberately compact (~6 short lines): a one-line approach, the finish line,
     a confidence percentage, and at most a few short learned facts.
 
-    V27: `goal_complete_hint` is NO LONGER embedded here — transient "finish now"
+    `goal_complete_hint` is NO LONGER embedded here — transient "finish now"
     nudges are owned by the Guidance Bus (`build_guidance`) so the worker never
     sees more than ONE transient directive per step. The param is kept for
     backward compatibility but ignored.
@@ -326,11 +326,11 @@ def render_strategy_block(strategy: str,
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
-#  V27 Guidance Bus — exactly ONE arbitrated transient directive per step
+#  current Guidance Bus — exactly ONE arbitrated transient directive per step
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Fixes F2 (audit): the worker prompt used to stack up to five transient,
 #  possibly-conflicting directives — including a re-injection of the abstract PRM
-#  checklist (`critical_action_hint`), the exact pattern that caused the V26
+#  checklist (`critical_action_hint`), the exact pattern that caused the current
 #  goal-amnesia regression. The single source of truth for sub-goals stays
 #  `plan_steps` (rendered in the system prompt). This bus arbitrates only the
 #  TRANSIENT nudges, emitting the single highest-priority one.
@@ -343,7 +343,7 @@ def build_guidance(state: dict[str, Any]) -> str:
 
     Priority (highest first), each mapped to an existing state field set by an
     existing node — we centralize only the READER, never the setters:
-      0. REALITY    — `reality_note` (V29 Overwatch Reality Monitor): the live
+      0. REALITY    — `reality_note` (current Overwatch Reality Monitor): the live
                       screen CONTRADICTED the worker's prediction. This is the most
                       urgent signal — acting on the assumed (wrong) state is the
                       "blind execution" failure — so it outranks everything.
@@ -351,7 +351,7 @@ def build_guidance(state: dict[str, Any]) -> str:
                      acting further is actively harmful (post-action wandering).
       1.25 NAV-CYCLE — `navigation_cycle_note`: an observed action-effect loop;
                      the exact loop-closing element is now forbidden.
-      1.5 STAGNATION — `stagnation_note` (V29 Phase 3): busy but not progressing —
+      1.5 STAGNATION — `stagnation_note` (3): busy but not progressing —
                      break the loop before it deepens.
       2. REPETITION — `consecutive_identical_actions >= 2`: break loops first.
       3. ESCALATION — `correction_context` (overwatch `_escalate` ladder tactic).
@@ -462,15 +462,15 @@ def clear_transient() -> dict[str, Any]:
         "correction_context": "",
         "recovery_advice": "",
         "consecutive_identical_actions": 0,
-        # V29: a resolved step clears the reality discrepancy so a stale
+        # a resolved step clears the reality discrepancy so a stale
         # "screen mismatch" directive never bleeds into the next sub-task.
         "reality_status": "",
         "reality_note": "",
-        # V29 Phase 3: progress was made → wipe the stagnation/loop signals.
+        # 3: progress was made → wipe the stagnation/loop signals.
         "stagnation_note": "",
         "stagnation_level": 0,
         "scroll_stuck_streak": 0,
-        # V29 Intent Journal: a verified-success step resolves any pending intent.
+        # current Intent Journal: a verified-success step resolves any pending intent.
         "last_attempted_action": None,
     }
 

@@ -5,7 +5,7 @@ to verify that browser actions (click, type, etc.) actually took effect.
 It specifically catches React/Vue controlled component reversions where
 the framework's reconciler overwrites DOM changes after a short delay.
 
-Wraps around the existing CriticV12 and adds:
+Wraps around the existing ProgressCritic and adds:
 - Pre/post DOM snapshot comparison
 - Structural fingerprint diffing
 - Delayed field value rechecking (catches 100-300ms React reversions)

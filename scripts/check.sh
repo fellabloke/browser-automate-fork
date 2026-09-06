@@ -32,5 +32,8 @@ echo "==> Ruff"
 echo "==> Shell syntax"
 bash -n "$REPO_ROOT/scripts/check.sh"
 
+echo "==> Repository naming"
+"$PYTHON_BIN" "$REPO_ROOT/scripts/audit_repository_naming.py"
+
 echo "==> Deterministic pytest"
 "$PYTHON_BIN" -m pytest -q tests/unit tests/regression

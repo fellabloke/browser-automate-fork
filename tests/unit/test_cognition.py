@@ -1,4 +1,4 @@
-"""Unit tests for the V18 Adaptive Cognition Core.
+"""Unit tests for the adaptive cognition core.
 
 Covers the guarantees the design (and the user's constraints) depend on:
   - Escalation ladder advances monotonically, never repeats a tactic for the
@@ -10,7 +10,7 @@ Covers the guarantees the design (and the user's constraints) depend on:
   - The strategy block renders compactly; clear_* gives a clean task handoff.
   - StrategicPlan / Restrategy schemas are Groq-strict-safe.
 
-Run: .venv/bin/python -m pytest tests/unit/test_cognition_v18.py -v
+Run: .venv/bin/python -m pytest tests/unit/test_cognition.py -v
 """
 
 from __future__ import annotations

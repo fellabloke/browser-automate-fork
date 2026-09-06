@@ -1,4 +1,4 @@
-"""Deterministic checks for the packaged V17 contracts."""
+"""Deterministic checks for the packaged runtime contracts."""
 
 import os
 
@@ -9,7 +9,7 @@ from agent_first_browse.cognition.prm import ChecklistItem
 from agent_first_browse.promotion.browser_promoter.browser_warmup import extract_target_url_from_objective
 from agent_first_browse.workers.base import WorkerAction
 
-print("=== V17 Verification ===")
+print("=== Verification ===")
 print("All modules imported successfully!")
 fields = list(WorkerAction.model_fields.keys())
 print(f"WorkerAction fields: {fields}")
@@ -26,4 +26,4 @@ expected_prm_cadence = max(1, int(os.getenv("PRM_AUDIT_EVERY", "4")))
 assert cognition.PRM_AUDIT_EVERY == expected_prm_cadence
 assert extract_target_url_from_objective("Navigate to Amazon (https://www.amazon.in).") == "https://www.amazon.in"
 assert extract_target_url_from_objective("Go to https://github.com/user/repo.") == "https://github.com/user/repo"
-print("ALL V17 VERIFICATION PASSED")
+print("ALL VERIFICATION PASSED")

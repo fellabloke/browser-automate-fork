@@ -1,4 +1,4 @@
-"""Adaptive Perception Engine — situational, strategy-routed page perception (V29 / P0).
+"""Adaptive Perception Engine — situational, strategy-routed page perception (current / P0).
 
 WHY
 ═══
@@ -13,7 +13,7 @@ UNIVERSAL-ONLY (absolute mandate)
 There is NO site/domain logic anywhere in this module — no brand names, no
 per-site rules, no commerce keywords. Every decision is made from universal signals:
 element counts, geometry, accessibility standards, and the situation on the state.
-A source-grep test (test_perception_engine_v29) enforces this mechanically so it can
+A source-grep test (test_perception_engine) enforces this mechanically so it can
 never regress.
 
 NO DUPLICATION (audited)

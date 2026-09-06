@@ -1,4 +1,4 @@
-"""Action Feedback — clean, semantic execution feedback (V29 Phase A, Stagehand-style).
+"""Action Feedback — clean, semantic execution feedback.
 
 The 4-tier click waterfall is ALREADY internal (the LLM issues `click`, never
 `cdp_click`/`js_click`). This module finishes the abstraction by cleaning up what

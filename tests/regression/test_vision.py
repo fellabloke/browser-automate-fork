@@ -1,4 +1,4 @@
-"""Unit tests for V21 Vision-on-Demand (the a11y-DOM ⇄ vision "thinker" toggle).
+"""Unit tests for Vision-on-Demand (the a11y-DOM ⇄ vision "thinker" toggle).
 
 Guarantees under test:
   - a11y DOM is the DEFAULT: no trigger ⇒ no vision consult.
@@ -6,12 +6,12 @@ Guarantees under test:
     ladder's vision rung (force_vision), or an ineffective-action streak.
   - Per-task budget caps consults; 'wait' never consults.
   - apply_vision_verdict overrides ONLY on a confident, concrete verdict, and
-    drops stale a11y coords so the chosen element id wins (V19 re-resolves them).
+    drops stale a11y coords so the chosen element id wins (freshly resolves them).
   - Vision unavailable / errored ⇒ a11y decision stands (no regression).
   - consult_vision attaches a real screenshot via the model layer's base64 path,
     and the toggle is per-step (force_vision consumed, reverts to a11y).
 
-Run: .venv/bin/python -m pytest tests/regression/test_vision_v21.py -v
+Run: .venv/bin/python -m pytest tests/regression/test_vision.py -v
 """
 
 from __future__ import annotations

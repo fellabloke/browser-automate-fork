@@ -166,7 +166,7 @@ async def test_perception_cleans_only_after_leaving_verified_completion(monkeypa
     monkeypatch.setattr(brain_graph, "_sync_active_page", active_page)
     monkeypatch.setattr(mcp_tools, "mcp_snapshot", snapshot)
     monkeypatch.setattr(mcp_tools, "mcp_detect_login", no_login)
-    monkeypatch.setenv("V29_ADAPTIVE_PERCEPTION", "0")
+    monkeypatch.setenv("ADAPTIVE_PERCEPTION_ENABLED", "0")
     state = BrainState(
         objective="Complete surveys",
         continuous_survey_mode=True,
