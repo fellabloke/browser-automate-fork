@@ -1,6 +1,6 @@
 ---
 name: runtime-trace
-description: Trace whether a module, symbol, package, or responsibility is actually active in the Agent-first-browse runtime before moving, rewriting, extracting, or deleting it. Use during base_refac when code appears legacy or duplicated; when ownership is unclear between root modules, workers, skills, orchestrator, advanced_agent.py, or python-orchestrator/app; when identifying entry points, callers, state flow, side effects, tests, and compatibility requirements; or before declaring code safe to retire. Perform read-only repository analysis and do not infer dead code from filenames or architecture age alone.
+description: Trace whether a module, symbol, package, or responsibility is active in the Agent First Browse runtime before changing or retiring it. Use when ownership, entry points, state flow, side effects, tests, or compatibility requirements are unclear. Perform read-only repository analysis and do not infer dead code from filenames or architecture age alone.
 ---
 
 # Runtime Trace
@@ -22,14 +22,10 @@ agent.sh
   -> browser side effects
 ```
 
-Remember the known transitional boundaries:
-
-- `advanced_agent.py` is legacy but still has live consumers.
-- `orchestrator/` is a retired architecture; progress criticism is owned by `agent_first_browse.verification`.
-- `python-orchestrator/app/` still supplies active infrastructure and a separate browser-promoter graph.
-- root `skills/` means runtime browser actions, not Codex skills.
-
-Do not classify any of these as dead solely from architectural intent.
+Canonical runtime packages live under `src/agent_first_browse/`. Promotion is a
+separate domain graph, while `agent_first_browse.browser`, `models`,
+`verification`, and other core packages own shared runtime infrastructure.
+Do not classify code as dead solely from its filename or architectural age.
 
 ## 2. Define the trace target
 

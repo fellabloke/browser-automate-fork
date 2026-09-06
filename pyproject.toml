@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "agent-first-browse"
 version = "0.1.0"
-description = "Dual-model LangGraph browser automation orchestrator with Supervisor + Worker VLM architecture."
+description = "LangGraph browser agent with canonical model failover, verification, perception, and browser-action layers."
 readme = "README.md"
 license = "GPL-3.0-only"
 requires-python = ">=3.11"

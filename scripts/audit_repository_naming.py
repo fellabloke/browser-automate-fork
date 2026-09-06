@@ -24,6 +24,7 @@ ALLOWED_TEXT = (
     "application/vnd.github.v3+json",
     "https://github.com/SandeepAi369/Agent-first-ide.git",
 )
+STALE_IDENTITY = re.compile(r"agent first ide|agent-first-ide|base_refac", re.IGNORECASE)
 INTERNAL_TOKEN = re.compile(
     r"(?:^|[_-])v(?:8c|(?:1[1-9]|[2-9]\d+))(?=$|[_./-])|\bV(?:\d+)(?:\.\d+)?\b"
 )
@@ -51,8 +52,12 @@ def main() -> int:
         for allowed in ALLOWED_TEXT:
             scrubbed = scrubbed.replace(allowed, "")
         for line_number, line in enumerate(scrubbed.splitlines(), 1):
-            if INTERNAL_TOKEN.search(line) and path.resolve() != Path(__file__).resolve():
+            if path.resolve() == Path(__file__).resolve():
+                continue
+            if INTERNAL_TOKEN.search(line):
                 findings.append(f"text: {relative}:{line_number}: {line.strip()}")
+            if STALE_IDENTITY.search(line):
+                findings.append(f"stale internal identity: {relative}:{line_number}: {line.strip()}")
 
     package_root = ROOT / "src" / "agent_first_browse"
     for path in package_root.rglob("*.py"):

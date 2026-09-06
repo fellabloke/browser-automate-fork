@@ -1,6 +1,6 @@
 ---
 name: repo-check
-description: Select and run the cheapest sufficient validation for changes in the Agent-first-browse base_refac repository. Use when checking a patch, refactor, migration, bug fix, config change, or documentation change before completion; when deciding which tests/lint/import checks are necessary; or when comparing behavior before and after a structural move. Prefer deterministic local checks and avoid credentialed, browser-network, or paid model/provider tests unless the task explicitly requires them.
+description: Select and run the cheapest sufficient validation for changes in the Agent First Browse repository. Use when checking code, configuration, documentation, or tests before completion. Prefer deterministic local checks and avoid credentialed, browser-network, or paid model/provider tests unless explicitly required.
 ---
 
 # Repo Check
@@ -85,7 +85,7 @@ First exhaust mocks, deterministic regression tests, recorded fixtures, and loca
 
 If `./scripts/check.sh` exists and is documented as deterministic, use it as the default broad validation command after focused checks.
 
-If it does not exist yet, do **not** pretend bare `pytest` is authoritative. This repository has historically mixed deterministic tests with script-style/live tests. Inspect test scope before invoking broad collection.
+If it does not exist, inspect test scope before invoking broad collection. Keep live/provider/browser/manual checks opt-in.
 
 Prefer targeted commands such as:
 

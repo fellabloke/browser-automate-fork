@@ -1,4 +1,0 @@
-interface:
-  display_name: "Migration Slice"
-  short_description: "Move one subsystem safely toward the target package"
-  default_prompt: "Perform one behavior-preserving base_refac migration slice for the requested module or responsibility. Trace active dependencies first, preserve compatibility, validate deterministically, and update architecture ownership without unrelated cleanup."
