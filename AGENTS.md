@@ -19,15 +19,13 @@ agent.sh
 
 Important distinctions:
 
-`agent_first_browse.agent.graph` is the current LangGraph orchestration spine;
-root `brain_graph.py` is compatibility-only.
+`agent_first_browse.agent.graph` is the current LangGraph orchestration spine.
 
-BrainState in `agent_first_browse.agent.state` is the primary typed runtime state; root `brain_state.py` is a compatibility shim during migration.
+BrainState in `agent_first_browse.agent.state` is the primary typed runtime state.
 
-`agent_first_browse.workers` contains the current specialist worker decision path;
-root `workers/base_worker.py` is compatibility-only.
+`agent_first_browse.workers` contains the current specialist worker decision path.
 
-`advanced_agent.py` is a compatibility façade only. Browser lifecycle, model
+The historical `advanced_agent.py` façade is retired. Browser lifecycle, model
 invocation, and graph execution belong to canonical package modules.
 
 The historical `orchestrator/` CEO/Spawner/Executor architecture has been
@@ -195,14 +193,16 @@ Dependencies and packaging
 
 pyproject.toml is the intended long-term dependency and packaging source of truth.
 
-The package layout is canonical under `src/agent_first_browse/`; root modules
-remain only as launchers, diagnostics, manual tools, or compatibility shims.
+The package layout is canonical under `src/agent_first_browse/`; root Python
+modules are retired. Diagnostics, maintenance, manual, and smoke tools live
+under `scripts/`.
 
 Do not add a new production dependency without a concrete need.
 
 Prefer the standard library or an already-installed dependency for refactor tooling.
 
-Remove sys.path hacks only as the corresponding imports become valid through the package layout; do not delete them early and break runtime startup.
+Canonical runtime code must not use `sys.path` hacks; tools should use the
+installed package or documented project-root execution.
 
 Target naming
 

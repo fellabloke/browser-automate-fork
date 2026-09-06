@@ -24,8 +24,8 @@ import pytest
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from agent_first_browse.perception import dom as dom_parser
-import overwatch
-from outcome_judge import (
+from agent_first_browse.verification import overwatch
+from agent_first_browse.verification.outcome import (
     MAX_DONE_BLOCKS,
     DoneVerdict,
     build_judge_messages,

@@ -24,7 +24,7 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-import mcp_tools
+from agent_first_browse.actions import tools as mcp_tools
 from agent_first_browse.perception import vision as vision_consult
 from agent_first_browse.perception.vision import (
     MAX_VISION_CONSULTS,

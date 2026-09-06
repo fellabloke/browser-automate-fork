@@ -22,8 +22,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from agent_first_browse.config import feature_flags as ff
-import intent_journal as ij
-from cognition import clear_transient
+from agent_first_browse.memory import intent_journal as ij
+from agent_first_browse.cognition.reasoning import clear_transient
 
 
 def _proposed(verb="click", element_id="e5", text=None, risk="IRREVERSIBLE"):

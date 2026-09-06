@@ -20,10 +20,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from agent_first_browse.config import feature_flags as ff
-import target_lock as tl
-from clarity import ClaritySignal, compute_clarity, needs_consensus, needs_vision_for_clarity
-from cognition import build_guidance, clear_transient
-from stagnation import _has_action_cycle, detect_stagnation
+from agent_first_browse.cognition import target_lock as tl
+from agent_first_browse.cognition.clarity import ClaritySignal, compute_clarity, needs_consensus, needs_vision_for_clarity
+from agent_first_browse.cognition.reasoning import build_guidance, clear_transient
+from agent_first_browse.cognition.stagnation import _has_action_cycle, detect_stagnation
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  Target Lock

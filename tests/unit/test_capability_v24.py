@@ -24,7 +24,7 @@ from pydantic import BaseModel
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-from model_registry import (
+from agent_first_browse.models.registry import (
     AGENTIC_TEXT_ALLOWLIST,
     WORKER_MAX_TIER,
     CloudflareNativeVisionClient,

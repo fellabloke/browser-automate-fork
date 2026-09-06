@@ -5,10 +5,10 @@ from __future__ import annotations
 import asyncio
 import time
 
-import brain_graph
+from agent_first_browse.agent import graph as brain_graph
 from agent_first_browse.agent.state import BrainState
 from agent_first_browse.agent.routing import route_to_worker
-from survey_context import (
+from agent_first_browse.survey.context import (
     should_rotate_survey_provider,
     survey_provider_urls,
     survey_semantic_page_identity,

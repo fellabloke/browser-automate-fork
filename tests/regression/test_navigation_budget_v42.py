@@ -2,10 +2,10 @@
 
 import asyncio
 
-import mcp_tools
-import overwatch
-from overwatch import _action_execution_confirmed
-from survey_context import (
+from agent_first_browse.actions import tools as mcp_tools
+from agent_first_browse.verification import overwatch
+from agent_first_browse.verification.overwatch import _action_execution_confirmed
+from agent_first_browse.survey.context import (
     compact_survey_url,
     is_verified_survey_page_transition,
     recently_failed_survey_offer_ids,
@@ -16,12 +16,12 @@ from survey_context import (
     survey_nonresponse_violation,
     survey_page_fingerprint,
 )
-from survey_site_quirks import (
+from agent_first_browse.survey.site_quirks import (
     fresh_dashboard_after_boundary,
     fresh_dashboard_after_completion,
     qmee_active_survey_action,
 )
-from workers.base_worker import (
+from agent_first_browse.workers.base import (
     WorkerAction,
     _bounded_prompt_section,
     _remove_human_assistance_action,

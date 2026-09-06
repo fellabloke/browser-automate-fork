@@ -177,7 +177,7 @@ From Windows PowerShell in the project directory, run:
 .\Start-Agent.ps1 "Go to Reddit and find the top post about X"
 ```
 
-The launcher finds Chrome, reuses a valid automation CDP endpoint when one already exists, otherwise starts Chrome with `%LOCALAPPDATA%\AgentFirstBrowse\ChromeProfile`, verifies `/json/version` from both Windows and WSL, and invokes `.venv/bin/python run_v16.py` itself. No bridge terminal or transient WSL gateway IP is used. If your repository is in a non-default distribution, add `-Distro <name>`.
+The launcher finds Chrome, reuses a valid automation CDP endpoint when one already exists, otherwise starts Chrome with `%LOCALAPPDATA%\AgentFirstBrowse\ChromeProfile`, verifies `/json/version` from both Windows and WSL, and invokes the canonical `agent_first_browse.cli` entrypoint itself. No bridge terminal or transient WSL gateway IP is used. If your repository is in a non-default distribution, add `-Distro <name>`.
 
 Launcher transcripts are saved under `logs/windows_launcher_<timestamp>.log`; Python runs are saved under `logs/run_<timestamp>.log`.
 
@@ -503,16 +503,16 @@ Or call the brain directly:
 
 ```bash
 # Stealth headed mode (default — recommended)
-.venv/bin/python run_v16.py run "Go to github.com/torvalds/linux and star the repository"
+.venv/bin/python -m agent_first_browse.cli run "Go to github.com/torvalds/linux and star the repository"
 
 # Force true headless (more bot-detectable)
-.venv/bin/python run_v16.py run "your task here" --headless
+.venv/bin/python -m agent_first_browse.cli run "your task here" --headless
 ```
 
 **Persisting a login session** — open a browser to sign in manually once; the session is reused on future runs:
 
 ```bash
-.venv/bin/python run_v16.py login
+.venv/bin/python -m agent_first_browse.cli login
 ```
 
 Every run is saved to `logs/run_<timestamp>.log` for later inspection.

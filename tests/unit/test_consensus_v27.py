@@ -18,7 +18,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-from consensus import (
+from agent_first_browse.cognition.consensus import (
     canonical_action_key,
     count_distinct_base_models,
     distinct_base_model_clients,
@@ -140,7 +140,7 @@ class _Dec:
 
 
 def test_structural_ok():
-    from consensus import structural_ok
+    from agent_first_browse.cognition.consensus import structural_ok
     assert structural_ok(_Dec("click", "e5"), {"e5": {}}) is True
     assert structural_ok(_Dec("click", "e9"), {"e5": {}}) is False   # id not in map
     assert structural_ok(_Dec("click", None), {}) is False           # no target
@@ -152,7 +152,7 @@ def test_structural_ok():
 
 def _cascade(primary, voters_decisions, force=False, smap=None):
     """Drive cascade_consensus with a fake invoke that returns scripted votes."""
-    from consensus import cascade_consensus
+    from agent_first_browse.cognition.consensus import cascade_consensus
     seq = list(voters_decisions)
     calls = {"n": 0}
 

@@ -8,10 +8,10 @@ import json
 from langchain_core.messages import HumanMessage, SystemMessage
 
 from agent_first_browse.perception import dom as dom_parser
-from model_registry import ModelClient, ProviderHealthTracker, invoke_with_failover
+from agent_first_browse.models import ModelClient, ProviderHealthTracker, invoke_with_failover
 from agent_first_browse.agent.routing import route_to_worker
-from reality import CONFIRMED, classify_reality
-from survey_context import (
+from agent_first_browse.cognition.reality import CONFIRMED, classify_reality
+from agent_first_browse.survey.context import (
     build_survey_handoff,
     is_grounded_survey_choice,
     paidwork_selection_ready,
@@ -67,7 +67,7 @@ def test_gate_rejects_unverified_image_code_entry():
         smap,
         page_text="CAPTCHA verification image. Please type the characters you see in the image.",
     ) == ""
-from survey_profile import (
+from agent_first_browse.survey.profile import (
     commit_confirmed_survey_answer,
     enforce_typed_profile_fact,
     load_active_profile,
@@ -76,13 +76,13 @@ from survey_profile import (
     render_profile,
     sanitize_profile_update,
 )
-from survey_site_quirks import (
+from agent_first_browse.survey.site_quirks import (
     apply_site_quirks_to_action,
     matching_site_quirks,
     render_site_quirk_guidance,
     uk_postcode_outward,
 )
-from workers.base_worker import WorkerAction, survey_focus_instructions
+from agent_first_browse.workers.base import WorkerAction, survey_focus_instructions
 
 
 def test_handoff_distinguishes_action_budget_from_survey_progress():

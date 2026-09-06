@@ -15,7 +15,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from agent_first_browse.config import feature_flags as ff
-from subgoal_lock import (
+from agent_first_browse.cognition.subgoal_lock import (
     compose_rejection,
     locked_subgoals,
     reconcile_plan_with_ledger,

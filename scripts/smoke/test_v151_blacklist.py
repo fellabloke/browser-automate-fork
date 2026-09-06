@@ -1,11 +1,5 @@
 """V15.1 Patch A+C Unit Test: Base-name blacklist covers all model instances."""
-import sys
-from pathlib import Path
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT))
-
-from model_registry import ProviderHealthTracker
+from agent_first_browse.models import ProviderHealthTracker
 
 h = ProviderHealthTracker()
 

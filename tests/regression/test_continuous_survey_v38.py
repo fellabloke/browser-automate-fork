@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import asyncio
 
-import brain_graph
+from agent_first_browse.agent import graph as brain_graph
 from agent_first_browse.agent.state import BrainState
 from agent_first_browse.agent.routing import route_to_worker
-from overwatch import _action_loop_signature, _layer_4_cove_check
-from stagnation import detect_stagnation
-from survey_context import (
+from agent_first_browse.verification.overwatch import _action_loop_signature, _layer_4_cove_check
+from agent_first_browse.cognition.stagnation import detect_stagnation
+from agent_first_browse.survey.context import (
     blocking_popup_action_id,
     build_survey_handoff,
     captcha_field_state,

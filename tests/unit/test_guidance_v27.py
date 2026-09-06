@@ -16,8 +16,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-import cognition as cog
-from cognition import build_guidance, render_strategy_block
+from agent_first_browse.cognition import reasoning as cog
+from agent_first_browse.cognition.reasoning import build_guidance, render_strategy_block
 
 
 def _count_blocks(s: str) -> int:

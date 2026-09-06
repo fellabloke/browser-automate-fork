@@ -3,12 +3,12 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
-import brain_graph
+from agent_first_browse.agent import graph as brain_graph
 from agent_first_browse.browser import cdp_input
-import mcp_tools
-import survey_profile
-from survey_context import prepare_survey_transaction
-from workers.base_worker import _survey_fast_path
+from agent_first_browse.actions import tools as mcp_tools
+from agent_first_browse.survey import profile as survey_profile
+from agent_first_browse.survey.context import prepare_survey_transaction
+from agent_first_browse.workers.base import _survey_fast_path
 
 
 def _profile(**demographics):

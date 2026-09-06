@@ -15,7 +15,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from agent_first_browse.config import feature_flags as ff
-from web_dreamer import (
+from agent_first_browse.cognition.dreamer import (
     CandidateAction,
     CandidateEvaluation,
     adjusted_score,

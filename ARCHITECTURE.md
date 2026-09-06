@@ -55,7 +55,8 @@ agent_first_browse.agent.graph.run_brain(...)
     v
 LangGraph StateGraph
 
-run_v16.py explicitly identifies itself as the replacement for the older monolithic execution loop.
+The installed `agent-browse` command and root launchers use the canonical CLI;
+the historical `run_v16.py` launcher is retired.
 
 The current graph is approximately:
 
@@ -105,47 +106,40 @@ Exact edges are defined in `agent_first_browse.agent.graph`; this diagram is con
 
 Current major runtime components
 
-agent_first_browse.cli     CLI / startup (root run_v16.py compatibility launcher)
-agent_first_browse.agent.graph orchestration graph (root brain_graph.py compatibility shim)
-agent_first_browse.agent.state typed global graph state (root shim: brain_state.py)
-agent_first_browse.agent.routing worker/verdict routing (root shim: moe_router.py)
-agent_first_browse.config.feature_flags runtime feature switches (root shim: feature_flags.py)
-agent_first_browse.persistence.checkpoint_retention checkpoint pruning (root shim: checkpoint_retention.py)
-agent_first_browse.perception.* DOM, accessibility, diff, engine, and vision evidence (root shims retained)
-agent_first_browse.browser.* CDP, humanized input, overlays, display, and platform helpers (root shims retained)
+agent_first_browse.cli     CLI / startup
+agent_first_browse.agent.graph orchestration graph
+agent_first_browse.agent.state typed global graph state
+agent_first_browse.agent.routing worker/verdict routing
+agent_first_browse.config.feature_flags runtime feature switches
+agent_first_browse.persistence.checkpoint_retention checkpoint pruning
+agent_first_browse.perception.* DOM, accessibility, diff, engine, and vision evidence
+agent_first_browse.browser.* CDP, humanized input, overlays, display, and platform helpers
 agent_first_browse.survey.* survey context, profile, recipes, audio, outcomes, quirks, and benchmarks
 agent_first_browse.memory.* campaign, skill, intent, and content memory
 agent_first_browse.promotion.* browser-promoter graph, state, nodes, supervisor, integrations, database, and observability
 agent_first_browse.logging    shared runtime logger
-agent_first_browse.verification.* action safety, verification, outcomes, progress, and Overwatch (root shims retained)
-agent_first_browse.cognition.* deterministic and model-backed cognition (root shims retained)
-agent_first_browse.actions.tools canonical browser-action façade (root mcp_tools.py shim retained)
+agent_first_browse.verification.* action safety, verification, outcomes, progress, and Overwatch
+agent_first_browse.cognition.* deterministic and model-backed cognition
+agent_first_browse.actions.tools canonical browser-action façade
 agent_first_browse.workers.base specialist worker façade
-agent_first_browse.models.registry public model façade and coordination (root shim: model_registry.py)
+agent_first_browse.models.registry public model façade and coordination
 agent_first_browse.models.health health/cooldown/probe state and persistence used by the registry façade
 agent_first_browse.models.providers provider adapters and model/pipeline construction
 agent_first_browse.models.routing deterministic model/role selection and ordering
 agent_first_browse.models.probes startup/capability probing and probe-result pruning
 agent_first_browse.models.failover ordinary inference, retry/failover, and structured recovery
-agent_first_browse.workers.base specialist worker decision path (root shim: workers/base_worker.py)
-mcp_tools.py                compatibility shim for agent_first_browse.actions.tools
-overwatch.py                compatibility shim for agent_first_browse.verification.overwatch
-perception_engine.py        compatibility shim for canonical perception
-cognition*.py               compatibility shims for canonical cognition
-survey_*.py                 compatibility shims for canonical survey
+agent_first_browse.workers.base specialist worker decision path
 
 1. Retired legacy architectures
 
 Wave 4 retired the old `orchestrator/`, root runtime `skills/`, and
 `python-orchestrator/` trees after active callers were migrated to canonical
 package owners. The autonomous implementation in `advanced_agent.py` was
-drained; the remaining file is a compatibility façade for legacy imports and
-delegates to the canonical graph, browser runtime, and model façade.
+drained and the historical façade was removed after repository callers migrated.
 
-The remaining root Python files are supported launchers, diagnostics, or
-explicit compatibility shims. Canonical production code imports only
-`agent_first_browse.*`; compatibility flows point toward the canonical package,
-never back into a retired implementation.
+The repository root contains no application Python modules. Canonical
+production code imports only `agent_first_browse.*`; optional diagnostics and
+smoke tools live under `scripts/`.
 
 1. Runtime invariants
 
@@ -226,31 +220,31 @@ Migration destination
 
 CLI/startup
 
-run_v16.py, agent.sh, Start-Agent.ps1
+agent.sh, Start-Agent.ps1, and the installed `agent-browse` command
 
 agent_first_browse.cli + wrappers
 
 Graph orchestration
 
-brain_graph.py
+`agent_first_browse.agent.graph`
 
 agent_first_browse.agent.graph
 
 Typed graph state
 
-brain_state.py
+`agent_first_browse.agent.state`
 
 agent_first_browse.agent.state
 
 Graph routing
 
-src/agent_first_browse/agent/routing.py (root shim: moe_router.py)
+`agent_first_browse.agent.routing.py`
 
 agent_first_browse.agent.routing
 
 Checkpoint retention
 
-src/agent_first_browse/persistence/checkpoint_retention.py (root shim: checkpoint_retention.py)
+`agent_first_browse.persistence.checkpoint_retention.py`
 
 agent_first_browse.persistence.checkpoint_retention
 
@@ -262,13 +256,13 @@ agent_first_browse.models
 
 Worker decisions
 
-src/agent_first_browse/workers/base.py (root shim: workers/base_worker.py)
+`agent_first_browse.workers.base.py`
 
 agent_first_browse.workers
 
 Browser action facade
 
-`agent_first_browse.actions.tools` (root shim: `mcp_tools.py`)
+`agent_first_browse.actions.tools`
 
 agent_first_browse.browser / actions / perception
 
@@ -293,7 +287,7 @@ agent_first_browse.browser
 Verification
 
 agent_first_browse.verification.action, feedback, safety, engine, outcome,
-progress, and overwatch (root shims retained)
+progress, and overwatch
 
 agent_first_browse.verification
 
@@ -551,9 +545,7 @@ compatibility.
 The model package now exposes an explicit package-level API from
 `models/__init__.py` for `ModelRegistry`, `ModelClient`, health tracking,
 provider adapters, deterministic routing, circuit breaking, and ordinary
-invocation. The root `model_registry.py` and direct implementation imports
-remain compatibility surfaces for tests and legacy scripts; active runtime
-callers use the package API.
+invocation. Active runtime callers use the package API directly.
 
 Shared runtime logging is owned by `agent_first_browse.logging`; promotion-only
 observability and call pacing remain under `agent_first_browse.promotion`.
@@ -563,10 +555,9 @@ The canonical browser-promoter implementation is owned by
 imports plus the canonical logger. The historical `python-orchestrator` tree
 has been retired; callers must use the canonical package.
 
-The worker implementation is now owned by `src/agent_first_browse/workers/base.py`
-with the root `workers/base_worker.py` retained as a compatibility alias. Further
-worker decomposition is deferred until its prompt, deterministic fast paths, and
-escalation contracts have dedicated boundaries.
+The worker implementation is owned by `src/agent_first_browse/workers/base.py`.
+Further worker decomposition is deferred until its prompt, deterministic fast
+paths, and escalation contracts have dedicated boundaries.
 
 Do the same for brain_graph.py, mcp_tools.py, and other large files.
 
@@ -577,12 +568,9 @@ A temporary root file may re-export the new implementation:
 """Temporary compatibility shim; remove after callers migrate."""
 from agent_first_browse.agent.state import *
 
-Current compatibility surfaces include `model_registry.py`,
-`workers/base_worker.py`, `checkpoint_retention.py`, and migrated survey,
-memory, cognition, verification, browser, and action root modules. They
-forward to canonical package modules, including module identity where legacy
-tests monkeypatch imported modules. Remove each shim only after its remaining
-script/test callers have migrated.
+The former root compatibility surfaces were removed after repository
+callers and tests migrated. New compatibility files require an explicit
+external support contract.
 
 A shim is a migration tool, not a permanent second API.
 
@@ -653,8 +641,8 @@ Keep domain-specific behavior out of the generic core unless more than one domai
 Phase 6 — Model layer
 
 The behavior-preserving move is complete: the authoritative implementation is
-`src/agent_first_browse/models/registry.py`; root `model_registry.py` remains a
-temporary compatibility alias while legacy callers and tests migrate.
+`src/agent_first_browse/models/registry.py`; the historical root alias was
+removed after legacy callers and tests migrated.
 
 The first decomposition boundary is complete: health/cooldown/probe state now
 lives in `src/agent_first_browse/models/health.py`, while the registry façade
@@ -668,17 +656,19 @@ Further extraction should remain incremental and test-backed.
 
 Integration Wave 2 is complete: verification is canonically owned by
 `agent_first_browse.verification`, including action safety, feedback, engine and
-outcome checks, the progress critic, and intact Overwatch coordination. Root
-verification modules remain compatibility aliases rather than second
-implementations; the historical `orchestrator/critic_v12.py` file is retired.
+outcome checks, the progress critic, and intact Overwatch coordination. The
+historical root verification aliases and `orchestrator/critic_v12.py` were
+removed after callers migrated.
 
 Cognition is canonically owned by `agent_first_browse.cognition`. Deterministic
 target/subgoal locks, clarity, stagnation, and action classification live beside
 the intact strategic/core, consensus, reality, PRM, WebDreamer, and content
-critique modules. Root cognition files remain compatibility aliases.
+critique modules. The historical root cognition aliases were removed after
+callers migrated.
 
 The former `mcp_tools.py` implementation is now owned intact by
-`agent_first_browse.actions.tools`; the root file is a compatibility alias.
+`agent_first_browse.actions.tools`; its root alias was removed after callers
+migrated.
 Overwatch imports canonical actions, cognition, verification, memory, survey,
 browser, perception, and model dependencies. Workers still propose actions and
 Overwatch remains the sole commit/execution authority.
@@ -694,7 +684,7 @@ Phase 8 — Graph and CLI
 Move:
 
 brain_graph.py -> agent/graph.py
-run_v16.py     -> cli.py
+agent-browse  -> cli.py
 
 At this point launchers should converge on one installed CLI entry point while retaining shell/PowerShell convenience wrappers.
 
@@ -710,9 +700,8 @@ historical python-orchestrator/ package boundaries;
 
 temporary root compatibility modules.
 
-The old orchestrator and `python-orchestrator` trees are removed. Root
-launchers and compatibility shims remain only where their documented import or
-launcher contract is still useful.
+The old orchestrator and `python-orchestrator` trees are removed. The only
+root launchers are the documented shell and PowerShell convenience wrappers.
 
 Phase 10 — Decomposition and optimization
 
@@ -875,10 +864,10 @@ Versioned files such as V29_OVERHAUL.md are valuable history but should not perm
 These are known sources of ambiguity that Codex should check before making broad changes:
 
 The active v16 runtime is packaged under `src/agent_first_browse/`; root
-launchers and compatibility shims are not authoritative implementations.
+launchers are convenience entrypoints and no root compatibility modules remain.
 
-`advanced_agent.py` is a compatibility façade only. The old orchestrator and
-`python-orchestrator` package trees have been removed.
+`advanced_agent.py` and the old orchestrator and `python-orchestrator` package
+trees have been removed.
 
 The browser-promoter graph is a separate graph and should not be mistaken for the v16 orchestration spine.
 
@@ -925,22 +914,21 @@ The purpose is to create a structure in which those later changes can be evaluat
  `agent_first_browse.workers` owns the active worker façade and its preserved
  contracts (`schemas.py`), prompt construction (`prompt_builder.py`),
  deterministic/model-free paths (`deterministic.py`), and model-backed decision
- orchestration (`decision.py`). `workers/base_worker.py` remains a compatibility
- alias for `workers.base`, and `workers.base` remains the stable import façade.
+ orchestration (`decision.py`). `workers.base` is the stable worker façade.
 
  `agent_first_browse.browser.runtime` owns v16 browser launch, LOCAL_CDP versus
  local Playwright selection, persistent profile handling, `SessionGuard`, manual
- login, and shutdown. `advanced_agent.py` is now only a compatibility façade
- and owns no autonomous loop or browser implementation.
+ login, and shutdown. The historical `advanced_agent.py` façade has been
+ removed and owns no runtime implementation.
 
  `agent_first_browse.agent.graph` owns the LangGraph orchestration spine.
- `brain_graph.py` is a compatibility façade and does not retain a second graph
- implementation. Repository-level checkpoint persistence remains at the same
+ The historical `brain_graph.py` façade was removed and does not retain a
+ second graph implementation. Repository-level checkpoint persistence remains at the same
  historical `persistence/` location.
 
  `agent_first_browse.cli` is the canonical v16 CLI and is exposed as the
  `agent-browse` project entry point. `agent.sh` and `Start-Agent.ps1` invoke
- that module; `run_v16.py` remains a compatibility launcher.
+ that module; no root Python launcher remains.
 
  These moves preserve the worker proposal boundary, Overwatch execution
  authority, graph topology/state/retry behavior, browser session semantics, and
@@ -968,7 +956,20 @@ CI runs the same deterministic checks used locally;
 
 active architecture is described here rather than scattered across historical plans;
 
-state ownership and side-effect boundaries remain explicit;
+ state ownership and side-effect boundaries remain explicit;
+
+## Final repository organization
+
+The canonical runtime and all substantive application implementations live
+under `src/agent_first_browse/`. The root contains only project metadata,
+canonical documentation, the two supported shell/PowerShell launchers, and the
+skills lock file required by the development tooling. Historical migration
+documents are categorized under `docs/`; examples are under `examples/`; and
+diagnostic, maintenance, manual, and opt-in smoke tools are under `scripts/`.
+
+No root Python compatibility modules remain. Tests and scripts use canonical
+package imports directly, and package-relative survey example data is shipped
+under `agent_first_browse.survey`.
 
 model/vision/provider call behavior has not accidentally regressed during structural migration.
 

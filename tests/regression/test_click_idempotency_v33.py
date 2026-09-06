@@ -8,10 +8,10 @@ from __future__ import annotations
 
 from agent_first_browse.browser import cdp_click
 from agent_first_browse.browser import cdp_input
-import intent_journal
-import mcp_tools
-import overwatch
-from survey_context import survey_gate_violation
+from agent_first_browse.memory import intent_journal
+from agent_first_browse.actions import tools as mcp_tools
+from agent_first_browse.verification import overwatch
+from agent_first_browse.survey.context import survey_gate_violation
 
 
 def _fp(url: str = "https://example.test/survey") -> dict:

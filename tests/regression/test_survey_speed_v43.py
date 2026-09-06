@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from survey_benchmark import SurveyBenchmarkMetrics
-from survey_context import (
+from agent_first_browse.survey.benchmarks import SurveyBenchmarkMetrics
+from agent_first_browse.survey.context import (
     canonical_survey_url,
     prepare_survey_transaction,
     sparse_survey_dom,
@@ -16,8 +16,8 @@ from survey_context import (
     survey_perception_wait_mode,
     unsupported_survey_requirement,
 )
-from survey_recipe_memory import SurveyRecipeMemory, survey_page_recipe_signature
-from workers.base_worker import _survey_fast_path
+from agent_first_browse.survey.recipes import SurveyRecipeMemory, survey_page_recipe_signature
+from agent_first_browse.workers.base import _survey_fast_path
 
 
 def _button(text: str, **extra):

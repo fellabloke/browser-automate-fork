@@ -26,7 +26,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from agent_first_browse.perception import dom as dom_parser
 from agent_first_browse.browser import ghost_input
-import mcp_tools
+from agent_first_browse.actions import tools as mcp_tools
 
 # A deterministic, network-free fixture: a tall page (forces scroll), three rows
 # each with an identical "Buy" label but a unique product + href, plus a button

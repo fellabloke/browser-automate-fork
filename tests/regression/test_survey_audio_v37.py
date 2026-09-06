@@ -77,7 +77,7 @@ def test_captured_audio_is_classified_and_grounded_to_visible_option(monkeypatch
             reasoning="Repeated short barks",
         ), "gemini-audio:test"
 
-    monkeypatch.setattr("survey_audio.capture_page_media", fake_capture)
+    monkeypatch.setattr("agent_first_browse.survey.audio.capture_page_media", fake_capture)
     result = asyncio.run(analyze_audio_challenge(
         object(),
         url="https://survey.example/q1",
@@ -97,7 +97,7 @@ def test_failed_first_capture_requests_play_then_second_attempt_guesses(monkeypa
     async def failed_capture(_page):
         return {"ok": False, "reason": "media_bytes_unavailable"}
 
-    monkeypatch.setattr("survey_audio.capture_page_media", failed_capture)
+    monkeypatch.setattr("agent_first_browse.survey.audio.capture_page_media", failed_capture)
     first = asyncio.run(analyze_audio_challenge(
         object(),
         url="https://survey.example/q1",

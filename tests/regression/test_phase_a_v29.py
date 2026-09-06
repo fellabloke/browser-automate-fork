@@ -12,8 +12,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from agent_first_browse.config import feature_flags as ff
-import mcp_tools
-from action_feedback import FailureClass, classify_failure, render_failure, render_success
+from agent_first_browse.actions import tools as mcp_tools
+from agent_first_browse.verification.feedback import FailureClass, classify_failure, render_failure, render_success
 from agent_first_browse.perception.diff import progress_phrase, signal_vector_diff, state_change_score
 
 

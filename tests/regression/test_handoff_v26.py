@@ -25,8 +25,8 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-from outcome_judge import build_judge_messages
-from prm_critic import ChecklistEvaluation, ChecklistItem, EvaluationItem, PRMCritic
+from agent_first_browse.verification.outcome import build_judge_messages
+from agent_first_browse.cognition.prm import ChecklistEvaluation, ChecklistItem, EvaluationItem, PRMCritic
 
 
 def _prm(eval_results):
@@ -79,7 +79,7 @@ def test_confident_done_is_done_but_not_auto_locked():
 
 def test_audit_done_does_not_get_fed_to_judge_as_verified():
     # A done-but-unverified item must not leak into the judge's "trusted" ledger.
-    import overwatch
+    from agent_first_browse.verification import overwatch
     state = {"prm_checklist": [
         {"desc": "A", "status": "done", "verified": False, "evidence": "x"},
         {"desc": "B", "status": "pending"},

@@ -2,7 +2,7 @@
 from collections import Counter
 
 # Test 1: Circuit Breaker
-from model_registry import CircuitBreaker
+from agent_first_browse.models import CircuitBreaker
 
 cb = CircuitBreaker(window_size=5, min_calls=3, failure_rate_threshold=0.6)
 assert not cb.tripped

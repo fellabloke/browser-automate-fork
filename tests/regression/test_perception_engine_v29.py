@@ -21,7 +21,7 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from agent_first_browse.config import feature_flags as ff
-import mcp_tools
+from agent_first_browse.actions import tools as mcp_tools
 from agent_first_browse.perception.engine import (
     PerceptionResult,
     Tier1A11yStrategy,

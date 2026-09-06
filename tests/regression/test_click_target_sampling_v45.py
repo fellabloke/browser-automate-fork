@@ -1,6 +1,6 @@
 """Regression tests for non-centre live target sampling."""
 
-import mcp_tools
+from agent_first_browse.actions import tools as mcp_tools
 
 
 def test_sample_click_point_stays_inside_target_and_varies(monkeypatch):

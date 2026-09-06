@@ -20,8 +20,8 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
 from agent_first_browse.config import feature_flags as ff
-from cognition import build_guidance, clear_transient
-from reality import CONFIRMED, CONTRADICTED, NULL, UNCLEAR, classify_reality
+from agent_first_browse.cognition.reasoning import build_guidance, clear_transient
+from agent_first_browse.cognition.reality import CONFIRMED, CONTRADICTED, NULL, UNCLEAR, classify_reality
 
 # ═══════════════════════════════════════════════════════════════════════════════
 #  classify_reality — the deterministic core

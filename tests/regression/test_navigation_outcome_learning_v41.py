@@ -4,8 +4,8 @@ from __future__ import annotations
 
 import asyncio
 
-from overwatch import overwatch_node
-from stagnation import (
+from agent_first_browse.verification.overwatch import overwatch_node
+from agent_first_browse.cognition.stagnation import (
     detect_navigation_cycle,
     detect_stagnation,
     navigation_cycle_action_violation,

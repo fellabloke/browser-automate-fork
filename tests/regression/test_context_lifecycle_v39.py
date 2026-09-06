@@ -6,8 +6,8 @@ import sqlite3
 
 import pytest
 
-import brain_graph
-import mcp_tools
+from agent_first_browse.agent import graph as brain_graph
+from agent_first_browse.actions import tools as mcp_tools
 from agent_first_browse.agent.state import (
     HISTORY_MAX_ENTRIES,
     HISTORY_PROMPT_MAX_CHARS,
@@ -16,8 +16,8 @@ from agent_first_browse.agent.state import (
     append_bounded,
 )
 from agent_first_browse.persistence.checkpoint_retention import prune_checkpoint_database
-from survey_context import render_cycle_answer_memory, survey_cycle_cleanup_updates
-from survey_profile import (
+from agent_first_browse.survey.context import render_cycle_answer_memory, survey_cycle_cleanup_updates
+from agent_first_browse.survey.profile import (
     PROFILE_PROMPT_MAX_CHARS,
     compact_runtime_profile,
     render_profile,

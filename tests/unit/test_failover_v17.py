@@ -27,8 +27,8 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-import model_registry as mr
-from model_registry import (
+from agent_first_browse.models import registry as mr
+from agent_first_browse.models.registry import (
     ModelClient,
     ProviderHealthTracker,
     _classify_provider_error,
@@ -462,8 +462,8 @@ def test_all_fail_raises():
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_schemas_emit_additional_properties_false():
-    from prm_critic import ChecklistEvaluation
-    from web_dreamer import CandidateSet
+    from agent_first_browse.cognition.prm import ChecklistEvaluation
+    from agent_first_browse.cognition.dreamer import CandidateSet
 
     ce = ChecklistEvaluation.model_json_schema()
     assert ce["$defs"]["EvaluationItem"]["additionalProperties"] is False

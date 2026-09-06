@@ -22,8 +22,8 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
-import cognition as cog
-from cognition import (
+from agent_first_browse.cognition import reasoning as cog
+from agent_first_browse.cognition.reasoning import (
     LADDER,
     MAX_BELIEFS,
     MAX_RESTRATEGIZE,
@@ -161,7 +161,7 @@ def test_push_goal_score_bounds_window():
 
 
 def test_prm_should_audit_cadence_and_progress():
-    from cognition import PRM_AUDIT_EVERY  # tracks the tuned cadence (V-parallel: 2)
+    from agent_first_browse.cognition.reasoning import PRM_AUDIT_EVERY  # tracks the tuned cadence (V-parallel: 2)
     assert prm_should_audit(0, True) is True         # critic progress always audits
     assert prm_should_audit(PRM_AUDIT_EVERY, False) is True       # on-cadence
     assert prm_should_audit(PRM_AUDIT_EVERY + 1, False) is False  # off-cadence, no progress
