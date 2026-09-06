@@ -668,9 +668,9 @@ Further extraction should remain incremental and test-backed.
 
 Integration Wave 2 is complete: verification is canonically owned by
 `agent_first_browse.verification`, including action safety, feedback, engine and
-outcome checks, the progress critic, and intact Overwatch coordination. The
-root verification modules and `orchestrator/critic_v12.py` are compatibility
-aliases rather than second implementations.
+outcome checks, the progress critic, and intact Overwatch coordination. Root
+verification modules remain compatibility aliases rather than second
+implementations; the historical `orchestrator/critic_v12.py` file is retired.
 
 Cognition is canonically owned by `agent_first_browse.cognition`. Deterministic
 target/subgoal locks, clarity, stagnation, and action classification live beside

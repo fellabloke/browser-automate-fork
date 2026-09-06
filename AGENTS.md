@@ -11,27 +11,34 @@ Current production path
 Treat this as the canonical browser-agent execution path unless repository evidence proves otherwise:
 
 agent.sh
-  -> run_v16.py run
-  -> brain_graph.run_brain(...)
+  -> agent_first_browse.cli run
+  -> agent_first_browse.agent.graph.run_brain(...)
   -> LangGraph nodes/workers
   -> Overwatch verification
   -> browser side effects
 
 Important distinctions:
 
-brain_graph.py is the current LangGraph orchestration spine.
+`agent_first_browse.agent.graph` is the current LangGraph orchestration spine;
+root `brain_graph.py` is compatibility-only.
 
 BrainState in `agent_first_browse.agent.state` is the primary typed runtime state; root `brain_state.py` is a compatibility shim during migration.
 
-workers/base_worker.py contains the current specialist worker decision path.
+`agent_first_browse.workers` contains the current specialist worker decision path;
+root `workers/base_worker.py` is compatibility-only.
 
-advanced_agent.py is the legacy monolith, but it is not dead code. The current CLI and other modules still import selected utilities from it.
+`advanced_agent.py` is a compatibility façade only. Browser lifecycle, model
+invocation, and graph execution belong to canonical package modules.
 
-orchestrator/ is an older CEO/Spawner/Executor architecture. Do not assume it is active as a whole. orchestrator/critic_v12.py is still referenced by active code.
+The historical `orchestrator/` CEO/Spawner/Executor architecture has been
+retired. Progress criticism is owned by `agent_first_browse.verification`.
 
-python-orchestrator/app/ is a separately packaged application tree that still supplies active logging/browser utilities and contains the browser-promoter graph.
+The historical `python-orchestrator/app/` package tree has been retired.
+Promotion/browser-promoter code is owned by `agent_first_browse.promotion`.
 
-Root skills/ contains runtime browser action classes. It is unrelated to Codex skills under .agents/skills/.
+The historical root runtime `skills/` package has been retired. `.agents/skills/`
+contains Codex development skills and is unrelated to application actions under
+`agent_first_browse.actions`.
 
 Before editing a module that appears legacy, search its active importers and call sites.
 
@@ -115,9 +122,9 @@ cdp_input.py typing and reversion checks
 
 ghost_input.py humanized input behavior
 
-stealth/browser launch and warm-up code under python-orchestrator/app/browser_promoter/
+stealth/browser launch and warm-up code under `agent_first_browse.promotion.browser_promoter/`
 
-session persistence/manual-login behavior still reached through advanced_agent.py
+session persistence/manual-login behavior under `agent_first_browse.browser.runtime`
 
 Refactoring these is allowed, but not as incidental cleanup.
 
@@ -188,7 +195,8 @@ Dependencies and packaging
 
 pyproject.toml is the intended long-term dependency and packaging source of truth.
 
-The current package layout is transitional and still depends on python-orchestrator/ plus root modules.
+The package layout is canonical under `src/agent_first_browse/`; root modules
+remain only as launchers, diagnostics, manual tools, or compatibility shims.
 
 Do not add a new production dependency without a concrete need.
 
