@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# agent.sh — one-click launcher for the Agent First IDE browser agent.
+# agent.sh — one-click launcher for the Agent First Browse browser agent.
 #
 # You do NOT need to know anything about Python or virtual environments.
 # Just give it a task:

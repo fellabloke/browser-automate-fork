@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Guard against reintroducing internal generation names into the repository."""
+"""Guard canonical repository naming and dependency-direction invariants."""
 
 from __future__ import annotations
 
@@ -22,6 +22,7 @@ ALLOWED_TEXT = (
     "pre-v5-backup",
     "LANGCHAIN_TRACING_V2",
     "application/vnd.github.v3+json",
+    "https://github.com/SandeepAi369/Agent-first-ide.git",
 )
 INTERNAL_TOKEN = re.compile(
     r"(?:^|[_-])v(?:8c|(?:1[1-9]|[2-9]\d+))(?=$|[_./-])|\bV(?:\d+)(?:\.\d+)?\b"
@@ -52,8 +53,23 @@ def main() -> int:
         for line_number, line in enumerate(scrubbed.splitlines(), 1):
             if INTERNAL_TOKEN.search(line) and path.resolve() != Path(__file__).resolve():
                 findings.append(f"text: {relative}:{line_number}: {line.strip()}")
+
+    package_root = ROOT / "src" / "agent_first_browse"
+    for path in package_root.rglob("*.py"):
+        relative = path.relative_to(ROOT).as_posix()
+        text = path.read_text(encoding="utf-8")
+        if "promotion.browser_promoter" in text and "/promotion/" not in relative:
+            findings.append(f"core-to-promotion backedge: {relative}")
+        if re.search(r"^\s*(?:from|import)\s+(?:app\.|python_orchestrator|orchestrator(?:\.|\s))", text, re.MULTILINE):
+            findings.append(f"retired namespace import: {relative}")
+        if "sys.path" in text or "PYTHONPATH" in text:
+            findings.append(f"path hack in canonical source: {relative}")
+
+    pyproject = (ROOT / "pyproject.toml").read_text(encoding="utf-8")
+    if 'name = "agent-first-browse"' not in pyproject:
+        findings.append("project identity: pyproject.toml must use agent-first-browse")
     if findings:
-        print("internal project-generation naming detected:")
+        print("repository naming/architecture violations detected:")
         print("\n".join(findings))
         return 1
     print("repository naming audit passed")

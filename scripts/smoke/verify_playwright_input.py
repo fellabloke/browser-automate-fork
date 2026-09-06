@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Agent First IDE — Verification Test for Playwright-Native Input Driver.
+Agent First Browse — Verification Test for Playwright-Native Input Driver.
 
 Tests that the new PlaywrightHumanInput driver can:
   1. Launch a browser (Playwright's own Chromium)

@@ -21,7 +21,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from .state import BrowserAction
 
-log = logging.getLogger("app.browser_promoter.worker_planner")
+log = logging.getLogger("agent_first_browse.promotion.worker_planner")
 
 
 class ReasoningDecision(BaseModel):

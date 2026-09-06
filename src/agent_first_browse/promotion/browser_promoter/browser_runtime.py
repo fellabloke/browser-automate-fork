@@ -1,4 +1,4 @@
-"""Native Playwright browser runtime for Agent First IDE.
+"""Native Playwright browser runtime for Agent First Browse.
 
 Architecture (Persistent Context):
     +─────────────────+    +────────────────────────+    +──────────────+
@@ -23,7 +23,7 @@ from pathlib import Path
 from playwright.async_api import BrowserContext, Page, Playwright, async_playwright
 
 from .. import config
-from .cdp_stealth_launcher import (
+from agent_first_browse.browser.stealth import (
     STEALTH_INIT_SCRIPT,
     STEALTH_LAUNCH_ARGS,
     STEALTH_USER_AGENT,

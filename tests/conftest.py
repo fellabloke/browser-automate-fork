@@ -1,4 +1,4 @@
-"""Shared pytest fixtures for Agent First IDE tests."""
+"""Shared pytest fixtures for Agent First Browse tests."""
 
 from __future__ import annotations
 

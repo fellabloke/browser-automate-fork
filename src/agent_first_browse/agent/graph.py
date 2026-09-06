@@ -1839,8 +1839,10 @@ async def run_brain(objective: str, headless: bool = False):
     )
     from agent_first_browse.models import invoke_with_failover as _invoke_model
     from agent_first_browse.models import ModelRegistry
-    from agent_first_browse.promotion.browser_promoter.browser_warmup import run_warmup, extract_target_url_from_objective
-    from agent_first_browse.promotion.browser_promoter.worker_planner import ReasoningAgent
+    from agent_first_browse.browser.warmup import (
+        extract_target_url_from_objective,
+        run_warmup,
+    )
     from agent_first_browse.verification.progress import ProgressCritic
     from agent_first_browse.cognition.prm import PRMCritic
     from agent_first_browse.cognition.dreamer import WebDreamer
@@ -1896,9 +1898,8 @@ async def run_brain(objective: str, headless: bool = False):
         if isinstance(startup_result, Exception):
             logger.warning("Startup %s failed (non-fatal): %s", startup_name, startup_result)
 
-    reasoning_agent = ReasoningAgent()
-    _FAILOVER_CHAIN = reasoning_agent.get_failover_chain()
-    chain_names = reasoning_agent.get_chain_names()
+    _FAILOVER_CHAIN = registry.get_text_chain()
+    chain_names = registry.get_text_chain_names()
     _INVOKE_FN = _invoke_with_failover
 
     if not _FAILOVER_CHAIN:

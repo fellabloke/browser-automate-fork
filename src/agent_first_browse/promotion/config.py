@@ -1,4 +1,4 @@
-"""Centralized environment configuration for Agent First IDE.
+"""Centralized environment configuration for Agent First Browse.
 
 All environment variable reads are consolidated here to avoid scattered
 os.getenv() calls across the codebase. Import from this module instead
@@ -169,7 +169,7 @@ LANGCHAIN_TRACING_V2: bool = os.getenv("LANGCHAIN_TRACING_V2", "true").lower() i
     "yes",
 )
 LANGCHAIN_API_KEY: str = os.getenv("LANGCHAIN_API_KEY", "")
-LANGCHAIN_PROJECT: str = os.getenv("LANGCHAIN_PROJECT", "agent-first-ide")
+LANGCHAIN_PROJECT: str = os.getenv("LANGCHAIN_PROJECT", "agent-first-browse")
 LANGCHAIN_ENDPOINT: str = os.getenv("LANGCHAIN_ENDPOINT", "")
 
 # ─── Input Driver ─────────────────────────────────────────────────────────────

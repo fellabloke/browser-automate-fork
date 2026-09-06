@@ -82,7 +82,7 @@ def build_run_config(
     metadata: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Create a LangChain/LangGraph run config with consistent tracing metadata."""
-    merged_tags = ["agent-first-ide", run_name]
+    merged_tags = ["agent-first-browse", run_name]
     if tags:
         merged_tags.extend(tags)
 

@@ -18,7 +18,7 @@ from playwright.async_api import BrowserContext, Page, async_playwright
 
 from agent_first_browse.logging import get_logger
 from agent_first_browse.perception import dom as dom_parser
-from agent_first_browse.promotion.browser_promoter.cdp_stealth_launcher import (
+from agent_first_browse.browser.stealth import (
     STEALTH_INIT_SCRIPT,
     STEALTH_LAUNCH_ARGS,
     STEALTH_USER_AGENT,
