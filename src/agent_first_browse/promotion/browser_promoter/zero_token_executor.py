@@ -5,8 +5,8 @@ from typing import Any
 
 from playwright.async_api import Page
 
-from app.browser_promoter.state import BrowserAction
-from app.logger import get_logger
+from .state import BrowserAction
+from agent_first_browse.logging import get_logger
 from agent_first_browse.browser.ghost_input import ghost_click, ghost_scroll, ghost_type
 
 logger = get_logger(__name__)
@@ -73,7 +73,7 @@ class ZeroTokenActionExecutor:
                 # that identified the target but omitted pixel coordinates.
                 # Resolve to a fresh box through Playwright/shadow-DOM support,
                 # then retain the existing humanized input path.
-                from app.browser_promoter.shadow_dom_piercer import locate_target_point
+                from .shadow_dom_piercer import locate_target_point
 
                 point = await locate_target_point(page, selector=action.selector)
                 if point is not None:

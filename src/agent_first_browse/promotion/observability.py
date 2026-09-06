@@ -5,11 +5,11 @@ from __future__ import annotations
 import os
 from typing import TYPE_CHECKING, Any
 
-from app import config
-from app.logger import get_logger
+from . import config
+from agent_first_browse.logging import get_logger
 
 if TYPE_CHECKING:
-    from app.browser_promoter.state import AgentState
+    from .browser_promoter.state import AgentState
 
 logger = get_logger(__name__)
 _LANGSMITH_CONFIGURED = False

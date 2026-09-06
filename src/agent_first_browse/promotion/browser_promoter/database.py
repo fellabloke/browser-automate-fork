@@ -6,7 +6,7 @@ import time
 from pathlib import Path
 from typing import Any
 
-from app.logger import get_logger
+from agent_first_browse.logging import get_logger
 
 logger = get_logger("database")
 
@@ -497,4 +497,3 @@ def count_platform_promotions_today(
             (platform,),
         ).fetchone()
         return int(row[0] if row else 0)
-

@@ -270,7 +270,7 @@ Then run 'wsl --shutdown' in PowerShell and retry.
 $probeArgs = $wslBaseArgs + @(
     "--cd", $wslProjectPath,
     "--exec", "env", "LOCAL_CDP_ENDPOINT=$cdpEndpoint", "AGENT_NO_FILE_LOG=1",
-    ".venv/bin/python", "run_v16.py", "probe-cdp"
+    ".venv/bin/python", "-m", "agent_first_browse.cli", "probe-cdp"
 )
 $probe = Invoke-WslCapture -Arguments $probeArgs
 if ($probe.ExitCode -ne 0) {
@@ -286,7 +286,7 @@ Probe output: $($probe.Output)
 "@
 }
 
-Write-Step "WSL can reach Windows Chrome over 127.0.0.1. Starting run_v16.py..."
+Write-Step "WSL can reach Windows Chrome over 127.0.0.1. Starting canonical agent CLI..."
 $objectiveBase64 = [Convert]::ToBase64String([Text.Encoding]::UTF8.GetBytes($Objective))
 $agentArgs = $wslBaseArgs + @(
     "--cd", $wslProjectPath,
@@ -296,7 +296,7 @@ $agentArgs = $wslBaseArgs + @(
     "BROWSER_HEADLESS=false",
     "BROWSER_OS=Windows",
     "PYTHONUNBUFFERED=1",
-    ".venv/bin/python", "run_v16.py", "run", "--objective-base64", $objectiveBase64
+    ".venv/bin/python", "-m", "agent_first_browse.cli", "run", "--objective-base64", $objectiveBase64
 )
 
 $previousErrorActionPreference = $ErrorActionPreference

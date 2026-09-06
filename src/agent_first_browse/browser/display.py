@@ -35,7 +35,7 @@ import subprocess
 import time
 
 try:
-    from app.logger import get_logger
+    from agent_first_browse.logging import get_logger
 
     logger = get_logger("virtual_display")
 except ImportError:

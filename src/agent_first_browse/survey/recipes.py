@@ -301,7 +301,7 @@ class SurveyRecipeMemory:
             }
             if action["verb"] == "type":
                 try:
-                    from survey_profile import enforce_typed_profile_fact
+                    from agent_first_browse.survey.profile import enforce_typed_profile_fact
                     action, note, violation = enforce_typed_profile_fact(
                         action, profile, selector_map, page_text=page_text
                     )

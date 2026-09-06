@@ -16,7 +16,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from app.logger import get_logger
+from agent_first_browse.logging import get_logger
 
 logger = get_logger("campaign_memory")
 

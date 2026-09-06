@@ -1,3 +1,7 @@
-"""Temporary compatibility shim for the migrated survey outcomes module."""
+"""Compatibility alias for the canonical outcomes module."""
 
-from agent_first_browse.survey.outcomes import *  # noqa: F401,F403
+import sys
+
+from agent_first_browse.survey import outcomes as _module
+
+sys.modules[__name__] = _module

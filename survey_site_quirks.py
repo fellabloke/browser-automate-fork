@@ -1,3 +1,7 @@
-"""Temporary compatibility shim for the migrated survey quirks module."""
+"""Compatibility alias for the canonical site_quirks module."""
 
-from agent_first_browse.survey.site_quirks import *  # noqa: F401,F403
+import sys
+
+from agent_first_browse.survey import site_quirks as _module
+
+sys.modules[__name__] = _module

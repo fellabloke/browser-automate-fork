@@ -37,7 +37,7 @@ from urllib.parse import urlsplit
 from playwright.async_api import Page
 
 try:
-    from app.logger import get_logger
+    from agent_first_browse.logging import get_logger
     logger = get_logger("cdp_click")
 except ImportError:
     import logging

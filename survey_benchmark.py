@@ -1,3 +1,7 @@
-"""Temporary compatibility shim for the migrated survey benchmarks module."""
+"""Compatibility alias for the canonical benchmarks module."""
 
-from agent_first_browse.survey.benchmarks import *  # noqa: F401,F403
+import sys
+
+from agent_first_browse.survey import benchmarks as _module
+
+sys.modules[__name__] = _module

@@ -1,3 +1,7 @@
-"""Temporary compatibility shim for the migrated content store module."""
+"""Compatibility alias for the canonical content_store module."""
 
-from agent_first_browse.memory.content_store import *  # noqa: F401,F403
+import sys
+
+from agent_first_browse.memory import content_store as _module
+
+sys.modules[__name__] = _module

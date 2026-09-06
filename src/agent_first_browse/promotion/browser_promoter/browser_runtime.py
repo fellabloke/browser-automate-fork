@@ -22,8 +22,8 @@ from pathlib import Path
 
 from playwright.async_api import BrowserContext, Page, Playwright, async_playwright
 
-from app import config
-from app.browser_promoter.cdp_stealth_launcher import (
+from .. import config
+from .cdp_stealth_launcher import (
     STEALTH_INIT_SCRIPT,
     STEALTH_LAUNCH_ARGS,
     STEALTH_USER_AGENT,
@@ -31,8 +31,8 @@ from app.browser_promoter.cdp_stealth_launcher import (
     get_random_viewport,
     VISUAL_CURSOR_INIT_SCRIPT,
 )
-from app.browser_promoter.state import BrowserConfig
-from app.logger import get_logger
+from .state import BrowserConfig
+from agent_first_browse.logging import get_logger
 from site_customizations import apply_current_site_customizations, install_site_customizations
 
 logger = get_logger(__name__)

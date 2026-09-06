@@ -2,7 +2,7 @@ import json
 import sqlite3
 from typing import Any
 from langchain_core.tools import tool
-from app.browser_promoter.database import initialize_persistence_database, provision_dynamic_table, log_data_access
+from .database import initialize_persistence_database, provision_dynamic_table, log_data_access
 
 @tool
 def create_persistent_table(table_name: str, schema_json_str: str) -> str:

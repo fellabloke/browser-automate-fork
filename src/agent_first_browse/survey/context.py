@@ -1387,14 +1387,14 @@ def build_survey_handoff(state: dict[str, Any]) -> str:
         lines.append("CURRENT RENDERED QUESTION / INSTRUCTIONS: unavailable. If answer "
                      "semantics are unclear, request vision; do not guess or default to the first option.")
     try:
-        from survey_site_quirks import render_site_quirk_guidance
+        from agent_first_browse.survey.site_quirks import render_site_quirk_guidance
         quirk_guidance = render_site_quirk_guidance(str(state.get("current_url") or ""))
         if quirk_guidance:
             lines.append(quirk_guidance)
     except Exception:
         pass
     try:
-        from survey_audio import render_audio_analysis
+        from agent_first_browse.survey.audio import render_audio_analysis
         audio_guidance = render_audio_analysis(
             state.get("survey_audio_analysis") or {}, selector_map
         )
@@ -1863,7 +1863,7 @@ def survey_gate_violation(
     if action_type not in {"click", "type"} or not element_id:
         return ""
     try:
-        from survey_audio import audio_gate_violation
+        from agent_first_browse.survey.audio import audio_gate_violation
         audio_violation = audio_gate_violation(action, selector_map, page_text, audio_analysis) if action_type == "click" else ""
         if audio_violation:
             return audio_violation

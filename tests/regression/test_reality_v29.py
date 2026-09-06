@@ -216,7 +216,7 @@ def test_per_feature_switch_isolated(monkeypatch):
 # ═══════════════════════════════════════════════════════════════════════════════
 
 def test_overwatch_wires_reality_monitor():
-    src = (REPO_ROOT / "overwatch.py").read_text()
+    src = (REPO_ROOT / "src" / "agent_first_browse" / "verification" / "overwatch.py").read_text()
     assert "classify_reality" in src
     assert "reality_enabled" in src
 

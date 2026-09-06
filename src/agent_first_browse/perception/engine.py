@@ -118,7 +118,7 @@ class Tier1A11yStrategy:
     tier = 1
 
     async def extract(self, page, ctx: dict) -> PerceptionResult:
-        from mcp_tools import mcp_snapshot
+        from agent_first_browse.actions.tools import mcp_snapshot
         snap = await mcp_snapshot()
         return PerceptionResult.from_snapshot(snap, tier=self.tier, strategy=self.name)
 
@@ -153,7 +153,7 @@ def _goal_relevant(text: str, goal_tokens: set) -> bool:
     if not goal_tokens:
         return False
     try:
-        from target_lock import _tokens
+        from agent_first_browse.cognition.target_lock import _tokens
         return bool(_tokens(text) & goal_tokens)
     except Exception:  # noqa: BLE001
         return False
@@ -231,7 +231,7 @@ def _viewport_of(page) -> tuple[int, int]:
 def _goal_tokens(ctx: dict) -> set:
     """Goal-relevance tokens for the recall exemption — reuses Target Lock."""
     try:
-        from target_lock import extract_target
+        from agent_first_browse.cognition.target_lock import extract_target
         return extract_target(ctx.get("objective", ""), ctx.get("bound_target", "")).tokens
     except Exception:  # noqa: BLE001
         return set()

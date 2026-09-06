@@ -187,12 +187,12 @@ def test_target_lock_flag(monkeypatch):
 
 
 def test_wiring_guards():
-    bw = (REPO_ROOT / "src" / "agent_first_browse" / "workers" / "base.py").read_text()
+    bw = (REPO_ROOT / "src" / "agent_first_browse" / "workers" / "decision.py").read_text()
     assert "render_target_lock_block" in bw and "needs_consensus" in bw
     assert "PRE-ACTION CONSENSUS" in bw
-    ow = (REPO_ROOT / "overwatch.py").read_text()
+    ow = (REPO_ROOT / "src" / "agent_first_browse" / "verification" / "overwatch.py").read_text()
     assert "scroll_stuck_streak" in ow and "bound_target" in ow
-    bg = (REPO_ROOT / "brain_graph.py").read_text()
+    bg = (REPO_ROOT / "src" / "agent_first_browse" / "agent" / "graph.py").read_text()
     assert "detect_stagnation" in bg
 
 

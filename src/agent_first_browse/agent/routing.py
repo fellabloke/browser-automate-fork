@@ -38,7 +38,7 @@ import logging
 from typing import Any
 
 try:
-    from app.logger import get_logger
+    from agent_first_browse.logging import get_logger
     logger = get_logger("moe_router")
 except ImportError:
     logger = logging.getLogger("moe_router")

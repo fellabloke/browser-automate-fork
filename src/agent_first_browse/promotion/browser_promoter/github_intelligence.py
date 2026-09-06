@@ -21,12 +21,12 @@ from typing import Any
 
 import httpx
 
-from app import config
-from app.browser_promoter.database import (
+from .. import config
+from .database import (
     get_cached_repos,
     upsert_repo_cache,
 )
-from app.logger import get_logger
+from agent_first_browse.logging import get_logger
 
 logger = get_logger(__name__)
 

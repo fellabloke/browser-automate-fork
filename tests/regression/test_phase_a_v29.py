@@ -188,14 +188,14 @@ async def test_mcp_select_option_native_and_fallback():
 
 
 def test_new_primitives_wired_end_to_end():
-    ow = (REPO_ROOT / "overwatch.py").read_text()
+    ow = (REPO_ROOT / "src" / "agent_first_browse" / "verification" / "overwatch.py").read_text()
     assert "select_option" in ow and "mcp_hover" in ow and "mcp_press_key" in ow
     assert "_fmt_fail" in ow                       # clean semantic failure path
     mr = (
         REPO_ROOT / "src" / "agent_first_browse" / "agent" / "routing.py"
     ).read_text()
     assert "select_option" in mr and "hover" in mr
-    bw = (REPO_ROOT / "src" / "agent_first_browse" / "workers" / "base.py").read_text()
+    bw = (REPO_ROOT / "src" / "agent_first_browse" / "workers" / "decision.py").read_text()
     assert "select_option" in bw and "press_key" in bw
 
 

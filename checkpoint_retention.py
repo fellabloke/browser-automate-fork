@@ -1,3 +1,7 @@
-"""Temporary compatibility shim for the migrated checkpoint retention module."""
+"""Compatibility alias for the canonical checkpoint retention module."""
 
-from agent_first_browse.persistence.checkpoint_retention import *  # noqa: F401,F403
+import sys
+
+from agent_first_browse.persistence import checkpoint_retention as _module
+
+sys.modules[__name__] = _module

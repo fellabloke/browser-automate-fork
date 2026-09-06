@@ -1,3 +1,7 @@
-"""Temporary compatibility shim for the migrated intent journal module."""
+"""Compatibility alias for the canonical intent_journal module."""
 
-from agent_first_browse.memory.intent_journal import *  # noqa: F401,F403
+import sys
+
+from agent_first_browse.memory import intent_journal as _module
+
+sys.modules[__name__] = _module

@@ -1,3 +1,7 @@
-"""Temporary compatibility shim for the migrated survey recipe module."""
+"""Compatibility alias for the canonical recipes module."""
 
-from agent_first_browse.survey.recipes import *  # noqa: F401,F403
+import sys
+
+from agent_first_browse.survey import recipes as _module
+
+sys.modules[__name__] = _module

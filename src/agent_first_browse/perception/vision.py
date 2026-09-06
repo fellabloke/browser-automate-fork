@@ -36,7 +36,7 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 
 try:
-    from app.logger import get_logger
+    from agent_first_browse.logging import get_logger
     logger = get_logger("vision_consult")
 except ImportError:
     logger = logging.getLogger("vision_consult")
@@ -331,7 +331,7 @@ async def consult_vision(
         VISION_FAILOVER_BUDGET_SECONDS,
         VISION_MODEL_TIMEOUT_SECONDS,
     )
-    from mcp_tools import mcp_screenshot
+    from agent_first_browse.actions.tools import mcp_screenshot
     shot = await mcp_screenshot(full_page=False)
     if not shot.get("ok"):
         logger.warning(

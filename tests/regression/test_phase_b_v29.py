@@ -91,12 +91,12 @@ def test_webdreamer_flag(monkeypatch):
 
 
 def test_webdreamer_wired():
-    bw = (REPO_ROOT / "src" / "agent_first_browse" / "workers" / "base.py").read_text()
+    bw = (REPO_ROOT / "src" / "agent_first_browse" / "workers" / "decision.py").read_text()
     assert "plan_and_select" in bw and "should_invoke_dreamer" in bw
     assert "should_override_with_dreamer" in bw
     assert "clarity_sig.uncertain" in bw          # Clarity-gated
     assert "dreamer=None" in bw                    # plumbed param
-    bg = (REPO_ROOT / "brain_graph.py").read_text()
+    bg = (REPO_ROOT / "src" / "agent_first_browse" / "agent" / "graph.py").read_text()
     assert bg.count("dreamer=_DREAMER,") == 3      # all three worker nodes
     bs = (
         REPO_ROOT / "src" / "agent_first_browse" / "agent" / "state.py"
@@ -177,10 +177,10 @@ def test_situational_flag(monkeypatch):
 
 
 def test_situational_wiring():
-    wd = (REPO_ROOT / "web_dreamer.py").read_text()
+    wd = (REPO_ROOT / "src" / "agent_first_browse" / "cognition" / "dreamer.py").read_text()
     assert "def situational_adjustment" in wd and "def select_best_evaluation" in wd
     assert "situation: dict | None = None" in wd                 # plan_and_select param
-    bw = (REPO_ROOT / "src" / "agent_first_browse" / "workers" / "base.py").read_text()
+    bw = (REPO_ROOT / "src" / "agent_first_browse" / "workers" / "decision.py").read_text()
     assert "situation=state" in bw                                # state signals passed through
 
 

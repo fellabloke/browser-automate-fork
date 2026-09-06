@@ -19,7 +19,7 @@ from zoneinfo import ZoneInfo
 from .schemas import ModelClient
 
 try:
-    from app.logger import get_logger
+    from agent_first_browse.logging import get_logger
 
     logger = get_logger("model_registry")
 except ImportError:

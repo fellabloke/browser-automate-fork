@@ -16,7 +16,7 @@ from .schemas import ModelClient
 
 
 try:
-    from app.logger import get_logger
+    from agent_first_browse.logging import get_logger
 
     logger = get_logger("model_registry")
 except ImportError:
@@ -69,15 +69,15 @@ def _premium_config() -> dict:
 
 
 def _extract_json_payload(text: str) -> dict:
-    from .registry import _extract_json_payload as _registry_extract_json_payload
+    from .failover import extract_json_payload
 
-    return _registry_extract_json_payload(text)
+    return extract_json_payload(text)
 
 
 def _compact_provider_error(error: str, limit: int = 280) -> str:
-    from .registry import _compact_provider_error as _registry_compact_provider_error
+    from .failover import _compact_provider_error
 
-    return _registry_compact_provider_error(error, limit)
+    return _compact_provider_error(error, limit)
 
 
 class CloudflareNativeVisionClient:
@@ -664,6 +664,4 @@ def _build_premium_audio_pipeline() -> list["ModelClient"]:
         )
         for idx, key in enumerate(cfg["keys"])
     ]
-
-
 

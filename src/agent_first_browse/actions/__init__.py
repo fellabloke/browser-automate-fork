@@ -1,0 +1,1 @@
+"""Canonical browser-action façade."""

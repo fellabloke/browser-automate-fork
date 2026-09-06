@@ -1,3 +1,7 @@
-"""Temporary compatibility shim for the migrated campaign memory module."""
+"""Compatibility alias for the canonical campaign module."""
 
-from agent_first_browse.memory.campaign import *  # noqa: F401,F403
+import sys
+
+from agent_first_browse.memory import campaign as _module
+
+sys.modules[__name__] = _module

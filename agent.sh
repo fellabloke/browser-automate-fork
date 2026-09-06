@@ -60,4 +60,4 @@ echo
 
 # ── 4. Run the agent.
 #     'exec' hands the terminal to Python so Ctrl-C shuts the browser down cleanly.
-exec "$VENV_PY" run_v16.py run "$TASK"
+exec "$VENV_PY" -m agent_first_browse.cli run "$TASK"

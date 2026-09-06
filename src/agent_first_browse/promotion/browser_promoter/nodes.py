@@ -9,22 +9,22 @@ from typing import Any, Literal
 
 from playwright.async_api import Page
 
-from app.browser_promoter.browser_runtime import BrowserRuntime
-from app.browser_promoter.dashboard import (
+from .browser_runtime import BrowserRuntime
+from .dashboard import (
     pause_for_manual_intervention,
     print_terminal_dashboard,
     resolve_platform_name,
 )
-from app.observability import build_llm_config
-from app.browser_promoter.state import AgentState, BrowserAction, ScreenshotFrame, WorkerFeedback
-from app.browser_promoter.supervisor_subgraph import run_supervisor_subgraph
-from app.browser_promoter.worker_planner import ReasoningAgent, VisionAgent
-from app.browser_promoter.zero_token_executor import (
+from ..observability import build_llm_config
+from .state import AgentState, BrowserAction, ScreenshotFrame, WorkerFeedback
+from .supervisor_subgraph import run_supervisor_subgraph
+from .worker_planner import ReasoningAgent, VisionAgent
+from .zero_token_executor import (
     ActionExecutionError,
     ActionExecutionResult,
     ZeroTokenActionExecutor,
 )
-from app.logger import get_logger
+from agent_first_browse.logging import get_logger
 
 logger = get_logger(__name__)
 
@@ -614,7 +614,7 @@ def _garbage_collect_visual_state(state: AgentState, scene_summary: str) -> dict
     }
 
 
-# _resolve_platform_name is now imported from app.browser_promoter.dashboard
+# _resolve_platform_name is now imported from .dashboard
 # as resolve_platform_name and used across the codebase.
 
 
@@ -866,7 +866,7 @@ async def task_logging_node(state: AgentState) -> dict[str, Any]:
     logger.info("task_logging_node: Summarizing execution and logging to completed_tasks")
     
     import json
-    from app.browser_promoter.database import initialize_persistence_database
+    from .database import initialize_persistence_database
     import sqlite3
     
     summary = f"Completed task '{state.high_level_command.behavior_plan if state.high_level_command else 'Unknown'}' after {state.cycle_count} cycles."
@@ -899,7 +899,7 @@ async def housekeeping_node(state: AgentState) -> dict[str, Any]:
     logger.info("housekeeping_node: Beginning system cleanup")
     import os
     import sqlite3
-    from app.browser_promoter.database import initialize_persistence_database
+    from .database import initialize_persistence_database
     
     # 1. Temp file cleanup
     files_removed = 0

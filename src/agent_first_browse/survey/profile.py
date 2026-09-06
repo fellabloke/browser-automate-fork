@@ -720,7 +720,7 @@ def _format_typed_profile_value(key: str, value: Any, context: str) -> str:
         ))
         if asks_for_partial:
             try:
-                from survey_site_quirks import uk_postcode_outward
+                from agent_first_browse.survey.site_quirks import uk_postcode_outward
                 return uk_postcode_outward(rendered)
             except Exception:
                 compact = re.sub(r"\s+", "", rendered).upper()

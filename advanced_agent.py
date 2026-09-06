@@ -33,7 +33,7 @@ from langchain_core.messages import SystemMessage, HumanMessage
 # Ensure app imports work
 sys.path.append(str(Path(__file__).parent / "python-orchestrator"))
 
-from app.browser_promoter.cdp_stealth_launcher import (
+from agent_first_browse.promotion.browser_promoter.cdp_stealth_launcher import (
     STEALTH_INIT_SCRIPT,
     STEALTH_LAUNCH_ARGS,
     STEALTH_USER_AGENT,
@@ -42,33 +42,33 @@ from app.browser_promoter.cdp_stealth_launcher import (
     get_random_viewport,
     VISUAL_CURSOR_INIT_SCRIPT,
 )
-from app.browser_promoter.browser_warmup import (
+from agent_first_browse.promotion.browser_promoter.browser_warmup import (
     run_warmup,
     extract_target_url_from_objective,
 )
-from app.browser_promoter.worker_planner import ReasoningAgent, VisionAgent
-from app.logger import get_logger
+from agent_first_browse.promotion.browser_promoter.worker_planner import ReasoningAgent, VisionAgent
+from agent_first_browse.logging import get_logger
 from playwright.async_api import async_playwright, BrowserContext, Page
 
 # Enterprise modules
 from agent_first_browse.browser.ghost_input import ghost_click, ghost_type, ghost_scroll, ghost_move_to
-from campaign_memory import CampaignMemory
-from agent_first_browse.models.registry import ModelRegistry
+from agent_first_browse.memory.campaign import CampaignMemory
+from agent_first_browse.models import ModelRegistry
 from agent_first_browse.browser.cdp_input import resilient_type
 from agent_first_browse.browser.overlays import smart_click_with_penetration, check_click_target
 from agent_first_browse.browser.cdp_click import resilient_click, ClickResult
-from action_verifier import ActionVerifier, VerificationResult
-from action_classifier import classify_action, ActionRisk, requires_simulation
-from web_dreamer import WebDreamer, should_invoke_dreamer, DreamerResult, CandidateAction
-from prm_critic import PRMCritic, ChecklistItem, StepScore
-from skill_memory import SkillMemory
+from agent_first_browse.verification.action import ActionVerifier, VerificationResult
+from agent_first_browse.cognition.action_classifier import classify_action, ActionRisk, requires_simulation
+from agent_first_browse.cognition.dreamer import WebDreamer, should_invoke_dreamer, DreamerResult, CandidateAction
+from agent_first_browse.cognition.prm import PRMCritic, ChecklistItem, StepScore
+from agent_first_browse.memory.skills import SkillMemory
 from agent_first_browse.perception import dom as dom_parser
 from site_customizations import apply_current_site_customizations, install_site_customizations
 
 # Cognitive Architecture V2.1
-from cognitive_core import PlanState, WorkingMemory, dom_data_to_a11y_format, AgentMetrics
-from orchestrator.critic_v12 import CriticV12, Verdict
-from execution_safety import is_domain_allowed, cove_pre_done_check, auto_allow_from_objective
+from agent_first_browse.cognition.core import PlanState, WorkingMemory, dom_data_to_a11y_format, AgentMetrics
+from agent_first_browse.verification.progress import CriticV12, Verdict
+from agent_first_browse.verification.safety import is_domain_allowed, cove_pre_done_check, auto_allow_from_objective
 
 logger = get_logger("advanced_agent")
 
@@ -284,324 +284,10 @@ async def _ask_recovery_advisor(
         return "Try scrolling down or dismissing any visible popups."
 
 
-# (v14.0: Campaign logger removed — task history recorded at end of run only)
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Persistence Paths (all inside WSL)
-# ═══════════════════════════════════════════════════════════════════════════════
-PERSISTENCE_ROOT = Path(__file__).parent / "persistence"
-PROFILE_DIR = PERSISTENCE_ROOT / "browser_sessions" / "agent_main"
-_ACTIVE_PLAYWRIGHT = None
-_BROWSER_CONNECTION_MODE = "UNINITIALIZED"
-
-
-def _ensure_dirs():
-    PERSISTENCE_ROOT.mkdir(parents=True, exist_ok=True)
-    PROFILE_DIR.mkdir(parents=True, exist_ok=True)
-
-
-def _mark_profile_clean_exit() -> None:
-    """Tell Chrome the previous session ended cleanly so it never shows the
-    "Restore pages / Chrome didn't shut down correctly" crash bubble.
-
-    We hard-terminate sessions (pkill / Ctrl-C), so Chrome thinks it crashed and
-    renders that bubble top-right — directly overlapping page controls such as
-    GitHub's Star button, which blinds the agent into clicking the wrong spot.
-    Patched before EVERY launch (Chrome is not running yet, so the write sticks);
-    combined with --hide-crash-restore-bubble for belt-and-suspenders.
-    """
-    prefs_path = PROFILE_DIR / "Default" / "Preferences"
-    try:
-        if prefs_path.exists():
-            data = json.loads(prefs_path.read_text(encoding="utf-8"))
-        else:
-            prefs_path.parent.mkdir(parents=True, exist_ok=True)
-            data = {}
-        profile = data.setdefault("profile", {})
-        profile["exit_type"] = "Normal"
-        profile["exited_cleanly"] = True
-        prefs_path.write_text(json.dumps(data), encoding="utf-8")
-        logger.info("Profile marked clean-exit (crash-restore bubble suppressed)")
-    except Exception as e:
-        logger.warning("Could not mark profile clean-exit (non-fatal): %s", e)
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Browser Lifecycle Guard
-# ═══════════════════════════════════════════════════════════════════════════════
-class SessionGuard:
-    """Lightweight lifecycle guard for the browser context.
-
-    With native user_data_dir persistence, Chromium handles all cookie/storage
-    persistence internally. This guard only ensures the browser context is
-    closed cleanly on exit (which flushes pending state to disk).
-    """
-
-    _instance: "SessionGuard | None" = None
-
-    def __init__(self):
-        self._context: BrowserContext | None = None
-        self._installed = False
-
-    @classmethod
-    def get(cls) -> "SessionGuard":
-        if cls._instance is None:
-            cls._instance = cls()
-        return cls._instance
-
-    def attach(self, context: BrowserContext):
-        """Attach a live browser context to guard."""
-        self._context = context
-        if not self._installed:
-            self._install_handlers()
-            self._installed = True
-        logger.info("SessionGuard: attached to browser context")
-
-    def _install_handlers(self):
-        """Install signal + atexit handlers (once)."""
-        for sig in (signal.SIGINT, signal.SIGTERM):
-            try:
-                signal.signal(sig, self._signal_handler)
-            except (OSError, ValueError):
-                pass
-        atexit.register(self._atexit_handler)
-        logger.info("SessionGuard: signal + atexit handlers installed")
-
-    def _signal_handler(self, signum, frame):
-        """Called on Ctrl+C or kill — close context then exit."""
-        sig_name = signal.Signals(signum).name
-        logger.warning("SessionGuard: caught %s — closing browser...", sig_name)
-        # Context.close() flushes all native state to user_data_dir
-        self.detach()
-        sys.exit(0)
-
-    def _atexit_handler(self):
-        """Called on normal interpreter shutdown."""
-        if self._context is not None:
-            logger.info("SessionGuard: atexit — detaching context")
-            self.detach()
-
-    def detach(self):
-        """Detach the context reference (called after context.close())."""
-        self._context = None
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Browser Launch — Pure Native Persistence (v8.0)
-# ═══════════════════════════════════════════════════════════════════════════════
-
-
-async def launch_browser(*, headless: bool = False) -> tuple[BrowserContext, Page]:
-    """
-    Connect to an already-running native Chrome via CDP when LOCAL_CDP_ENDPOINT
-    is configured. Otherwise fall back to the existing local Playwright browser.
-    """
-    global _ACTIVE_PLAYWRIGHT, _BROWSER_CONNECTION_MODE
-
-    _ensure_dirs()
-
-    pw = await async_playwright().start()
-    _ACTIVE_PLAYWRIGHT = pw
-
-    cdp_endpoint = os.getenv("LOCAL_CDP_ENDPOINT", "").strip()
-
-    # ============================================================
-    # WINDOWS NATIVE CHROME VIA CDP
-    # ============================================================
-    if cdp_endpoint:
-        _BROWSER_CONNECTION_MODE = "LOCAL_CDP"
-        logger.info("🌐 Browser connection mode: LOCAL_CDP")
-        logger.info("🔗 Attaching to existing Chrome via CDP: %s", cdp_endpoint)
-
-        try:
-            browser = await pw.chromium.connect_over_cdp(
-                cdp_endpoint,
-                timeout=15_000,
-            )
-        except Exception as e:
-            logger.error(
-                "❌ Playwright attachment failed for Chrome CDP at %s: %s",
-                cdp_endpoint,
-                e,
-            )
-            logger.error(
-                "If Chrome is on Windows and Python is in WSL, enable WSL mirrored "
-                "networking so 127.0.0.1 is shared."
-            )
-            await pw.stop()
-            _ACTIVE_PLAYWRIGHT = None
-            _BROWSER_CONNECTION_MODE = "UNINITIALIZED"
-            raise
-
-        if not browser.contexts:
-            logger.error("❌ CDP Chrome connected, but no browser context exists.")
-            await pw.stop()
-            _ACTIVE_PLAYWRIGHT = None
-            _BROWSER_CONNECTION_MODE = "UNINITIALIZED"
-            raise RuntimeError("Chrome CDP connected but returned no browser contexts.")
-
-        context = browser.contexts[0]
-
-        if context.pages:
-            page = context.pages[0]
-        else:
-            page = await context.new_page()
-
-        # Chrome is hosted by Windows even though this Python process is in WSL.
-        # Derive browser-facing fingerprint values from Chrome itself, not Python.
-        try:
-            browser_platform = await page.evaluate(
-                "navigator.userAgentData?.platform || navigator.platform || ''"
-            )
-        except Exception:
-            browser_platform = os.getenv("BROWSER_OS", "Windows")
-        logger.info("🖥️ Attached browser reports platform: %s", browser_platform or "unknown")
-
-        # These are context/page instrumentation only; launch-only options such
-        # as viewport, locale, timezone, UA and Chromium args are intentionally
-        # not supplied to connect_over_cdp().
-        await context.add_init_script(
-            get_stealth_init_script(browser_platform=str(browser_platform))
-        )
-        await context.add_init_script(VISUAL_CURSOR_INIT_SCRIPT)
-        await install_site_customizations(context, page)
-        await dom_parser.install_shadow_piercer(context)
-
-        try:
-            await apply_page_stealth(page)
-        except Exception as e:
-            logger.warning("Page stealth setup failed (non-fatal): %s", e)
-
-        guard = SessionGuard.get()
-        guard.attach(context)
-
-        try:
-            await page.bring_to_front()
-        except Exception:
-            pass
-
-        try:
-            title = await page.title()
-        except Exception:
-            title = ""
-        logger.info("✅ CDP attachment ready: url=%s title=%s", page.url, title)
-
-        return context, page
-
-    # ============================================================
-    # EXISTING LOCAL WSL CHROMIUM FALLBACK
-    # ============================================================
-    _mark_profile_clean_exit()
-    _BROWSER_CONNECTION_MODE = "LOCAL_PLAYWRIGHT"
-
-    logger.info("🌐 Browser connection mode: LOCAL_PLAYWRIGHT fallback")
-    logger.info("Launching local Playwright Chromium (native profile: %s)", PROFILE_DIR)
-
-    session_viewport = get_random_viewport()
-    logger.info(
-        "Session viewport: %dx%d",
-        session_viewport["width"],
-        session_viewport["height"],
-    )
-
-    try:
-        context = await pw.chromium.launch_persistent_context(
-            user_data_dir=str(PROFILE_DIR),
-            headless=headless,
-            viewport=session_viewport,
-            locale="en-US",
-            timezone_id="America/New_York",
-            user_agent=STEALTH_USER_AGENT,
-            java_script_enabled=True,
-            device_scale_factor=1,
-            extra_http_headers={"Accept-Language": "en-US,en;q=0.9"},
-            args=STEALTH_LAUNCH_ARGS + dom_parser.TLS_STEALTH_ARGS,
-            ignore_default_args=["--enable-automation"],
-        )
-    except Exception as e:
-        logger.error("❌ Local Playwright browser launch failed: %s", e)
-        await pw.stop()
-        _ACTIVE_PLAYWRIGHT = None
-        _BROWSER_CONNECTION_MODE = "UNINITIALIZED"
-        raise
-
-    await context.add_init_script(STEALTH_INIT_SCRIPT)
-    await context.add_init_script(VISUAL_CURSOR_INIT_SCRIPT)
-    await install_site_customizations(context)
-    await dom_parser.install_shadow_piercer(context)
-
-    guard = SessionGuard.get()
-    guard.attach(context)
-
-    if context.pages:
-        page = context.pages[0]
-    else:
-        page = await context.new_page()
-
-    await apply_page_stealth(page)
-    await apply_current_site_customizations(page)
-
-    try:
-        await page.bring_to_front()
-    except Exception:
-        pass
-
-    return context, page
-
-
-async def shutdown_browser(context: BrowserContext) -> None:
-    """Release Playwright without terminating an externally managed CDP Chrome."""
-    global _ACTIVE_PLAYWRIGHT, _BROWSER_CONNECTION_MODE
-
-    mode = _BROWSER_CONNECTION_MODE
-    try:
-        if mode == "LOCAL_CDP":
-            # The PowerShell launcher owns the dedicated Windows Chrome. Stopping
-            # Playwright detaches its CDP transport while leaving Chrome/profile
-            # alive for reuse by the next run.
-            if _ACTIVE_PLAYWRIGHT is not None:
-                await _ACTIVE_PLAYWRIGHT.stop()
-            logger.info("Disconnected from Windows Chrome; automation Chrome remains running.")
-        else:
-            await context.close()
-            if _ACTIVE_PLAYWRIGHT is not None:
-                await _ACTIVE_PLAYWRIGHT.stop()
-            logger.info("Local Playwright browser closed. Profile state persisted.")
-    finally:
-        _ACTIVE_PLAYWRIGHT = None
-        _BROWSER_CONNECTION_MODE = "UNINITIALIZED"
-
-
-# ═══════════════════════════════════════════════════════════════════════════════
-#  Manual Login Mode (--login)
-# ═══════════════════════════════════════════════════════════════════════════════
-async def manual_login_mode():
-    """Open a browser for human login. Chromium natively persists the session."""
-    context, page = await launch_browser()
-
-    print("\n" + "=" * 70)
-    print("  🔐  MANUAL LOGIN MODE (Native Persistence)")
-    print("=" * 70)
-    print("  A Chromium browser window has opened.")
-    print("  Please log into your Google/Gmail/Reddit account(s) now.")
-    print("")
-    print("  Once you are fully logged in and can see your inbox/feed,")
-    print("  come back here and press ENTER to close the browser.")
-    print("  Your session is saved AUTOMATICALLY in the browser profile.")
-    print("=" * 70)
-
-    try:
-        input("\n  👉 Press ENTER when login is complete: ")
-    except (EOFError, KeyboardInterrupt):
-        logger.info("Input interrupted — closing browser...")
-
-    try:
-        await shutdown_browser(context)
-    except Exception:
-        pass
-    SessionGuard.get().detach()
-
-    print("\n  ✅ Session persisted! Future runs will use your login automatically.\n")
+from agent_first_browse.browser.runtime import (
+    PROFILE_DIR, PERSISTENCE_ROOT, SessionGuard, launch_browser,
+    manual_login_mode, shutdown_browser,
+)
 
 
 # ═══════════════════════════════════════════════════════════════════════════════
@@ -717,7 +403,7 @@ async def _invoke_with_failover(
     Signature preserved for all callers (prm_critic, web_dreamer, workers,
     brain_graph, content_critic, github_engagement).
     """
-    from agent_first_browse.models.registry import invoke_with_failover
+    from agent_first_browse.models import invoke_with_failover
 
     return await invoke_with_failover(
         failover_chain,
@@ -1512,7 +1198,7 @@ async def run_agent(objective: str):
                 option_val = decision.text or ""
                 logger.info("Selecting option '%s' on %s", option_val[:40], decision.element_id or "?")
                 try:
-                    from mcp_tools import mcp_select_option
+                    from agent_first_browse.actions.tools import mcp_select_option
 
                     result = await asyncio.wait_for(
                         mcp_select_option(decision.element_id, option_val),
@@ -1531,7 +1217,7 @@ async def run_agent(objective: str):
             elif decision.action_type == "hover":
                 logger.info("Hovering over %s", decision.element_id or f"({decision.x},{decision.y})")
                 try:
-                    from mcp_tools import mcp_hover
+                    from agent_first_browse.actions.tools import mcp_hover
 
                     result = await asyncio.wait_for(
                         mcp_hover(decision.element_id, decision.x or 0, decision.y or 0),
@@ -1549,7 +1235,7 @@ async def run_agent(objective: str):
                 combo = decision.key_combo or decision.text or ""
                 logger.info("Pressing key combo: %s", combo)
                 try:
-                    from mcp_tools import mcp_press_key
+                    from agent_first_browse.actions.tools import mcp_press_key
 
                     result = await asyncio.wait_for(
                         mcp_press_key(combo),
@@ -1573,7 +1259,7 @@ async def run_agent(objective: str):
                     int(ty),
                 )
                 try:
-                    from mcp_tools import mcp_drag_and_drop
+                    from agent_first_browse.actions.tools import mcp_drag_and_drop
 
                     result = await asyncio.wait_for(
                         mcp_drag_and_drop(
@@ -1597,7 +1283,7 @@ async def run_agent(objective: str):
                 fpath = decision.file_path or decision.text or ""
                 logger.info("Uploading file '%s' to %s", fpath[:60], decision.element_id or "?")
                 try:
-                    from mcp_tools import mcp_upload_file
+                    from agent_first_browse.actions.tools import mcp_upload_file
 
                     result = await asyncio.wait_for(
                         mcp_upload_file(decision.element_id, fpath),
@@ -1616,7 +1302,7 @@ async def run_agent(objective: str):
                 amount = decision.scroll_amount or 500
                 logger.info("Scrolling %s by %dpx", direction, amount)
                 try:
-                    from mcp_tools import mcp_scroll_directional
+                    from agent_first_browse.actions.tools import mcp_scroll_directional
 
                     result = await asyncio.wait_for(
                         mcp_scroll_directional(direction, amount),

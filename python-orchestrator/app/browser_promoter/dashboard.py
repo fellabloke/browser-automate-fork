@@ -1,1 +1,7 @@
-from agent_first_browse.promotion.browser_promoter.dashboard import *  # noqa: F401,F403
+"""Compatibility alias for the canonical dashboard module."""
+
+import sys
+
+from agent_first_browse.promotion.browser_promoter import dashboard as _module
+
+sys.modules[__name__] = _module

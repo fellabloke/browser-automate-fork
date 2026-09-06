@@ -22,14 +22,14 @@ import json
 from dataclasses import dataclass, field
 from typing import Any
 
-from app import config
-from app.browser_promoter.database import (
+from .. import config
+from .database import (
     check_promotion_cooldown,
     count_platform_promotions_today,
     record_promotion,
 )
-from app.browser_promoter.github_intelligence import RepoProfile
-from app.logger import get_logger
+from .github_intelligence import RepoProfile
+from agent_first_browse.logging import get_logger
 
 logger = get_logger(__name__)
 

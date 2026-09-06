@@ -8,7 +8,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.state import CompiledStateGraph
 
-from app.browser_promoter.nodes import (
+from .nodes import (
     auth_check_node,
     browser_controller_node,
     router_function,
@@ -20,7 +20,7 @@ from app.browser_promoter.nodes import (
     task_logging_node,
     housekeeping_node,
 )
-from app.browser_promoter.state import AgentState
+from .state import AgentState
 
 
 def _default_checkpoint_path() -> Path:

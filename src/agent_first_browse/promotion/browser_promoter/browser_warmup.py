@@ -11,7 +11,7 @@ The warm-up establishes:
   - Credible referrer chain in the browser history
 
 Drop-in usage:
-    from app.browser_promoter.browser_warmup import run_warmup
+    from .browser_warmup import run_warmup
     await run_warmup(page, target_url="https://dev.to/new")
 """
 
@@ -25,7 +25,7 @@ from urllib.parse import urlparse
 
 from playwright.async_api import Page
 
-from app.logger import get_logger
+from agent_first_browse.logging import get_logger
 
 logger = get_logger("browser_warmup")
 

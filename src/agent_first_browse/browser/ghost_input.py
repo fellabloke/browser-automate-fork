@@ -20,7 +20,7 @@ from typing import Sequence
 
 from playwright.async_api import Page
 
-from app.logger import get_logger
+from agent_first_browse.logging import get_logger
 
 logger = get_logger("ghost_input")
 

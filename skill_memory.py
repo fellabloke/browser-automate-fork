@@ -1,3 +1,7 @@
-"""Temporary compatibility shim for the migrated skill memory module."""
+"""Compatibility alias for the canonical skills module."""
 
-from agent_first_browse.memory.skills import *  # noqa: F401,F403
+import sys
+
+from agent_first_browse.memory import skills as _module
+
+sys.modules[__name__] = _module

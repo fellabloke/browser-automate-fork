@@ -222,7 +222,7 @@ def test_adaptive_perception_flag(monkeypatch):
 
 
 def test_perceive_node_wires_engine_with_direct_fallback():
-    bg = (REPO_ROOT / "brain_graph.py").read_text()
+    bg = (REPO_ROOT / "src" / "agent_first_browse" / "agent" / "graph.py").read_text()
     assert "agent_first_browse.perception.engine" in bg
     assert "adaptive_perception_enabled" in bg
     assert "_direct_snapshot" in bg          # hard fallback preserved

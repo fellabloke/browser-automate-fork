@@ -105,8 +105,8 @@ Exact edges are defined in brain_graph.py; this diagram is conceptual and should
 
 Current major runtime components
 
-run_v16.py                 CLI / startup
-brain_graph.py              orchestration graph
+agent_first_browse.cli     CLI / startup (root run_v16.py shim)
+agent_first_browse.agent.graph orchestration graph (root brain_graph.py shim)
 agent_first_browse.agent.state typed global graph state (root shim: brain_state.py)
 agent_first_browse.agent.routing worker/verdict routing (root shim: moe_router.py)
 agent_first_browse.config.feature_flags runtime feature switches (root shim: feature_flags.py)
@@ -116,14 +116,20 @@ agent_first_browse.browser.* CDP, humanized input, overlays, display, and platfo
 agent_first_browse.survey.* survey context, profile, recipes, audio, outcomes, quirks, and benchmarks
 agent_first_browse.memory.* campaign, skill, intent, and content memory
 agent_first_browse.promotion.* browser-promoter graph, state, nodes, supervisor, integrations, database, and observability
-workers/base_worker.py      specialist model decision path
-agent_first_browse.models.registry public model façade, probe orchestration, and failover infrastructure (root shim: model_registry.py)
+agent_first_browse.logging    shared runtime logger; historical app.logger is a compatibility wrapper
+agent_first_browse.verification.* action safety, verification, outcomes, progress, and Overwatch (root shims retained)
+agent_first_browse.cognition.* deterministic and model-backed cognition (root shims retained)
+agent_first_browse.actions.tools canonical browser-action façade (root mcp_tools.py shim retained)
+agent_first_browse.workers.base specialist worker façade
+agent_first_browse.models.registry public model façade and coordination (root shim: model_registry.py)
 agent_first_browse.models.health health/cooldown/probe state and persistence used by the registry façade
 agent_first_browse.models.providers provider adapters and model/pipeline construction
 agent_first_browse.models.routing deterministic model/role selection and ordering
+agent_first_browse.models.probes startup/capability probing and probe-result pruning
+agent_first_browse.models.failover ordinary inference, retry/failover, and structured recovery
 agent_first_browse.workers.base specialist worker decision path (root shim: workers/base_worker.py)
-mcp_tools.py                broad browser action/perception utility surface
-overwatch.py                action verification / execution supervision
+mcp_tools.py                compatibility shim for agent_first_browse.actions.tools
+overwatch.py                compatibility shim for agent_first_browse.verification.overwatch
 perception_engine.py        adaptive perception routing
 cognition*.py               reasoning/guidance state
 survey_*.py                 survey domain capability
@@ -333,7 +339,7 @@ agent_first_browse.workers
 
 Browser action facade
 
-mcp_tools.py + browser utilities
+`agent_first_browse.actions.tools` (root shim: `mcp_tools.py`)
 
 agent_first_browse.browser / actions / perception
 
@@ -357,19 +363,21 @@ agent_first_browse.browser
 
 Verification
 
-overwatch.py, action_verifier.py, outcome_judge.py, verification_engine.py
+agent_first_browse.verification.action, feedback, safety, engine, outcome,
+progress, and overwatch (root shims retained)
 
 agent_first_browse.verification
 
 Progress critic
 
-orchestrator/critic_v12.py
+agent_first_browse.verification.progress (root orchestrator/critic_v12.py shim)
 
 agent_first_browse.verification.progress
 
 Cognition/guidance
 
-cognition.py, cognitive_core.py, clarity.py, etc.
+agent_first_browse.cognition.core, reasoning, consensus, reality, prm, dreamer,
+content_critic, and deterministic lock/clarity/stagnation/action primitives
 
 agent_first_browse.cognition
 
@@ -393,7 +401,7 @@ agent_first_browse.promotion + shared browser modules
 
 Shared app infrastructure
 
-src/agent_first_browse/promotion/config.py, logger.py, observability.py, call_pacing.py
+src/agent_first_browse/logging.py; promotion config, observability, and pacing
 
 package root/shared infrastructure
 
@@ -457,8 +465,6 @@ Agent-first-browse/
 |       |   |-- __init__.py
 |       |   `-- feature_flags.py
 |       |-- logging.py
-|       |-- observability.py
-|       |-- call_pacing.py
 |       |
 |       |-- agent/
 |       |   |-- graph.py
@@ -474,6 +480,7 @@ Agent-first-browse/
 |       |   |-- registry.py
 |       |   |-- routing.py
 |       |   |-- health.py
+|       |   |-- probes.py
 |       |   |-- failover.py
 |       |   |-- providers.py
 |       |   `-- schemas.py
@@ -576,25 +583,58 @@ models/registry.py
 The first responsibility extraction is complete: `models/health.py` owns the
 existing `ProviderHealthTracker` implementation, including identity aliases,
 cooldowns, probe freshness, quota/accounting state, schema blacklist state, and
-JSON persistence. `models/registry.py` remains the public façade and retains
-provider construction, probing orchestration, and failover/recovery.
+JSON persistence. `models/registry.py` remains the public façade and coordinates
+provider construction, probing, and invocation through the extracted owners.
 The façade continues to re-export `ProviderHealthTracker` for compatibility.
 
 The provider construction extraction is complete: `models/providers.py` owns
 provider SDK adapters, credential discovery/fingerprints, and free/premium
 text, vision, and audio pipeline builders. `models/registry.py` continues to
 re-export those construction symbols for compatibility, while retaining
-routing, probe orchestration, and failover/recovery.
-The Cloudflare adapter temporarily resolves the existing registry response
-parsing helpers lazily so structured-output repair behavior remains unchanged;
-that coupling should be removed only as part of a later response/recovery
-extraction.
+routing and façade coordination.
+The Cloudflare adapter resolves response parsing and error-compaction helpers
+from `models.failover` through a narrow lazy contract so structured-output
+repair behavior remains unchanged without making providers depend on the
+registry façade.
 
 The deterministic routing extraction is complete: `models/routing.py` owns
 model-tier resolution, worker and auxiliary chain shaping, worker priority, and
 health-aware candidate ordering. `models/registry.py` re-exports the routing
-symbols for compatibility while retaining capability gating, probe orchestration,
-and inference failover/recovery.
+symbols for compatibility while retaining façade coordination and inference
+failover/recovery. The failover implementation now lives in
+`models/failover.py`.
+
+The startup probe extraction is complete: `models/probes.py` owns representative
+selection, capability probing, JSON-mode probe rescue, probe-specific failure
+classification, latency/health seeding, and dead/incapable candidate pruning.
+Capability gating is probe-result interpretation rather than general routing
+policy, so its safety-floor logic lives with `models/probes.py`. The registry
+continues to own the public façade and probe idempotence; probe JSON rescue and
+normal inference share the narrow executor owned by `models/failover.py`.
+
+The ordinary inference extraction is complete: `models/failover.py` owns
+single-client invocation, timeout and budget enforcement, retry/failover
+sequencing, error classification, health bookkeeping, circuit-breaker updates,
+and structured-output recovery. `models/registry.py` re-exports the failover
+surface and retains façade coordination and startup probe delegation for
+compatibility.
+
+The model package now exposes an explicit package-level API from
+`models/__init__.py` for `ModelRegistry`, `ModelClient`, health tracking,
+provider adapters, deterministic routing, circuit breaking, and ordinary
+invocation. The root `model_registry.py` and direct implementation imports
+remain compatibility surfaces for tests and legacy scripts; active runtime
+callers use the package API.
+
+Shared runtime logging is owned by `agent_first_browse.logging`. The historical
+`app.logger` and promotion logger paths remain wrappers, while promotion-only
+observability and call pacing remain under `agent_first_browse.promotion`.
+
+The canonical browser-promoter implementation is owned by
+`agent_first_browse.promotion.browser_promoter` and uses relative package
+imports plus the canonical logger. `python-orchestrator/app/browser_promoter`
+remains a module-identity-preserving compatibility namespace for legacy scripts
+and tests; it is not an additional implementation.
 
 The worker implementation is now owned by `src/agent_first_browse/workers/base.py`
 with the root `workers/base_worker.py` retained as a compatibility alias. Further
@@ -609,6 +649,13 @@ A temporary root file may re-export the new implementation:
 
 """Temporary compatibility shim; remove after callers migrate."""
 from agent_first_browse.agent.state import *
+
+Current compatibility surfaces include `model_registry.py`,
+`workers/base_worker.py`, `checkpoint_retention.py`, the migrated survey and
+memory root modules, and the historical `app.browser_promoter.*` namespace.
+They now forward to canonical package modules, including module identity where
+legacy tests monkeypatch imported modules. Remove each shim only after its
+remaining script/test callers have migrated.
 
 A shim is a migration tool, not a permanent second API.
 
@@ -684,10 +731,30 @@ temporary compatibility alias while legacy callers and tests migrate.
 
 The first decomposition boundary is complete: health/cooldown/probe state now
 lives in `src/agent_first_browse/models/health.py`, while the registry façade
-continues to own probe orchestration and failover. Provider/model construction
-lives in `src/agent_first_browse/models/providers.py`, and deterministic model
-and role routing lives in `src/agent_first_browse/models/routing.py`.
+continues to own coordination. Provider/model construction lives in
+`src/agent_first_browse/models/providers.py`, and deterministic model and role
+routing lives in `src/agent_first_browse/models/routing.py`. Startup and
+capability probing now live in `src/agent_first_browse/models/probes.py`; the
+ordinary inference and structured recovery now live in
+`src/agent_first_browse/models/failover.py`, while the registry keeps the façade.
 Further extraction should remain incremental and test-backed.
+
+Integration Wave 2 is complete: verification is canonically owned by
+`agent_first_browse.verification`, including action safety, feedback, engine and
+outcome checks, the progress critic, and intact Overwatch coordination. The
+root verification modules and `orchestrator/critic_v12.py` are compatibility
+aliases rather than second implementations.
+
+Cognition is canonically owned by `agent_first_browse.cognition`. Deterministic
+target/subgoal locks, clarity, stagnation, and action classification live beside
+the intact strategic/core, consensus, reality, PRM, WebDreamer, and content
+critique modules. Root cognition files remain compatibility aliases.
+
+The former `mcp_tools.py` implementation is now owned intact by
+`agent_first_browse.actions.tools`; the root file is a compatibility alias.
+Overwatch imports canonical actions, cognition, verification, memory, survey,
+browser, perception, and model dependencies. Workers still propose actions and
+Overwatch remains the sole commit/execution authority.
 
 Phase 7 — Workers
 
@@ -923,6 +990,36 @@ optimize every large file merely because it is large.
 The purpose is to create a structure in which those later changes can be evaluated safely.
 
  1. Refactor exit criteria
+
+ 1. Current Wave 3 ownership
+
+ The top-level runtime migration now has these canonical ownership boundaries:
+
+ `agent_first_browse.workers` owns the active worker façade and its preserved
+ contracts (`schemas.py`), prompt construction (`prompt_builder.py`),
+ deterministic/model-free paths (`deterministic.py`), and model-backed decision
+ orchestration (`decision.py`). `workers/base_worker.py` remains a compatibility
+ alias for `workers.base`, and `workers.base` remains the stable import façade.
+
+ `agent_first_browse.browser.runtime` owns v16 browser launch, LOCAL_CDP versus
+ local Playwright selection, persistent profile handling, `SessionGuard`, manual
+ login, and shutdown. `advanced_agent.py` still owns its legacy autonomous loop
+ and forwards its lifecycle symbols to this canonical runtime module.
+
+ `agent_first_browse.agent.graph` owns the LangGraph orchestration spine.
+ `brain_graph.py` is a compatibility façade and does not retain a second graph
+ implementation. Repository-level checkpoint persistence remains at the same
+ historical `persistence/` location.
+
+ `agent_first_browse.cli` is the canonical v16 CLI and is exposed as the
+ `agent-browse` project entry point. `agent.sh` and `Start-Agent.ps1` invoke
+ that module; `run_v16.py` remains a compatibility launcher.
+
+ These moves preserve the worker proposal boundary, Overwatch execution
+ authority, graph topology/state/retry behavior, browser session semantics, and
+ CLI argument behavior. Legacy `advanced_agent.py`, `orchestrator/`,
+ `python-orchestrator/`, root runtime modules, and compatibility wrappers remain
+ intentionally available for callers not yet migrated.
 
 The base structural refactor is substantially complete when:
 

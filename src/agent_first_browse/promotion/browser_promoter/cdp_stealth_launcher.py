@@ -8,8 +8,8 @@ from typing import Any
 
 from playwright.async_api import BrowserContext, Page, Playwright
 
-from app.browser_promoter.state import BrowserConfig
-from app.logger import get_logger
+from .state import BrowserConfig
+from agent_first_browse.logging import get_logger
 
 try:  # Optional 2026 stealth browser wrapper.
     import cloakbrowser  # type: ignore

@@ -1,3 +1,7 @@
-"""Temporary compatibility shim for the migrated survey profile module."""
+"""Compatibility alias for the canonical profile module."""
 
-from agent_first_browse.survey.profile import *  # noqa: F401,F403
+import sys
+
+from agent_first_browse.survey import profile as _module
+
+sys.modules[__name__] = _module

@@ -28,6 +28,9 @@ dependencies = [
     "python-dotenv>=1.1.0",
 ]
 
+[project.scripts]
+agent-browse = "agent_first_browse.cli:main"
+
 [project.optional-dependencies]
 dev = [
     "pytest>=8.0",

@@ -10,18 +10,18 @@ from langchain_openai import ChatOpenAI
 from langgraph.graph import END, START, StateGraph
 from pydantic import BaseModel, ConfigDict, Field
 
-from app.call_pacing import AsyncGapLimiter
-from app.browser_promoter.database import lock_target_community
-from app.browser_promoter.github_intelligence import GitHubIntelligence, RepoProfile
-from app.browser_promoter.marketing_engine import (
+from ..call_pacing import AsyncGapLimiter
+from .database import lock_target_community
+from .github_intelligence import GitHubIntelligence, RepoProfile
+from .marketing_engine import (
     MarketingEngine,
     PromotionPlan,
     build_portfolio_context,
 )
-from app.browser_promoter.state import AgentState, HighLevelCommand
-from app import config
-from app.observability import build_llm_config
-from app.logger import get_logger
+from .state import AgentState, HighLevelCommand
+from .. import config
+from ..observability import build_llm_config
+from agent_first_browse.logging import get_logger
 
 logger = get_logger(__name__)
 

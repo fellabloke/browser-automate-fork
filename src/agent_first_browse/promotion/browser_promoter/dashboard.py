@@ -8,11 +8,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from app.browser_promoter.database import count_locked_target_communities
-from app.logger import get_logger
+from .database import count_locked_target_communities
+from agent_first_browse.logging import get_logger
 
 if TYPE_CHECKING:
-    from app.browser_promoter.state import AgentState
+    from .state import AgentState
 
 logger = get_logger(__name__)
 

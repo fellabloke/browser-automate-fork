@@ -1,3 +1,7 @@
-"""Temporary compatibility shim for the migrated survey context module."""
+"""Compatibility alias for the canonical context module."""
 
-from agent_first_browse.survey.context import *  # noqa: F401,F403
+import sys
+
+from agent_first_browse.survey import context as _module
+
+sys.modules[__name__] = _module
