@@ -56,6 +56,25 @@ def test_probe_cache_distinguishes_fresh_and_stale_health(monkeypatch):
     assert health.probe_cache_fresh(name) is False
 
 
+def test_hard_dead_failure_class_persists_and_success_clears_it(tmp_path):
+    path = tmp_path / "model-health.json"
+    name = "groq:missing-model:0"
+    health = ProviderHealthTracker(path)
+    health.record_hard_dead(name, "MODEL_NOT_FOUND")
+    restored = ProviderHealthTracker(path)
+    assert restored.is_hard_dead(name)
+    assert restored._get(name)["last_failure_class"] == "MODEL_NOT_FOUND"
+    restored.record_success(name, latency=0.1)
+    assert not restored.is_hard_dead(name)
+
+
+def test_transient_failure_is_not_hard_dead():
+    health = ProviderHealthTracker()
+    name = "groq:model:0"
+    health.record_failure(name, error_msg="429 rate limit", reliability_failure=False, failure_class="TRANSIENT")
+    assert not health.is_hard_dead(name)
+
+
 def test_credential_identity_preserves_health_across_key_index_changes(tmp_path):
     path = tmp_path / "model-health.json"
     credential = "stable-credential-fingerprint"

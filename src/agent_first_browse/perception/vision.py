@@ -322,6 +322,24 @@ async def consult_vision(
     if invoke_fn is None or not vision_chain:
         return None, ""
 
+    # Startup deliberately does not spend a round trip on optional vision.
+    # The first actual consult owns one bounded capability check; later calls
+    # reuse the registry's pruned/cached chain.
+    try:
+        from agent_first_browse.models.registry import ModelRegistry
+        registry = ModelRegistry.get_instance()
+        registry_names = {str(item.name) for item in registry.get_vision_chain()}
+        supplied_names = {str(item.name) for item in vision_chain if hasattr(item, "name")}
+        if supplied_names and supplied_names <= registry_names:
+            vision_chain = await registry.ensure_vision_capability(
+                timeout=VISION_MODEL_TIMEOUT_SECONDS,
+                vision_timeout=VISION_MODEL_TIMEOUT_SECONDS,
+            )
+    except Exception as exc:
+        logger.debug("Lazy vision capability gate unavailable: %s", str(exc)[:160])
+    if not vision_chain:
+        return None, ""
+
     consult_started = time.monotonic()
     logger.info(
         "👁️ VISION REQUEST: reason=%s | question=%s | chain=%d | failover_budget=%.1fs | per_model_cap=%.1fs",

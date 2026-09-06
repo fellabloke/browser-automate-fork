@@ -71,13 +71,15 @@ async def probe_and_prune(
     *,
     timeout: float = 8.0,
     vision_timeout: float | None = None,
+    probe_vision: bool = True,
 ) -> tuple[list[ModelClient], list[ModelClient]]:
     """Probe representative model combinations and return surviving pipelines."""
     from langchain_core.messages import HumanMessage, SystemMessage
     from pydantic import BaseModel as _BM, Field as _F
 
     reps: dict[tuple[str, str, str], ModelClient] = {}
-    for model in text_pipeline + vision_pipeline:
+    probe_pipeline = text_pipeline + (vision_pipeline if probe_vision else [])
+    for model in probe_pipeline:
         key = combo_of(model)
         current = reps.get(key)
         if current is None or (
@@ -90,8 +92,15 @@ async def probe_and_prune(
     reps = {
         key: model
         for key, model in reps.items()
-        if not health.probe_cache_fresh(model.name)
+        if not health.probe_cache_fresh(model.name) and not health.is_hard_dead(model.name)
     }
+    known_dead = {
+        combo_of(model) for model in probe_pipeline if health.is_hard_dead(model.name)
+    }
+    if known_dead:
+        text_pipeline = apply_capability_gate(text_pipeline, known_dead, set(), "TEXT")
+        vision_pipeline = apply_capability_gate(vision_pipeline, known_dead, set(), "VISION")
+        logger.info("🔬 Removed %d cached hard-dead model combination(s) before probing", len(known_dead))
     if cached_count:
         logger.info("🔬 Capability probe cache reused for %d healthy combo(s)", cached_count)
     if not reps:
@@ -197,6 +206,9 @@ async def probe_and_prune(
             if detail == "json-mode":
                 health.force_json_mode(reps[combo_key].name)
         elif status == "dead":
+            for model in text_pipeline + vision_pipeline:
+                if combo_of(model) == combo_key:
+                    health.record_hard_dead(model.name, "MODEL_HARD_DEAD")
             dead_combos.add(combo_key)
             logger.warning("💀 Prune DEAD: %s/%s (%s) — %s", provider, base, pipeline, detail)
         elif status == "incapable":

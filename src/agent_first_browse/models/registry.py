@@ -148,6 +148,7 @@ class ModelRegistry:
             self._vision_pipeline = _build_vision_pipeline()
             self._audio_pipeline = _build_audio_pipeline()
             self._probed = False
+        self._vision_probed = self.mode == "premium"
         health_path: Path | None = None
         if _env_flag("MODEL_HEALTH_PERSISTENCE", True):
             configured_path = os.getenv(
@@ -269,6 +270,7 @@ class ModelRegistry:
 
     async def probe_and_prune(
         self, timeout: float = 8.0, vision_timeout: float | None = None,
+        *, probe_vision: bool = True,
     ) -> None:
         """Probe one instance per (provider, base_model, pipeline) concurrently.
 
@@ -290,4 +292,19 @@ class ModelRegistry:
             self.health,
             timeout=timeout,
             vision_timeout=vision_timeout,
+            probe_vision=probe_vision,
         )
+
+    async def ensure_vision_capability(
+        self, timeout: float = 8.0, vision_timeout: float | None = None,
+    ) -> list[ModelClient]:
+        """Probe vision once, only when a real visual consult is requested."""
+        if getattr(self, "_vision_probed", False):
+            return list(self._vision_pipeline)
+        self._vision_probed = True
+        _text, self._vision_pipeline = await _probes.probe_and_prune(
+            [], self._vision_pipeline, self.health,
+            timeout=timeout, vision_timeout=vision_timeout or timeout,
+            probe_vision=True,
+        )
+        return list(self._vision_pipeline)

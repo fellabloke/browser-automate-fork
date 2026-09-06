@@ -24,6 +24,7 @@ References:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
 import os
@@ -455,6 +456,11 @@ async def perceive_node(state: BrainState) -> dict:
     page_text = snapshot.get("page_text", "")
     selector_map = snapshot.get("selector_map", {})
     element_count = snapshot.get("element_count", 0)
+    snapshot_revision = str(snapshot.get("snapshot_revision") or "")
+    if not snapshot_revision:
+        snapshot_revision = hashlib.sha256(json.dumps({
+            "url": current_url, "elements": elements_list,
+        }, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:20]
     sparse_dom_status = str(snapshot.get("sparse_dom_status") or "NOT_NEEDED")
     sparse_dom_reason = str(snapshot.get("sparse_dom_reason") or "")
     paidwork_selection_ready = snapshot.get("paidwork_selection_ready")
@@ -973,6 +979,8 @@ async def perceive_node(state: BrainState) -> dict:
         "selector_map": selector_map,
         "elements_list": elements_list,
         "element_count": element_count,
+        "snapshot_revision": snapshot_revision,
+        "survey_attempt_id": state.survey_attempt_id or snapshot_revision,
         "dom_recovery_attempts": dom_recovery_attempts,
         "dom_recovery_status": sparse_dom_status,
         "dom_recovery_reason": sparse_dom_reason,
@@ -1558,6 +1566,19 @@ async def rollback_node(state: BrainState) -> dict:
         "next_node": "perceive",  # continue — no destructive full replan
     }
 
+    if int(state.survey_hold_count or 0) >= 2:
+        # A deterministic survey hold is not a reason to restart the same
+        # model/vision/gate cycle. Mark the attempt exhausted; the next worker
+        # decision takes the bounded abandon-survey boundary fast path.
+        updates.update({
+            "survey_gate_exhausted": True,
+            "force_vision": False,
+            "correction_context": "SURVEY_GATE_EXHAUSTED: abandon the current survey attempt or terminate.",
+            "tried_tactics": list(state.tried_tactics or []) + ["survey_gate_abandon"],
+        })
+        logger.warning("↩️ Rollback changed tactic: SURVEY_GATE_EXHAUSTED → bounded survey boundary")
+        return updates
+
     ladder_exhausted = (
         RESTRATEGIZE_TACTIC in state.tried_tactics
         or state.ladder_rung >= len(LADDER)
@@ -1892,6 +1913,7 @@ async def run_brain(objective: str, headless: bool = False):
         registry.probe_and_prune(
             timeout=max(8.0, float(os.getenv("MODEL_PROBE_TIMEOUT_SECONDS", "15"))),
             vision_timeout=max(12.0, float(os.getenv("MODEL_VISION_PROBE_TIMEOUT_SECONDS", "25"))),
+            probe_vision=False,
         ), return_exceptions=True,
     )
     for startup_name, startup_result in zip(("warmup", "model probe"), startup_results):
@@ -2127,6 +2149,7 @@ async def run_brain(objective: str, headless: bool = False):
             active_profile, profile_render = {}, ""
         initial_state = BrainState(
             objective=objective,
+            run_id=thread_id,
             survey_profile=active_profile,
             survey_profile_render=profile_render,
             continuous_survey_mode=continuous_session,

@@ -43,6 +43,7 @@ def _registry(clients: list[ModelClient], *, health=None) -> ModelRegistry:
     registry._text_pipeline = clients
     registry._vision_pipeline = []
     registry._probed = False
+    registry._vision_probed = False
     registry.health = health or ProviderHealthTracker()
     return registry
 
@@ -129,3 +130,21 @@ def test_dead_combo_is_pruned_but_transient_and_timeout_are_retained():
     ]
     assert registry.health.probe_cache_fresh(transient.name) is False
 
+
+def test_startup_probe_does_not_probe_vision_until_demand():
+    fake = _ProbeClient()
+    vision = ModelClient("vision:model:0", fake, "vision-provider", "vision")
+    registry = _registry([], health=ProviderHealthTracker())
+    registry._vision_pipeline = [vision]
+    run(registry.probe_and_prune(timeout=0.2, probe_vision=False))
+    assert fake.calls == []
+
+
+def test_lazy_vision_probe_is_cached_after_first_demand():
+    fake = _ProbeClient()
+    vision = ModelClient("vision:model:0", fake, "vision-provider", "vision")
+    registry = _registry([], health=ProviderHealthTracker())
+    registry._vision_pipeline = [vision]
+    run(registry.ensure_vision_capability(timeout=0.2))
+    run(registry.ensure_vision_capability(timeout=0.2))
+    assert fake.calls == ["strict"]

@@ -122,6 +122,8 @@ class BrainState(BaseModel):
 
     # ── Identity & Goal ──
     objective: str = ""
+    run_id: str = ""
+    survey_attempt_id: str = ""
     task_domain: str = ""  # auto-extracted domain (e.g., "amazon.in")
 
     # ── Plan (from PlanState) ──
@@ -190,6 +192,9 @@ class BrainState(BaseModel):
     survey_stuck_timed_out: bool = False
     survey_model_wait_seconds: float = 0.0
     survey_action_no_effect_counts: dict[str, int] = Field(default_factory=dict)
+    survey_hold_identity: str = ""
+    survey_hold_count: int = 0
+    survey_gate_exhausted: bool = False
     survey_abandon_required: bool = False
     survey_boundary_reason: str = ""
     survey_boundary_target_url: str = ""
@@ -214,6 +219,7 @@ class BrainState(BaseModel):
     selector_map: dict[str, Any] = Field(default_factory=dict)
     elements_list: list[dict] = Field(default_factory=list)
     element_count: int = 0
+    snapshot_revision: str = ""
     login_detected: bool = False
 
     # ── Control Flow ──

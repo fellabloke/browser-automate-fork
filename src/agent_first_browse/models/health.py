@@ -125,6 +125,7 @@ class ProviderHealthTracker:
             "structured_repair_successes": 0,
             "structured_repair_failures": 0,
             "last_failure_class": "",
+            "hard_dead_until": 0.0,
             # [unix_timestamp, estimated_input_tokens]. Only one minute retained.
             "request_events": [],
         }
@@ -731,6 +732,8 @@ class ProviderHealthTracker:
         s["total_calls"] += 1
         s["last_call_time"] = time.time()
         s["last_success_wall"] = s["last_call_time"]
+        s["last_failure_class"] = ""
+        s["hard_dead_until"] = 0.0
         self._update_p_fail(name, failed=False)
         if latency is not None:
             self.observe_latency(name, latency)
@@ -773,7 +776,8 @@ class ProviderHealthTracker:
             s["last_failure_class"] = failure_class
         s["total_calls"] += 1
         s["last_call_time"] = time.time()
-        s["last_failure_class"] = ""
+        if not failure_class:
+            s["last_failure_class"] = ""
         if reliability_failure:
             s["consecutive_failures"] += 1
             s["total_failures"] += 1
@@ -814,6 +818,24 @@ class ProviderHealthTracker:
                         bl_key,
                     )
         self._save()
+
+    def record_hard_dead(self, name: str, failure_class: str) -> None:
+        """Persist a stable provider/model failure for bounded pruning."""
+        state = self._get(name)
+        ttl = _float_env("MODEL_HARD_DEAD_TTL_SECONDS", 86400.0, minimum=60.0)
+        state["last_failure_class"] = str(failure_class or "HARD_DEAD")[:80]
+        state["hard_dead_until"] = time.time() + ttl
+        self._save()
+
+    def is_hard_dead(self, name: str) -> bool:
+        state = self._get(name)
+        until = float(state.get("hard_dead_until", 0.0) or 0.0)
+        if until > time.time():
+            return True
+        if until:
+            state["hard_dead_until"] = 0.0
+            self._save()
+        return False
 
     def is_schema_blacklisted(self, name: str, schema_name: str = "__structured_output__") -> bool:
         """Check if a (provider, model) combo is blacklisted for a specific schema."""

@@ -1489,6 +1489,60 @@ def is_survey_forward_control(element: dict[str, Any]) -> bool:
     )
 
 
+_EXPLICIT_CONSENT_LABEL = re.compile(
+    r"\b(?:agree|consent|accept)\s+(?:to\s+)?(?:the\s+)?"
+    r"(?:terms?|consent|agreement)\s+and\s+(?:continue|proceed)|"
+    r"\b(?:agree|consent)\s+and\s+continue\b|"
+    r"\baccept\s+and\s+continue\b",
+    re.IGNORECASE,
+)
+_CONSENT_COPY = re.compile(
+    r"\b(?:consent|agree(?:ment)?|permission)\b.{0,100}\b"
+    r"(?:continue|proceed|terms?|privacy|cookie|collect|information|data)\b",
+    re.IGNORECASE,
+)
+
+
+def trusted_consent_action(
+    selector_map: dict[str, dict[str, Any]] | None,
+    page_text: str = "",
+) -> dict[str, Any] | None:
+    """Return one conservative, DOM-grounded consent navigation action.
+
+    This deliberately recognises only explicit agreement-plus-continuation
+    labels. Page-authored copy is used as corroboration, never as a source of
+    a target or permission to click a generic button.
+    """
+    if not _CONSENT_COPY.search(re.sub(r"\s+", " ", str(page_text or ""))):
+        return None
+    candidates: list[tuple[str, dict[str, Any]]] = []
+    for element_id, element in (selector_map or {}).items():
+        element = element or {}
+        control = str(element.get("control_type") or element.get("role") or "").lower()
+        kind = str(element.get("kind") or "").lower()
+        if control in {"radio", "checkbox", "option"} or kind not in {"button", "input", "link"}:
+            continue
+        if element.get("visible") is False or element.get("disabled") is True:
+            continue
+        label = _element_label(element)
+        if "[disabled]" in label or not _EXPLICIT_CONSENT_LABEL.search(label):
+            continue
+        if not element.get("actionable", True):
+            continue
+        candidates.append((str(element_id), element))
+    if len(candidates) != 1:
+        return None
+    element_id, _ = candidates[0]
+    return {
+        "verb": "click",
+        "element_id": element_id,
+        "answer_basis": "page_navigation",
+        "proposal_source": "deterministic_consent",
+        "vision_requested": False,
+        "expected_change": "Consent control disappears or the survey page advances.",
+    }
+
+
 def preferred_forward_control_id(selector_map: dict[str, dict]) -> str:
     """Return one unambiguous enabled forward control, otherwise no fast path."""
     candidates = []
@@ -1886,6 +1940,12 @@ def survey_gate_violation(
                 "satisfy the visible required answer/consent first, then re-perceive until the live "
                 "control becomes enabled."
             )
+        # An explicit consent navigation control is not a survey answer.  This
+        # exemption is narrow and re-runs the conservative classifier against
+        # the same live map, so question-like consent copy cannot broaden it.
+        consent_action = trusted_consent_action(selector_map, page_text)
+        if consent_action and str(consent_action["element_id"]) == str(element_id):
+            return ""
         popup_action = popup_blocks_action(action, selector_map)
         if popup_action:
             return (

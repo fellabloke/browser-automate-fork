@@ -14,6 +14,7 @@ from agent_first_browse.survey.context import (
     survey_interaction_fingerprint,
     survey_page_fingerprint,
     survey_perception_wait_mode,
+    trusted_consent_action,
     unsupported_survey_requirement,
 )
 from agent_first_browse.survey.recipes import SurveyRecipeMemory, survey_page_recipe_signature
@@ -29,6 +30,56 @@ def _radio(text: str, group: str, selected: bool = False):
         "kind": "input", "text": text, "control_type": "radio",
         "choice_group": group, "group_label": group, "selected": selected,
     }
+
+
+def test_question_like_consent_is_a_deterministic_navigation_action():
+    selector_map = {
+        "e1": _button("Agree and Continue", visible=True, disabled=False),
+    }
+    action = trusted_consent_action(
+        selector_map,
+        "We would like your consent to collect demographics. By clicking Agree and Continue "
+        "you agree to the terms and privacy policy.",
+    )
+    assert action == {
+        "verb": "click", "element_id": "e1", "answer_basis": "page_navigation",
+        "proposal_source": "deterministic_consent", "vision_requested": False,
+        "expected_change": "Consent control disappears or the survey page advances.",
+    }
+    assert survey_gate_violation(
+        action, selector_map,
+        page_text="We would like your consent to collect demographics. By clicking Agree and Continue "
+        "you agree to the terms and privacy policy.",
+    ) == ""
+
+
+def test_consent_classifier_rejects_generic_and_answer_controls():
+    assert trusted_consent_action(
+        {"e1": _button("Continue")}, "Do you agree to answer this question?"
+    ) is None
+
+
+def test_consent_fast_path_is_model_free_and_snapshot_bound():
+    action = _survey_fast_path({
+        "continuous_survey_mode": True,
+        "snapshot_revision": "rev-consent-1",
+        "page_text": "Consent to collect information. Agree and Continue to proceed.",
+        "selector_map": {"e1": _button("Agree and Continue")},
+    }, set())
+    assert action["verb"] == "click"
+    assert action["element_id"] == "e1"
+    assert action["proposal_source"] == "deterministic_consent"
+    assert trusted_consent_action(
+        {"e1": {**_radio("I agree", "consent"), "visible": True}},
+        "Please select your answer.",
+    ) is None
+    assert trusted_consent_action(
+        {"e1": _button("Agree and Continue", disabled=True)}, "Consent"
+    ) is None
+    assert trusted_consent_action(
+        {"e1": _button("Agree and Continue"), "e2": _button("Accept and Continue")},
+        "Consent is required to proceed.",
+    ) is None
 
 
 def test_canonical_url_ignores_values_but_keeps_route_keys():
@@ -66,6 +117,22 @@ def test_sparse_question_does_not_allow_next_as_a_probe():
         page_text="What is your age? Please select one answer.",
     )
     assert "native answer controls" in reason
+
+
+def test_sparse_question_uses_bounded_wait_without_model_or_vision():
+    state = {
+        "continuous_survey_mode": True,
+        "snapshot_revision": "sparse-r1",
+        "page_text": "What is your age? Please select one answer.",
+        "selector_map": {"e1": _button("Next")},
+    }
+    first = _survey_fast_path(state, set())
+    assert first["verb"] == "wait"
+    assert first["gate_reason_code"] == "SURVEY_NATIVE_CONTROLS_MISSING"
+    second = _survey_fast_path({**state, "survey_hold_identity": first["held_action_identity"],
+                                "survey_hold_count": first["hold_count"]}, set())
+    assert second["hold_count"] == 2
+    assert second["verb"] == "wait"
 
 
 def test_recovered_native_control_is_not_sparse():

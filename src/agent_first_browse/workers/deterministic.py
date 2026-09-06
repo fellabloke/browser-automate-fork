@@ -30,6 +30,19 @@ def _survey_fast_path(
     page_text = str(state.get("page_text") or "")
     if not selector_map:
         return None
+    if state.get("survey_gate_exhausted"):
+        boundary = str(state.get("survey_home_url") or "").strip()
+        return {
+            "verb": "abandon_survey" if boundary else "wait",
+            "element_id": None, "url": boundary or None,
+            "target_name": "survey provider dashboard" if boundary else "survey gate exhausted",
+            "answer_basis": "page_navigation", "survey_boundary_reason": "SURVEY_GATE_EXHAUSTED",
+            "rationale": "The same held action exhausted its bounded recovery budget.",
+            "reasoning": "Change tactic by leaving the current survey attempt; never re-enter the same model/gate loop.",
+            "expected_change": "The provider dashboard is restored or the attempt terminates.",
+            "risk_level": "REVERSIBLE", "reversible": True, "queued_actions": [],
+            "execution_mode": "single_action",
+        }
     recovery_active = bool(
         int(state.get("stagnation_level", 0) or 0) > 0
         or int(state.get("consecutive_identical_actions", 0) or 0) >= 2
@@ -49,7 +62,49 @@ def _survey_fast_path(
             paidwork_selection_ready,
             survey_gate_violation,
             survey_visible_form_completeness,
+            sparse_survey_dom,
+            trusted_consent_action,
         )
+
+        consent = trusted_consent_action(selector_map, page_text)
+        if consent:
+            target = selector_map[consent["element_id"]]
+            return {
+                **consent,
+                "target_name": str(target.get("text") or target.get("name") or "Agree and Continue")[:100],
+                "target_context": str(target.get("hint") or target.get("description") or "")[:120],
+                "text": None, "url": None, "x": target.get("x"), "y": target.get("y"),
+                "rationale": "The live DOM exposes one explicit enabled consent-and-continue control.",
+                "reasoning": "Consent navigation is deterministic; do not invoke text or vision inference.",
+                "question_text": page_text[:300], "queued_actions": [],
+                "execution_mode": "single_action", "risk_level": "CAUTIOUS", "reversible": True,
+            }
+
+        # A question with no native answer controls is a deterministic DOM
+        # condition. Hold the grounded forward control for at most two fresh
+        # perceptions; never spend correction-model or vision budget trying to
+        # justify a blind Next.
+        if sparse_survey_dom(page_text, selector_map):
+            from agent_first_browse.survey.context import preferred_forward_control_id
+            forward_id = preferred_forward_control_id(selector_map)
+            if forward_id:
+                identity = "|".join((
+                    str(state.get("snapshot_revision") or state.get("survey_page_fingerprint") or ""),
+                    "click", forward_id,
+                ))
+                count = int(state.get("survey_hold_count", 0) or 0) + 1 \
+                    if identity == str(state.get("survey_hold_identity") or "") else 1
+                return {
+                    "verb": "wait", "element_id": None, "text": None,
+                    "target_name": str(selector_map[forward_id].get("text") or "forward control")[:100],
+                    "answer_basis": "page_navigation", "queued_actions": [],
+                    "execution_mode": "single_action", "risk_level": "REVERSIBLE", "reversible": True,
+                    "survey_gate_hold": True, "gate_reason_code": "SURVEY_NATIVE_CONTROLS_MISSING",
+                    "held_action_identity": identity, "hold_count": count,
+                    "wait_ms": 500, "rationale": "Bounded DOM re-render recovery.",
+                    "reasoning": "Native survey answer controls are absent; do not click the forward control as a probe.",
+                    "expected_change": "A fresh perception exposes native answer controls or exhausts the attempt.",
+                }
 
         # Qmee keeps an active-survey marker server-side even after every local
         # survey/dashboard tab has been closed.  Resolve both stages of its
@@ -305,4 +360,3 @@ def _survey_fast_path(
     except Exception as exc:
         logger.debug("Deterministic survey fast path skipped (non-fatal): %s", exc)
     return None
-

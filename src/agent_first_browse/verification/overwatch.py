@@ -28,6 +28,7 @@ References:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import time
 from typing import Any
@@ -349,6 +350,21 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
         updates["error_count"] = state.get("error_count", 0) + 1
         return updates
 
+    proposal_revision = str(proposed.get("snapshot_revision") or "")
+    current_revision = str(state.get("snapshot_revision") or "")
+    if proposal_revision and current_revision and proposal_revision != current_revision:
+        logger.warning(
+            "🧭 Overwatch L1: stale snapshot proposal rejected (%s != %s)",
+            proposal_revision, current_revision,
+        )
+        updates.update({
+            "overwatch_verdict": "retry",
+            "action_outcome": "STALE_SNAPSHOT_REPERCEIVE",
+            "proposed_action": None,
+            "correction_context": "The page changed after this proposal was grounded; re-perceive before acting.",
+        })
+        return updates
+
     if verb == "done":
         # Done actions skip to Layer 4 (CoVe check)
         return await _layer_4_cove_check(state, page, updates)
@@ -458,6 +474,20 @@ async def overwatch_node(state: dict[str, Any], page, critic, action_verifier=No
     # Execute the action via MCP tools
     execution_started_at = time.monotonic()
     action_outcome = await _execute_action(proposed, page)
+    logger.info("SURVEY_EXECUTION_EVENT %s", json.dumps({
+        "event": "survey_action_execution",
+        "run_id": state.get("run_id", ""),
+        "survey_attempt_id": state.get("survey_attempt_id", ""),
+        "step_id": state.get("step_number", 0),
+        "snapshot_revision": state.get("snapshot_revision", ""),
+        "proposal_action": verb,
+        "proposal_element_id": element_id or "",
+        "execution_attempted": True,
+        "execution_verified": _action_execution_confirmed(action_outcome),
+        "gate_verdict": "allow",
+        "rollback_reason": "",
+        "rollback_tactic": "",
+    }, separators=(",", ":")))
     if applied_site_quirk:
         action_outcome += f"; SITE QUIRK APPLIED ({applied_site_quirk})"
 

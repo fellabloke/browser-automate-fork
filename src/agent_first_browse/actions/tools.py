@@ -20,8 +20,9 @@ References:
 from __future__ import annotations
 
 import asyncio
-import base64
+import hashlib
 import json
+import base64
 import logging
 import os
 import random
@@ -1407,12 +1408,21 @@ async def mcp_snapshot() -> dict:
         except Exception:
             pass
 
+        # One revision covers every representation returned from this pass.
+        # Overwatch and workers can therefore reject proposals from an older
+        # selector map instead of mixing sparse-recovery controls with the
+        # original element count/handle registry.
+        snapshot_revision = hashlib.sha256(json.dumps({
+            "url": getattr(page, "url", ""),
+            "elements": elements_list,
+        }, sort_keys=True, default=str).encode("utf-8")).hexdigest()[:20]
         return {
             "elements": elements_list,
             "markdown": dom_data.get("markdown", ""),
             "page_text": dom_data.get("page_text", ""),
-            "element_count": dom_data.get("element_count", len(elements_list)),
+            "element_count": len(elements_list),
             "selector_map": smap,
+            "snapshot_revision": snapshot_revision,
             "image_size": dom_data.get("image_size", {}),
             "sparse_dom_status": sparse_recovery.get("status", "NOT_NEEDED"),
             "sparse_dom_control_count": int(sparse_recovery.get("count", 0) or 0),

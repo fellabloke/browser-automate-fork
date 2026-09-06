@@ -376,6 +376,7 @@ async def invoke_worker(
             except Exception:
                 pass
         if fast_action:
+            fast_action["snapshot_revision"] = str(state.get("snapshot_revision") or "")
             logger.info(
                 "⚡ DETERMINISTIC SURVEY FAST PATH: %s [%s]",
                 fast_action.get("verb"), fast_action.get("element_id") or "",
@@ -390,6 +391,12 @@ async def invoke_worker(
                 "consecutive_identical_actions": (
                     int(state.get("consecutive_identical_actions", 0) or 0) + 1
                     if signature == state.get("last_action_signature") else 0
+                ),
+                "survey_hold_identity": str(fast_action.get("held_action_identity") or state.get("survey_hold_identity") or ""),
+                "survey_hold_count": int(fast_action.get("hold_count") or state.get("survey_hold_count", 0) or 0),
+                "survey_gate_exhausted": bool(
+                    fast_action.get("survey_gate_hold")
+                    and int(fast_action.get("hold_count", 0) or 0) >= 2
                 ),
             }
 
@@ -1060,6 +1067,7 @@ async def invoke_worker(
         "target_x": getattr(decision, "target_x", None),
         "target_y": getattr(decision, "target_y", None),
         "target_element_id": getattr(decision, "target_element_id", None),
+        "snapshot_revision": str(state.get("snapshot_revision") or ""),
         "queued_actions": [item.model_dump() for item in decision.queued_actions[:8]],
     }
     queue_anchor = (
@@ -1843,6 +1851,8 @@ async def invoke_worker(
             if final_violation:
                 logger.warning("🧷 FINAL SURVEY GATE held unsafe action: %s",
                                final_violation[:140])
+                held_verb = str(proposed.get("verb") or "click")
+                held_element_id = str(proposed.get("element_id") or decision.element_id or "")
                 proposed = {
                     **proposed,
                     "verb": "wait",
@@ -1856,6 +1866,23 @@ async def invoke_worker(
                     "risk_level": "REVERSIBLE",
                     "reversible": True,
                 }
+                hold_identity = "|".join((
+                    str(state.get("snapshot_revision") or state.get("survey_page_fingerprint") or ""),
+                    held_verb,
+                    held_element_id,
+                ))
+                prior_identity = str(state.get("survey_hold_identity") or "")
+                prior_count = int(state.get("survey_hold_count", 0) or 0)
+                hold_count = prior_count + 1 if hold_identity == prior_identity else 1
+                proposed["held_action_identity"] = hold_identity
+                proposed["hold_count"] = hold_count
+                proposed["gate_reason_code"] = (
+                    "SURVEY_NATIVE_CONTROLS_MISSING" if "native answer controls" in final_violation
+                    else "SURVEY_GATE_REJECTED"
+                )
+                # Keep the original action identity in state even though the
+                # executable proposal is safely converted to wait.
+                proposed["survey_gate_hold"] = True
                 webdreamer_update["correction_context"] = (
                     "\n\n🧷 SURVEY STATE GATE: " + final_violation
                     + " Re-read the current question and selected markers."
@@ -1936,6 +1963,22 @@ async def invoke_worker(
             logger.debug("Survey transaction preparation skipped (non-fatal): %s", exc)
 
     # ── Action dedup tracking ──
+    logger.info("SURVEY_ACTION_EVENT %s", json.dumps({
+        "event": "survey_action_proposal",
+        "run_id": state.get("run_id", ""),
+        "survey_attempt_id": state.get("survey_attempt_id", ""),
+        "step_id": state.get("step_number", 0),
+        "snapshot_revision": state.get("snapshot_revision", ""),
+        "page_fingerprint": state.get("survey_page_fingerprint", ""),
+        "control_count": state.get("element_count", 0),
+        "proposal_source": proposed.get("proposal_source", "model"),
+        "proposal_action": proposed.get("verb", ""),
+        "proposal_element_id": proposed.get("element_id", ""),
+        "gate_reason": proposed.get("gate_reason_code", ""),
+        "gate_verdict": "hold" if proposed.get("survey_gate_hold") else "allow",
+        "vision_requested": bool(proposed.get("vision_requested") or proposed.get("vision_used")),
+        "hold_count": proposed.get("hold_count", state.get("survey_hold_count", 0)),
+    }, separators=(",", ":")))
     current_sig = f"{proposed['verb']}:{(proposed.get('text') or 'none')[:30]}"
     last_sig = state.get("last_action_signature", "")
     if current_sig == last_sig:
@@ -1948,6 +1991,12 @@ async def invoke_worker(
         "last_action_signature": current_sig,
         "consecutive_identical_actions": new_consecutive,
         "survey_model_wait_seconds": model_wait_seconds,
+        "survey_hold_identity": str(proposed.get("held_action_identity") or state.get("survey_hold_identity") or ""),
+        "survey_hold_count": int(proposed.get("hold_count") or state.get("survey_hold_count", 0) or 0),
+        "survey_gate_exhausted": bool(
+            int(proposed.get("hold_count", 0) or 0) >= 2
+            and proposed.get("survey_gate_hold")
+        ),
         # expose the bound target so Overwatch (reality note) and the
         # done-judge can keep the agent locked on the right item.
         "bound_target": (bound_target.phrase if bound_target else ""),
