@@ -1,5 +1,5 @@
 import asyncio
-from advanced_agent import run_agent
+from agent_first_browse.agent.graph import run_brain
 
 if __name__ == "__main__":
     prompt = """Go to https://issuetracker.google.com/issues/new and submit this bug report. If that page requires login or doesn't load a form, try https://support.google.com/gemini/community instead and create a new post there.
@@ -24,4 +24,4 @@ Expected Resolutions
 1. Deploy a permanent fix for the Gemini 3.1 Pro API and Android search routing.
 2. Restore standard window controls (close buttons) to all panels within the Antigravity IDE.
 3. Reintroduce the unified Sandbox view for simultaneous code and plan review to restore professional workflow efficiency."""
-    asyncio.run(run_agent(prompt))
+    asyncio.run(run_brain(prompt))

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
-from app.logger import get_logger
+from agent_first_browse.logging import get_logger
 
 logger = get_logger("twitter_thread")
 

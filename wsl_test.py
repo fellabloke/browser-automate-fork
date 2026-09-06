@@ -8,14 +8,13 @@ from pathlib import Path
 from datetime import datetime
 
 _ROOT = Path(__file__).resolve().parent
-sys.path.insert(0, str(_ROOT / "python-orchestrator"))
 
 from dotenv import load_dotenv
 load_dotenv(_ROOT / ".env")
 
 from playwright.async_api import async_playwright
-from app.browser_promoter.playwright_human_input import PlaywrightHumanInput
-from app.browser_promoter.browser_runtime import _detect_environment
+from agent_first_browse.promotion.browser_promoter.playwright_human_input import PlaywrightHumanInput
+from agent_first_browse.promotion.browser_promoter.browser_runtime import _detect_environment
 
 
 async def main():

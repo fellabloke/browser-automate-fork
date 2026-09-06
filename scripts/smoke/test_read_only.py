@@ -1,12 +1,5 @@
 import asyncio
-import sys
-from pathlib import Path
-
-# Add orchestrator to path so imports work
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.append(str(REPO_ROOT / "python-orchestrator"))
-
-from advanced_agent import run_agent
+from agent_first_browse.agent.graph import run_brain
 
 objective = """
 MISSION: READ-ONLY HUMAN BROWSING TEST
@@ -21,4 +14,4 @@ CRITICAL RULES FOR THIS RUN:
 
 if __name__ == "__main__":
     print("Starting Read-Only Browsing Test on Reddit...")
-    asyncio.run(run_agent(objective))
+    asyncio.run(run_brain(objective))

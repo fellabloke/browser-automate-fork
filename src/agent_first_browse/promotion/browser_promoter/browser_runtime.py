@@ -33,7 +33,10 @@ from .cdp_stealth_launcher import (
 )
 from .state import BrowserConfig
 from agent_first_browse.logging import get_logger
-from site_customizations import apply_current_site_customizations, install_site_customizations
+from agent_first_browse.browser.site_customizations import (
+    apply_current_site_customizations,
+    install_site_customizations,
+)
 
 logger = get_logger(__name__)
 

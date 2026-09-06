@@ -1,3 +1,0 @@
-"""Compatibility namespace for packaged browser-promotion modules."""
-
-from agent_first_browse.promotion.browser_promoter import *  # noqa: F401,F403

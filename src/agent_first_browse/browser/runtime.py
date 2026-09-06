@@ -27,7 +27,10 @@ from agent_first_browse.promotion.browser_promoter.cdp_stealth_launcher import (
     get_random_viewport,
     get_stealth_init_script,
 )
-from site_customizations import apply_current_site_customizations, install_site_customizations
+from agent_first_browse.browser.site_customizations import (
+    apply_current_site_customizations,
+    install_site_customizations,
+)
 
 logger = get_logger("browser.runtime")
 

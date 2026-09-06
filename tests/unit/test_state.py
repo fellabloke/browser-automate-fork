@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from app.browser_promoter.state import (
+from agent_first_browse.promotion.browser_promoter.state import (
     AgentState,
     BrowserAction,
     BrowserConfig,

@@ -13,17 +13,14 @@ Run: .venv/bin/python -m pytest tests/integration/test_antibot_v22.py -v
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.append(str(REPO_ROOT / "python-orchestrator"))
-
 from agent_first_browse.perception import dom as dom_parser
 from agent_first_browse.browser import display as virtual_display
-from app.browser_promoter.cdp_stealth_launcher import (
+from agent_first_browse.promotion.browser_promoter.cdp_stealth_launcher import (
     STEALTH_INIT_SCRIPT,
     STEALTH_LAUNCH_ARGS,
 )
@@ -63,8 +60,8 @@ def test_unsupported_automation_blink_flag_is_absent_from_every_launcher():
         root / "Start-Agent.ps1",
         root / "windows_chrome_bridge.py",
         root / "wsl_test.py",
-        root / "python-orchestrator/app/browser_promoter/cdp_stealth_launcher.py",
-        root / "python-orchestrator/app/browser_promoter/google_stealth_auth_graph.py",
+        root / "src/agent_first_browse/promotion/browser_promoter/cdp_stealth_launcher.py",
+        root / "src/agent_first_browse/promotion/browser_promoter/google_stealth_auth_graph.py",
     )
 
     assert unsupported not in STEALTH_LAUNCH_ARGS

@@ -93,7 +93,7 @@ async def _sync_active_page(fallback_url: str = "", *, force_recovery: bool = Fa
             except Exception:
                 pass
         try:
-            from site_customizations import apply_current_site_customizations
+            from agent_first_browse.browser.site_customizations import apply_current_site_customizations
             await apply_current_site_customizations(active)
         except Exception:
             pass

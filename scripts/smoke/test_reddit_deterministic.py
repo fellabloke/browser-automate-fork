@@ -1,14 +1,12 @@
 import asyncio
-import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.append(str(REPO_ROOT / "python-orchestrator"))
 
 from playwright.async_api import async_playwright
 
-from app.browser_promoter.browser_warmup import run_warmup
-from app.browser_promoter.cdp_stealth_launcher import (
+from agent_first_browse.promotion.browser_promoter.browser_warmup import run_warmup
+from agent_first_browse.promotion.browser_promoter.cdp_stealth_launcher import (
     STEALTH_INIT_SCRIPT,
     STEALTH_LAUNCH_ARGS,
     STEALTH_USER_AGENT,
@@ -16,7 +14,7 @@ from app.browser_promoter.cdp_stealth_launcher import (
     apply_page_stealth,
     get_random_viewport,
 )
-from app.logger import get_logger
+from agent_first_browse.logging import get_logger
 from agent_first_browse.browser.ghost_input import ghost_click, ghost_type
 
 logger = get_logger("deterministic_reddit")

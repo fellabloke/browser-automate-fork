@@ -47,10 +47,10 @@ The primary user-facing runtime is:
 agent.sh
     |
     v
-run_v16.py run <objective>
+agent_first_browse.cli run <objective>
     |
     v
-brain_graph.run_brain(...)
+agent_first_browse.agent.graph.run_brain(...)
     |
     v
 LangGraph StateGraph
@@ -101,12 +101,12 @@ navigator        interactor        extractor
          v
         END
 
-Exact edges are defined in brain_graph.py; this diagram is conceptual and should remain high level.
+Exact edges are defined in `agent_first_browse.agent.graph`; this diagram is conceptual and should remain high level.
 
 Current major runtime components
 
-agent_first_browse.cli     CLI / startup (root run_v16.py shim)
-agent_first_browse.agent.graph orchestration graph (root brain_graph.py shim)
+agent_first_browse.cli     CLI / startup (root run_v16.py compatibility launcher)
+agent_first_browse.agent.graph orchestration graph (root brain_graph.py compatibility shim)
 agent_first_browse.agent.state typed global graph state (root shim: brain_state.py)
 agent_first_browse.agent.routing worker/verdict routing (root shim: moe_router.py)
 agent_first_browse.config.feature_flags runtime feature switches (root shim: feature_flags.py)
@@ -116,7 +116,7 @@ agent_first_browse.browser.* CDP, humanized input, overlays, display, and platfo
 agent_first_browse.survey.* survey context, profile, recipes, audio, outcomes, quirks, and benchmarks
 agent_first_browse.memory.* campaign, skill, intent, and content memory
 agent_first_browse.promotion.* browser-promoter graph, state, nodes, supervisor, integrations, database, and observability
-agent_first_browse.logging    shared runtime logger; historical app.logger is a compatibility wrapper
+agent_first_browse.logging    shared runtime logger
 agent_first_browse.verification.* action safety, verification, outcomes, progress, and Overwatch (root shims retained)
 agent_first_browse.cognition.* deterministic and model-backed cognition (root shims retained)
 agent_first_browse.actions.tools canonical browser-action façade (root mcp_tools.py shim retained)
@@ -130,93 +130,22 @@ agent_first_browse.models.failover ordinary inference, retry/failover, and struc
 agent_first_browse.workers.base specialist worker decision path (root shim: workers/base_worker.py)
 mcp_tools.py                compatibility shim for agent_first_browse.actions.tools
 overwatch.py                compatibility shim for agent_first_browse.verification.overwatch
-perception_engine.py        adaptive perception routing
-cognition*.py               reasoning/guidance state
-survey_*.py                 survey domain capability
+perception_engine.py        compatibility shim for canonical perception
+cognition*.py               compatibility shims for canonical cognition
+survey_*.py                 compatibility shims for canonical survey
 
-1. The repository is currently a hybrid of multiple architectures
+1. Retired legacy architectures
 
-3.1 Root runtime modules
+Wave 4 retired the old `orchestrator/`, root runtime `skills/`, and
+`python-orchestrator/` trees after active callers were migrated to canonical
+package owners. The autonomous implementation in `advanced_agent.py` was
+drained; the remaining file is a compatibility façade for legacy imports and
+delegates to the canonical graph, browser runtime, and model façade.
 
-Most of the v16+ browser-agent implementation is now imported from `agent_first_browse`; root modules and `python-orchestrator/app` remain only as compatibility shims during migration.
-
-Examples:
-
-brain_graph.py
-src/agent_first_browse/agent/state.py (root shim: brain_state.py)
-src/agent_first_browse/models/registry.py (root shim: model_registry.py)
-mcp_tools.py
-overwatch.py
-src/agent_first_browse/perception/engine.py (root shim: perception_engine.py)
-survey_context.py
-...
-
-This works from the repository checkout but makes package boundaries and ownership ambiguous.
-
-3.2 workers/
-
-workers/base_worker.py is part of the current v16+ decision path. It should be treated as active runtime code.
-
-The worker currently owns more than one concern, including prompt composition, deterministic/fast paths, model invocation support, action construction, and escalation logic. These responsibilities may be separated later, but not in the same change as its initial package migration.
-
-3.3 root skills/
-
-The root skills/ package defines runtime browser-action classes such as navigation, interaction, and extraction.
-
-It is not a Codex skills directory.
-
-Because Codex repository skills conventionally live under .agents/skills/, the application package should eventually rename this concept to actions/ to avoid permanent ambiguity.
-
-3.4 advanced_agent.py
-
-advanced_agent.py is the old monolithic agent loop and is not the canonical v16 decision path.
-
-However, it is not safe to delete yet. The repository still imports behavior from it, including current manual-login/session/browser utilities and legacy tests/scripts.
-
-Migration rule:
-
-legacy implementation
-    -> identify still-active responsibilities
-    -> extract responsibility into target package
-    -> keep compatibility import if needed
-    -> migrate callers
-    -> add/verify tests
-    -> prove no active dependency remains
-    -> delete legacy implementation
-
-Do not combine “remove advanced_agent.py” with unrelated feature changes.
-
-3.5 old orchestrator/
-
-orchestrator/ contains an older CEO/Spawner/Executor/DAG architecture.
-
-The primary v16 graph does not use that architecture as its orchestration spine, but active code still references orchestrator/critic_v12.py.
-
-Therefore the directory is legacy-with-live-dependency, not simply dead code.
-
-Target approach:
-
-identify which pieces are still actively imported;
-
-move still-used behavior (for example progress/critic behavior) to the appropriate target package;
-
-migrate callers;
-
-retire the old orchestration package only after proof that no active path depends on it.
-
-3.6 python-orchestrator/
-
-pyproject.toml currently discovers both the new `src/agent_first_browse/` scaffold and the transitional `python-orchestrator/app/` package tree; the main v16 runtime still largely lives outside both package roots.
-
-Root modules work around the split with code such as:
-
-sys.path.append(str(Path(__file__).parent / "python-orchestrator"))
-
-The app package supplies active infrastructure such as logging and browser-promoter/browser-runtime utilities. It also contains a separate browser-promoter graph with its own state, nodes, tests, and persistence.
-
-Do not assume the browser-promoter graph and the v16 browser-agent graph are the same architecture.
-
-The long-term goal is to absorb active app responsibilities into the single agent_first_browse package and remove the historical python-orchestrator/ packaging boundary.
+The remaining root Python files are supported launchers, diagnostics, or
+explicit compatibility shims. Canonical production code imports only
+`agent_first_browse.*`; compatibility flows point toward the canonical package,
+never back into a retired implementation.
 
 1. Runtime invariants
 
@@ -370,7 +299,7 @@ agent_first_browse.verification
 
 Progress critic
 
-agent_first_browse.verification.progress (root orchestrator/critic_v12.py shim)
+agent_first_browse.verification.progress (legacy orchestrator critic retired)
 
 agent_first_browse.verification.progress
 
@@ -407,7 +336,7 @@ package root/shared infrastructure
 
 Runtime action classes
 
-root skills/
+historical root skills/ (retired; Codex skills remain under .agents/skills/)
 
 agent_first_browse.actions
 
@@ -626,15 +555,13 @@ invocation. The root `model_registry.py` and direct implementation imports
 remain compatibility surfaces for tests and legacy scripts; active runtime
 callers use the package API.
 
-Shared runtime logging is owned by `agent_first_browse.logging`. The historical
-`app.logger` and promotion logger paths remain wrappers, while promotion-only
+Shared runtime logging is owned by `agent_first_browse.logging`; promotion-only
 observability and call pacing remain under `agent_first_browse.promotion`.
 
 The canonical browser-promoter implementation is owned by
 `agent_first_browse.promotion.browser_promoter` and uses relative package
-imports plus the canonical logger. `python-orchestrator/app/browser_promoter`
-remains a module-identity-preserving compatibility namespace for legacy scripts
-and tests; it is not an additional implementation.
+imports plus the canonical logger. The historical `python-orchestrator` tree
+has been retired; callers must use the canonical package.
 
 The worker implementation is now owned by `src/agent_first_browse/workers/base.py`
 with the root `workers/base_worker.py` retained as a compatibility alias. Further
@@ -651,11 +578,11 @@ A temporary root file may re-export the new implementation:
 from agent_first_browse.agent.state import *
 
 Current compatibility surfaces include `model_registry.py`,
-`workers/base_worker.py`, `checkpoint_retention.py`, the migrated survey and
-memory root modules, and the historical `app.browser_promoter.*` namespace.
-They now forward to canonical package modules, including module identity where
-legacy tests monkeypatch imported modules. Remove each shim only after its
-remaining script/test callers have migrated.
+`workers/base_worker.py`, `checkpoint_retention.py`, and migrated survey,
+memory, cognition, verification, browser, and action root modules. They
+forward to canonical package modules, including module identity where legacy
+tests monkeypatch imported modules. Remove each shim only after its remaining
+script/test callers have migrated.
 
 A shim is a migration tool, not a permanent second API.
 
@@ -771,9 +698,9 @@ run_v16.py     -> cli.py
 
 At this point launchers should converge on one installed CLI entry point while retaining shell/PowerShell convenience wrappers.
 
-Phase 9 — Legacy retirement
+Phase 9 — Legacy retirement (complete)
 
-Extract the final active responsibilities from:
+The final active responsibilities were drained from:
 
 advanced_agent.py;
 
@@ -783,7 +710,9 @@ historical python-orchestrator/ package boundaries;
 
 temporary root compatibility modules.
 
-Delete only after active import/call-site searches and regression tests demonstrate that they are no longer required.
+The old orchestrator and `python-orchestrator` trees are removed. Root
+launchers and compatibility shims remain only where their documented import or
+launcher contract is still useful.
 
 Phase 10 — Decomposition and optimization
 
@@ -945,13 +874,11 @@ Versioned files such as V29_OVERHAUL.md are valuable history but should not perm
 
 These are known sources of ambiguity that Codex should check before making broad changes:
 
-The active v16 runtime is mainly in root modules while pyproject.toml now packages the initial `src/agent_first_browse/` scaffold alongside the transitional `python-orchestrator/` tree.
+The active v16 runtime is packaged under `src/agent_first_browse/`; root
+launchers and compatibility shims are not authoritative implementations.
 
-Root modules mutate sys.path to import app from python-orchestrator/.
-
-advanced_agent.py is legacy orchestration but still supplies active utilities/manual login behavior.
-
-The old orchestrator/ package is mostly superseded but still contains at least one active critic dependency.
+`advanced_agent.py` is a compatibility façade only. The old orchestrator and
+`python-orchestrator` package trees have been removed.
 
 The browser-promoter graph is a separate graph and should not be mistaken for the v16 orchestration spine.
 
@@ -1003,8 +930,8 @@ The purpose is to create a structure in which those later changes can be evaluat
 
  `agent_first_browse.browser.runtime` owns v16 browser launch, LOCAL_CDP versus
  local Playwright selection, persistent profile handling, `SessionGuard`, manual
- login, and shutdown. `advanced_agent.py` still owns its legacy autonomous loop
- and forwards its lifecycle symbols to this canonical runtime module.
+ login, and shutdown. `advanced_agent.py` is now only a compatibility façade
+ and owns no autonomous loop or browser implementation.
 
  `agent_first_browse.agent.graph` owns the LangGraph orchestration spine.
  `brain_graph.py` is a compatibility façade and does not retain a second graph
@@ -1017,9 +944,9 @@ The purpose is to create a structure in which those later changes can be evaluat
 
  These moves preserve the worker proposal boundary, Overwatch execution
  authority, graph topology/state/retry behavior, browser session semantics, and
- CLI argument behavior. Legacy `advanced_agent.py`, `orchestrator/`,
- `python-orchestrator/`, root runtime modules, and compatibility wrappers remain
- intentionally available for callers not yet migrated.
+ CLI argument behavior. Root launchers and compatibility wrappers remain only
+ where legacy imports or supported convenience entrypoints justify them; the
+ old orchestrator and python-orchestrator implementations are removed.
 
 The base structural refactor is substantially complete when:
 

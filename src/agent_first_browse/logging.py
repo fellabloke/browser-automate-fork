@@ -1,7 +1,6 @@
 """Shared structured logging for the agent runtime.
 
 This is the canonical owner for the logger used by core runtime packages.
-The historical ``app.logger`` module remains a compatibility wrapper.
 """
 
 from __future__ import annotations

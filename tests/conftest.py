@@ -2,15 +2,12 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(REPO_ROOT / "python-orchestrator"))
-
-from app.browser_promoter.state import (
+from agent_first_browse.promotion.browser_promoter.state import (
     AgentState,
     BrowserConfig,
     CampaignContext,

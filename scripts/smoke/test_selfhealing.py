@@ -1,9 +1,4 @@
 """Smoke test for v8.0 Self-Healing & Anti-Detection modules."""
-import sys
-from pathlib import Path
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(REPO_ROOT / "python-orchestrator"))
 from collections import Counter
 
 # Test 1: Circuit Breaker
@@ -45,7 +40,7 @@ assert visit_count >= 3, f"Expected loop detection, got {visit_count}"
 print(f"✅ Anti-Loop Watchdog: detected '{most_common_url}' visited {visit_count}x in 6 steps")
 
 # Test 3: SessionGuard exists and is a singleton
-from advanced_agent import SessionGuard
+from agent_first_browse.browser.runtime import SessionGuard
 
 g1 = SessionGuard.get()
 g2 = SessionGuard.get()

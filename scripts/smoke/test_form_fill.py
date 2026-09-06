@@ -1,16 +1,12 @@
 import asyncio
 import logging
 import sys
-from pathlib import Path
-
-REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.append(str(REPO_ROOT / "python-orchestrator"))
 
 from langchain_core.runnables import RunnableConfig
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 
-from app.browser_promoter.nodes import (
+from agent_first_browse.promotion.browser_promoter.nodes import (
     auth_check_node,
     browser_controller_node,
     housekeeping_node,
@@ -21,7 +17,7 @@ from app.browser_promoter.nodes import (
     task_logging_node,
     vision_agent_node,
 )
-from app.browser_promoter.state import AgentState, BrowserConfig, CampaignContext, HighLevelCommand
+from agent_first_browse.promotion.browser_promoter.state import AgentState, BrowserConfig, CampaignContext, HighLevelCommand
 
 # Force logging visible
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s", stream=sys.stdout)

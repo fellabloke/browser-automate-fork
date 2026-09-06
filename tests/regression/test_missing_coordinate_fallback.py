@@ -4,9 +4,9 @@ from __future__ import annotations
 
 import pytest
 
-from app.browser_promoter import nodes
-from app.browser_promoter.state import BrowserAction, HighLevelCommand
-from app.browser_promoter.worker_planner import ReasoningDecision
+from agent_first_browse.promotion.browser_promoter import nodes
+from agent_first_browse.promotion.browser_promoter.state import BrowserAction, HighLevelCommand
+from agent_first_browse.promotion.browser_promoter.worker_planner import ReasoningDecision
 
 
 @pytest.mark.asyncio
@@ -54,8 +54,8 @@ async def test_dom_fallback_resolves_fresh_element_center(monkeypatch, agent_sta
 
 @pytest.mark.asyncio
 async def test_selector_fallback_is_used_by_executor(monkeypatch):
-    import app.browser_promoter.shadow_dom_piercer as piercer
-    import app.browser_promoter.zero_token_executor as executor_module
+    import agent_first_browse.promotion.browser_promoter.shadow_dom_piercer as piercer
+    import agent_first_browse.promotion.browser_promoter.zero_token_executor as executor_module
 
     class FakePage:
         pass

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import asyncio
 
-from site_customizations import (
+from agent_first_browse.browser.site_customizations import (
     SITE_CUSTOMIZATION_INIT_SCRIPT,
     apply_current_site_customizations,
     install_site_customizations,

@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.append(str(REPO_ROOT / "python-orchestrator"))
 
 from agent_first_browse.config import feature_flags as ff
 import mcp_tools
@@ -102,7 +101,7 @@ def test_diffing_flag(monkeypatch):
 
 def test_critic_verdict_carries_state_change_score():
     # the Verdict slot exists and defaults to 0.0 (no regression to existing fields)
-    from orchestrator.critic_v12 import Verdict
+    from agent_first_browse.verification.progress import Verdict
     v = Verdict(success=True, reason="x")
     assert hasattr(v, "state_change_score") and v.state_change_score == 0.0
     v2 = Verdict(success=True, reason="y", state_change_score=0.7)

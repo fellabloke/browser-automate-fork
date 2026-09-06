@@ -26,7 +26,6 @@ from zoneinfo import ZoneInfo
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.append(str(REPO_ROOT / "python-orchestrator"))
 
 import model_registry as mr
 from model_registry import (

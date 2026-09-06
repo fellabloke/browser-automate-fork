@@ -23,7 +23,6 @@ import pytest
 from pydantic import BaseModel
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.append(str(REPO_ROOT / "python-orchestrator"))
 
 from model_registry import (
     AGENTIC_TEXT_ALLOWLIST,

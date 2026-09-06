@@ -24,7 +24,6 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-sys.path.append(str(REPO_ROOT / "python-orchestrator"))
 
 from outcome_judge import build_judge_messages
 from prm_critic import ChecklistEvaluation, ChecklistItem, EvaluationItem, PRMCritic

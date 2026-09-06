@@ -526,7 +526,7 @@ async def launch_stealth_context(
         await context.add_init_script(
             get_stealth_init_script(browser_platform=str(browser_platform))
         )
-        from site_customizations import install_site_customizations
+        from agent_first_browse.browser.site_customizations import install_site_customizations
         current_page = context.pages[0] if context.pages else None
         await install_site_customizations(context, current_page)
         

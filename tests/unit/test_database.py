@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from app.browser_promoter.database import (
+from agent_first_browse.promotion.browser_promoter.database import (
     count_locked_target_communities,
     initialize_persistence_database,
     lock_target_community,

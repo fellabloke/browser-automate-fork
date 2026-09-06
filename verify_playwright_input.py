@@ -18,20 +18,15 @@ Run from Windows PowerShell:
 from __future__ import annotations
 
 import asyncio
-import sys
 from pathlib import Path
 
-# Ensure orchestrator is on path
 _PROJECT_ROOT = Path(__file__).resolve().parent
-_ORCHESTRATOR = _PROJECT_ROOT / "python-orchestrator"
-if str(_ORCHESTRATOR) not in sys.path:
-    sys.path.insert(0, str(_ORCHESTRATOR))
 
 from dotenv import load_dotenv
 load_dotenv(_PROJECT_ROOT / ".env")
 
 from playwright.async_api import async_playwright
-from app.browser_promoter.playwright_human_input import PlaywrightHumanInput
+from agent_first_browse.promotion.browser_promoter.playwright_human_input import PlaywrightHumanInput
 
 
 async def main():

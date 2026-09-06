@@ -19,7 +19,7 @@ import random
 from dataclasses import dataclass, field
 from pydantic import BaseModel, Field
 from langchain_core.messages import SystemMessage, HumanMessage
-from app.logger import get_logger
+from agent_first_browse.logging import get_logger
 
 logger = get_logger("github_engagement")
 

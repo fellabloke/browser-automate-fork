@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from app.browser_promoter.graph import build_graph
-from app.browser_promoter.supervisor_subgraph import build_supervisor_subgraph
+from agent_first_browse.promotion.browser_promoter.graph import build_graph
+from agent_first_browse.promotion.browser_promoter.supervisor_subgraph import build_supervisor_subgraph
 
 
 class TestBuildGraph:

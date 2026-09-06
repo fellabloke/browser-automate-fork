@@ -322,7 +322,7 @@ audio-only chain with `SURVEY_AUDIO_MODEL` and `SURVEY_AUDIO_ENABLED`.
 
 ### Operating Modes
 
-Browser routing is endpoint-driven. With `LOCAL_CDP_ENDPOINT` set, `advanced_agent.py` attaches with Playwright `connect_over_cdp()` and does not launch a browser or touch Xvfb. With the endpoint unset, the existing local Playwright persistent-context path is the explicit fallback.
+Browser routing is endpoint-driven. With `LOCAL_CDP_ENDPOINT` set, the canonical browser runtime attaches with Playwright `connect_over_cdp()` and does not launch a browser or touch Xvfb. With the endpoint unset, the existing local Playwright persistent-context path is the explicit fallback.
 
 ```dotenv
 BROWSER_MODE=LOCAL_CDP

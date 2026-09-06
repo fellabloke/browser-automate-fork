@@ -2,9 +2,9 @@ import os
 import sys
 sys.path.insert(0, '.')
 
-import brain_graph
-import prm_critic
-import cognition
+from agent_first_browse.agent import graph as brain_graph
+from agent_first_browse.cognition import prm as prm_critic
+from agent_first_browse.cognition import core as cognition
 import agent_first_browse.agent.state as brain_state
 from agent_first_browse.agent import routing as moe_router
 from agent_first_browse.workers.base import WorkerAction
@@ -42,7 +42,7 @@ assert cognition.PRM_AUDIT_EVERY == expected_prm_cadence, (
 )
 
 # Check URL extraction fix
-from app.browser_promoter.browser_warmup import extract_target_url_from_objective
+from agent_first_browse.promotion.browser_promoter.browser_warmup import extract_target_url_from_objective
 url = extract_target_url_from_objective("Navigate to Amazon (https://www.amazon.in).")
 print(f"URL extraction test: 'Navigate to Amazon (https://www.amazon.in).' -> '{url}'")
 assert url == "https://www.amazon.in", f"Expected 'https://www.amazon.in', got '{url}'"

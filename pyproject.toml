@@ -40,7 +40,7 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["src", "python-orchestrator"]
+where = ["src"]
 
 [tool.ruff]
 target-version = "py311"
@@ -53,7 +53,7 @@ select = ["E", "F", "W", "I", "UP", "B", "SIM", "RUF"]
 ignore = ["E501"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["agent_first_browse", "app"]
+known-first-party = ["agent_first_browse"]
 
 [tool.mypy]
 python_version = "3.11"
